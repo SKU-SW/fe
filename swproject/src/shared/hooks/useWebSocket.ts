@@ -27,6 +27,16 @@ export function useWebSocket<T>({
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 콜백을 ref에 저장하여 매 렌더마다 connect가 재생성되는 것을 방지
+  const onMessageRef = useRef(onMessage);
+  const onOpenRef = useRef(onOpen);
+  const onCloseRef = useRef(onClose);
+  const onErrorRef = useRef(onError);
+  useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
+  useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+
   const connect = useCallback(() => {
     if (!enabled || typeof window === 'undefined') return;
 
@@ -34,20 +44,20 @@ export function useWebSocket<T>({
     wsRef.current = ws;
 
     ws.onopen = () => {
-      onOpen?.();
+      onOpenRef.current?.();
     };
 
     ws.onmessage = (event: MessageEvent) => {
       try {
         const data: T = JSON.parse(event.data as string);
-        onMessage(data);
+        onMessageRef.current(data);
       } catch {
         // JSON 파싱 실패 시 무시
       }
     };
 
     ws.onclose = () => {
-      onClose?.();
+      onCloseRef.current?.();
       // 3초 후 재연결
       reconnectTimeoutRef.current = setTimeout(() => {
         if (enabled) connect();
@@ -55,9 +65,9 @@ export function useWebSocket<T>({
     };
 
     ws.onerror = (event: Event) => {
-      onError?.(event);
+      onErrorRef.current?.(event);
     };
-  }, [url, onMessage, onOpen, onClose, onError, enabled]);
+  }, [url, enabled]); // 콜백 제거 — ref로 최신값 참조
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
