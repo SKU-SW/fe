@@ -1,15 +1,14 @@
 /**
  * @file 로그아웃 훅 - useLogout
  * @created Sprint 1 - Auth 훅 구현
+ * @migrated next/navigation → react-router-dom
  * @dependsOn src/features/auth/api/authApi.ts (logout)
  * @dependsOn src/shared/stores/authStore.ts (clearAuth)
- * @usedBy src/app/(dashboard)/layout.tsx (헤더 로그아웃 버튼)
+ * @usedBy src/components/layouts/DashboardLayout.tsx (헤더 로그아웃 버튼)
  */
 
-'use client';
-
 import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { logout } from '@/features/auth/api/authApi';
 import { useAuthStore } from '@/shared/stores/authStore';
 
@@ -36,7 +35,7 @@ export function useLogout(): UseLogoutReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clearAuth = useAuthStore((s) => s.clearAuth);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const handleLogout = useCallback(async () => {
     setIsPending(true);
@@ -48,10 +47,10 @@ export function useLogout(): UseLogoutReturn {
       // 네트워크 오류나 서버 다운 상황에서도 사용자는 로그아웃할 수 있어야 함
     } finally {
       clearAuth();
-      router.push('/login');
+      navigate('/login');
       setIsPending(false);
     }
-  }, [clearAuth, router]);
+  }, [clearAuth, navigate]);
 
   return { logout: handleLogout, isPending, error };
 }

@@ -1,3 +1,8 @@
+/**
+ * @file 대시보드 메인 페이지
+ * @migrated Next.js App Router → React Router
+ */
+
 export default function DashboardPage() {
   return (
     <div>

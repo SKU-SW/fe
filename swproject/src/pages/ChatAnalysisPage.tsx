@@ -1,3 +1,8 @@
+/**
+ * @file 채팅 분석 페이지
+ * @migrated Next.js App Router → React Router
+ */
+
 export default function ChatAnalysisPage() {
   return (
     <div>

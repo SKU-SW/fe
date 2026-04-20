@@ -1,3 +1,8 @@
+/**
+ * @file OBS 오버레이 페이지
+ * @migrated Next.js App Router → React Router
+ */
+
 export default function OverlayPage() {
   return (
     <div className="flex h-screen w-screen items-end justify-start bg-transparent p-4">

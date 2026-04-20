@@ -3,7 +3,7 @@
  * @created Sprint 1 - API 레이어 공통 타입 구현
  * @dependsOn 없음 (순수 타입 정의)
  * @usedBy src/shared/lib/axios.ts (ApiResponse unwrap)
- * @usedBy src/features/**/api/*.ts (모든 API 함수)
+ * @usedBy features 내 모든 API 함수
  */
 
 /**

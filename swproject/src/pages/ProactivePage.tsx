@@ -1,3 +1,8 @@
+/**
+ * @file 선제 반응 설정 페이지
+ * @migrated Next.js App Router → React Router
+ */
+
 export default function ProactivePage() {
   return (
     <div>

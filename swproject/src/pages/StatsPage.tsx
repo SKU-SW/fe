@@ -1,3 +1,8 @@
+/**
+ * @file 방송 통계 페이지
+ * @migrated Next.js App Router → React Router
+ */
+
 export default function StatsPage() {
   return (
     <div>

@@ -1,3 +1,8 @@
+/**
+ * @file 안전 관리 페이지
+ * @migrated Next.js App Router → React Router
+ */
+
 export default function SafetyPage() {
   return (
     <div>

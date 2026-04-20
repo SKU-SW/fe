@@ -1,7 +1,15 @@
+/**
+ * @file 전역 스타일 정의
+ * @migrated src/app/globals.css → src/styles/globals.css
+ * @change Google Fonts (Inter + JetBrains Mono)로 변경
+ */
+
 @import "tailwindcss";
 @plugin "@tailwindcss/forms";
 @source "../features/**/*.{js,ts,jsx,tsx}";
 @source "../shared/**/*.{js,ts,jsx,tsx}";
+@source "../pages/**/*.{js,ts,jsx,tsx}";
+@source "../components/**/*.{js,ts,jsx,tsx}";
 
 :root {
   --background: #ffffff;
@@ -11,8 +19,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans), sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 @media (prefers-color-scheme: dark) {

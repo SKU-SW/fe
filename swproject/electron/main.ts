@@ -1,13 +1,14 @@
 /**
  * @file Electron 메인 프로세스
  * @created Sprint 1 - Electron 앱 기본 구조 구현
+ * @migrated Next.js dev 서버(3000) → Vite dev 서버(5173), out/ → dist/
  * @dependsOn 없음 (Electron 자체 모듈만 사용)
  * @related electron/preload.ts (IPC 브리지)
  *
  * 아키텍처:
- * - 개발 모드: Next.js dev 서버(localhost:3000)를 로드
- *   (Next.js dev 서버는 외부에서 `npm run dev`로 실행)
- * - 프로덕션 모드: 빌드된 정적 파일(out/index.html)을 로드
+ * - 개발 모드: Vite dev 서버(localhost:5173)를 로드
+ *   (Vite dev 서버는 외부에서 `npm run dev`로 실행)
+ * - 프로덕션 모드: 빌드된 정적 파일(dist/index.html)을 로드
  * - 보안: contextIsolation=true, nodeIntegration=false
  */
 
@@ -40,13 +41,13 @@ function createWindow() {
     show: false,  // ready-to-show 이후에 표시 (깜빡임 방지)
   });
 
-  // 개발 모드: Next.js dev 서버 연결
-  // 프로덕션: 빌드된 정적 파일 로드
+  // 개발 모드: Vite dev 서버 연결 (port 5173)
+  // 프로덕션: 빌드된 정적 파일 로드 (dist/index.html)
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../out/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
   // 콘텐츠 준비 완료 시 윈도우 표시 (화면 깜빡임 방지)

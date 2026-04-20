@@ -1,21 +1,11 @@
 /**
  * @file 대시보드 레이아웃 (인증 가드 + 사이드바 네비게이션)
- * @created Sprint 1 - Dashboard 레이아웃 구현
- * @dependsOn src/shared/stores/authStore.ts (accessToken - 인증 확인)
- * @dependsOn src/features/auth/hooks/useLogout.ts (useLogout 훅)
- * @usedBy src/app/(dashboard)/** (대시보드 하위 모든 페이지)
- *
- * 기능:
- * 1. 인증 가드: accessToken이 없으면 로그인 페이지로 리다이렉트
- * 2. 사이드바 네비게이션: 대시보드 하위 페이지 간 이동
- * 3. 헤더 로그아웃 버튼
+ * @migrated Next.js App Router → React Router
+ * @change next/link → react-router-dom Link, useRouter → useNavigate, children → Outlet
  */
 
-'use client';
-
 import { useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useLogout } from '@/features/auth/hooks';
 
@@ -36,23 +26,19 @@ const NAV_ITEMS = [
 /**
  * 대시보드 레이아웃 컴포넌트
  * - 인증 가드: accessToken이 없으면 /login으로 리다이렉트
- * - 사이드바 + 헤더 + children(페이지 콘텐츠) 구조
+ * - 사이드바 + 헤더 + Outlet(페이지 콘텐츠) 구조
  */
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const router = useRouter();
+export default function DashboardLayout() {
+  const navigate = useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
   const { logout, isPending } = useLogout();
 
   // [인증 가드] 토큰이 없으면 로그인 페이지로 이동
   useEffect(() => {
     if (!accessToken) {
-      router.replace('/login');
+      navigate('/login', { replace: true });
     }
-  }, [accessToken, router]);
+  }, [accessToken, navigate]);
 
   return (
     <div className="flex min-h-screen bg-gray-100">
@@ -65,7 +51,7 @@ export default function DashboardLayout({
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
-              href={item.href}
+              to={item.href}
               className="rounded-lg px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
             >
               {item.label}
@@ -90,8 +76,10 @@ export default function DashboardLayout({
             {isPending ? '로그아웃 중...' : '로그아웃'}
           </button>
         </header>
-        {/* 페이지 콘텐츠 */}
-        <main className="flex-1 p-6">{children}</main>
+        {/* React Router Outlet for nested routes */}
+        <main className="flex-1 p-6">
+          <Outlet />
+        </main>
       </div>
     </div>
   );

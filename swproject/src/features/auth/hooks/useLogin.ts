@@ -1,15 +1,14 @@
 /**
  * @file 로그인 훅 - useLogin
  * @created Sprint 1 - Auth 훅 구현
+ * @migrated next/navigation → react-router-dom
  * @dependsOn src/features/auth/api/authApi.ts (loginEmail)
  * @dependsOn src/shared/stores/authStore.ts (setAuth)
- * @usedBy src/app/(auth)/login/page.tsx
+ * @usedBy src/pages/auth/LoginPage.tsx
  */
 
-'use client';
-
 import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { loginEmail } from '@/features/auth/api/authApi';
 import { useAuthStore } from '@/shared/stores/authStore';
 import type { LoginRequest } from '@/shared/types/auth';
@@ -35,7 +34,7 @@ export function useLogin(): UseLoginReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setAuth = useAuthStore((s) => s.setAuth);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const login = useCallback(
     async (data: LoginRequest) => {
@@ -46,7 +45,7 @@ export function useLogin(): UseLoginReturn {
         // 로그인 성공: 사용자 정보 + 토큰 쌍을 store에 저장
         setAuth(response.user, response.accessToken, response.refreshToken);
         // 대시보드로 이동
-        router.push('/dashboard');
+        navigate('/dashboard');
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : '로그인에 실패했습니다.';
         setError(message);
@@ -55,7 +54,7 @@ export function useLogin(): UseLoginReturn {
         setIsPending(false);
       }
     },
-    [setAuth, router]
+    [setAuth, navigate]
   );
 
   return { login, isPending, error };

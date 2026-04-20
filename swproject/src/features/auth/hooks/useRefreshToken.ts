@@ -1,6 +1,7 @@
 /**
  * @file 토큰 재발급 훅 - useRefreshToken
  * @created Sprint 1 - Auth 훅 구현
+ * @migrated 'use client' 제거 (Vite는 모두 클라이언트)
  * @dependsOn src/features/auth/api/authApi.ts (refreshAccessToken)
  * @dependsOn src/shared/stores/authStore.ts (setTokens, refreshToken)
  * @usedBy 필요시 수동 토큰 갱신이 필요한 컴포넌트에서 사용
@@ -8,8 +9,6 @@
  * 참고: 대부분의 토큰 재발급은 src/shared/lib/axios.ts 인터셉터에서 자동으로 처리됨.
  * 이 훅은 명시적으로 토큰 갱신이 필요한 경우(예: 앱 foreground 복귀 시)에 사용.
  */
-
-'use client';
 
 import { useState, useCallback } from 'react';
 import { refreshAccessToken } from '@/features/auth/api/authApi';

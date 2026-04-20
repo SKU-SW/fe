@@ -1,3 +1,8 @@
+/**
+ * @file 게임 연동 페이지
+ * @migrated Next.js App Router → React Router
+ */
+
 export default function GamePage() {
   return (
     <div>

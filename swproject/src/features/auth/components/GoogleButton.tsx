@@ -1,6 +1,16 @@
-'use client';
+/**
+ * @file Google OAuth 로그인 버튼 컴포넌트
+ * @created Sprint 1 - Auth UI 컴포넌트
+ * @migrated next-auth/react 제거 → Google OAuth 비활성화 (백엔드 OAuth 구현 전까지)
+ * @usedBy src/pages/auth/LoginPage.tsx
+ *
+ * 참고: 현재 Google OAuth는 백엔드 API가 준비되지 않아 비활성화 상태입니다.
+ * 백엔드 Google OAuth 엔드포인트가 구현되면 활성화할 것.
+ */
 
-import { signIn } from 'next-auth/react';
+interface GoogleButtonProps {
+  label: string;
+}
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -11,19 +21,21 @@ const GoogleIcon = () => (
   </svg>
 );
 
-interface GoogleButtonProps {
-  label: string;
-}
-
+/**
+ * Google 로그인 버튼
+ * - 현재는 백엔드 OAuth 미구현으로 비활성화 상태
+ * - 백엔드 준비 시 onClick에 Google OAuth 플로우 연결
+ */
 export default function GoogleButton({ label }: GoogleButtonProps) {
   return (
     <button
       type="button"
-      onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
-      className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-white text-black border border-slate-200 rounded-xl text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-slate-400 transition-colors"
+      disabled
+      className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-gray-700 text-gray-400 cursor-not-allowed rounded-xl text-sm font-medium"
+      title="백엔드 Google OAuth 구현 후 활성화"
     >
       <GoogleIcon />
-      {label}
+      {label} (준비 중)
     </button>
   );
 }

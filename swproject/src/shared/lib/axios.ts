@@ -4,7 +4,7 @@
  * @dependsOn src/shared/stores/authStore.ts (useAuthStore - 토큰 읽기/갱신)
  * @dependsOn src/shared/types/api.ts (ApiResponse 타입)
  * @dependsOn src/shared/types/auth.ts (TokenResponse 타입)
- * @usedBy src/features/**/api/*.ts (모든 API 함수)
+ * @usedBy features 내 모든 API 함수
  *
  * 핵심 기능:
  * 1. 요청 인터셉터: accessToken을 자동으로 Authorization 헤더에 주입
