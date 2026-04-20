@@ -1,3 +1,18 @@
+/**
+ * @file 로그인 페이지
+ * @created Sprint 1 - Auth 페이지 구현
+ * @dependsOn src/features/auth/hooks/useLogin.ts (useLogin 훅)
+ * @dependsOn src/features/auth/schemas/authSchemas.ts (loginSchema, LoginFormData)
+ * @dependsOn src/features/auth/components/AuthCard.tsx
+ * @dependsOn src/features/auth/components/GoogleButton.tsx
+ *
+ * 기능:
+ * - react-hook-form + zod로 폼 유효성 검사
+ * - useLogin 훅으로 API 호출
+ * - 에러 표시 (API 에러 + 필드 유효성 에러)
+ * - Google 로그인 버튼 준비 (UI만, 기능은 추후 구현)
+ */
+
 'use client';
 
 import { useState } from 'react';
@@ -5,17 +20,21 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Mail, Lock } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import apiClient from '@/shared/lib/axios';
-import { useAuthStore } from '@/shared/stores/authStore';
+import { useLogin } from '@/features/auth/hooks';
 import { loginSchema, type LoginFormData } from '@/features/auth/schemas/authSchemas';
 import AuthCard from '@/features/auth/components/AuthCard';
 import GoogleButton from '@/features/auth/components/GoogleButton';
 
+/**
+ * 로그인 페이지 컴포넌트
+ * - 이메일/비밀번호 입력 폼
+ * - 제출 시 useLogin 훅으로 API 호출
+ * - 성공 시 대시보드로 자동 이동 (훅 내부 처리)
+ */
 export default function LoginPage() {
-  const router = useRouter();
-  const setAuth = useAuthStore((s) => s.setAuth);
+  // API 레벨 에러 상태 (서버 응답 에러)
   const [apiError, setApiError] = useState('');
+  const { login, isPending } = useLogin();
 
   const {
     register,
@@ -25,13 +44,13 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
+  // 폼 제출 핸들러
   const onSubmit = async (data: LoginFormData) => {
+    setApiError('');
     try {
-      setApiError('');
-      const res = await apiClient.post('/auth/login', data);
-      setAuth(res.data.user, res.data.accessToken);
-      router.push('/dashboard');
+      await login(data);
     } catch (err: unknown) {
+      // 에러 메시지 추출: Error 객체 → API 응답 data.message → 기본 메시지
       const message =
         err instanceof Error
           ? err.message
@@ -43,13 +62,16 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <AuthCard title="환영합니다" subtitle="AI 스트리머 파트너 플랫폼에 로그인하세요">
+        {/* API 에러 표시 */}
         {apiError && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
             {apiError}
           </div>
         )}
 
+        {/* 로그인 폼 */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* 이메일 필드 */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-300">이메일</label>
             <div className="relative">
@@ -66,6 +88,7 @@ export default function LoginPage() {
             )}
           </div>
 
+          {/* 비밀번호 필드 */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-slate-300">비밀번호</label>
@@ -87,15 +110,17 @@ export default function LoginPage() {
             )}
           </div>
 
+          {/* 로그인 버튼 */}
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isPending}
             className="w-full mt-6 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
           >
-            {isSubmitting ? '로그인 중...' : '로그인'}
+            {isSubmitting || isPending ? '로그인 중...' : '로그인'}
           </button>
         </form>
 
+        {/* 구분선 + Google 로그인 */}
         <div className="mt-8 mb-6 relative">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-slate-800" />
@@ -107,6 +132,7 @@ export default function LoginPage() {
 
         <GoogleButton label="Google로 로그인" />
 
+        {/* 회원가입 링크 */}
         <div className="mt-8 text-center">
           <p className="text-sm text-slate-400">
             계정이 없으신가요?{' '}
