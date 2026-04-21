@@ -2,15 +2,16 @@
   "name": "swproject",
   "version": "0.1.0",
   "private": true,
-  "main": "electron/main.ts",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
-    "electron:build": "npm run build && electron-builder",
-    "electron:preview": "npm run build && cross-env NODE_ENV=production electron ."
+    "electron:build-main": "tsc --project tsconfig.electron.json",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron:build-main && cross-env NODE_ENV=development electron dist-electron/main.js\"",
+    "electron:build": "npm run electron:build-main && npm run build && electron-builder",
+    "electron:preview": "npm run electron:build-main && npm run build && cross-env NODE_ENV=production electron dist-electron/main.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -40,6 +41,7 @@
     "electron-builder": "^25.1.8",
     "eslint": "^9",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vite": "^8.0.9",
     "wait-on": "^8.0.2"
@@ -52,7 +54,7 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*",
+      "dist-electron/**/*",
       "package.json"
     ],
     "mac": {

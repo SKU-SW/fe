@@ -23,6 +23,7 @@
 # electron
 /release/
 /dist/
+/dist-electron/
 
 # misc
 .DS_Store

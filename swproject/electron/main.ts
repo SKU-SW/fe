@@ -16,8 +16,9 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 
 // 개발 모드 여부
-// NODE_ENV === 'development' 또는 패키징되지 않은 상태면 개발 모드로 간주
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+// NODE_ENV === 'development' 이면 개발 모드, 그 외에는 프로덕션 모드
+// (electron:preview는 NODE_ENV=production으로 실행되므로 dist/index.html 로드)
+const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
 

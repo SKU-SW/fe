@@ -1,6 +1,8 @@
 /**
  * @file API 클라이언트 설정 (axios 인스턴스 + JWT 인터셉터 + 401 토큰 재발급)
  * @created Sprint 1 - API 클라이언트 구현
+ * @migrated Next.js process.env → Vite import.meta.env
+ * @change NEXT_PUBLIC_API_BASE_URL → VITE_API_BASE_URL (Vite 환경변수 규칙)
  * @dependsOn src/shared/stores/authStore.ts (useAuthStore - 토큰 읽기/갱신)
  * @dependsOn src/shared/types/api.ts (ApiResponse 타입)
  * @dependsOn src/shared/types/auth.ts (TokenResponse 타입)
@@ -23,7 +25,7 @@ import type { TokenResponse } from '@/shared/types/auth';
  * - baseURL은 환경변수에서 읽어오며, 없으면 localhost:8080 사용
  */
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -36,7 +38,7 @@ const apiClient = axios.create({
  * - 재발급 요청 자체에 토큰이 필요하면 무한 루프에 빠질 수 있으므로 분리
  */
 const bareClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

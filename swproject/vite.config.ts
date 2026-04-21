@@ -1,6 +1,9 @@
 /**
  * @file Vite 빌드 설정
  * @migrated Next.js → Vite + React Router
+ * @change next.config.ts → vite.config.ts
+ * @change output: 'export' → base: './' (Electron 상대 경로 로드)
+ * @change Next.js dev 서버(3000) → Vite dev 서버(5173)
  */
 
 import { defineConfig } from 'vite';
@@ -13,6 +16,10 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  define: {
+    // 일부 라이브러리 호환용 (실제 env는 import.meta.env 사용)
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   server: {
     port: 5173,
