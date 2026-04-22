@@ -1,64 +1,258 @@
 /**
  * @file 캐릭터(Character) 관련 타입 정의
- * @created Sprint 1 - Character 타입 정의 (기존 + Sprint 1에서 CreateCharacterRequest, UpdateCharacterRequest, CharacterSettingsResponse 추가)
+ * @created Sprint 1 - Character 타입 정의
+ * @updated Backend Swagger spec alignment
  * @dependsOn 없음 (순수 타입 정의)
  * @usedBy src/features/character/api/characterApi.ts
  * @usedBy src/shared/stores/characterStore.ts
  */
 
-/**
- * 캐릭터 성별
- */
-export type Gender = 'male' | 'female';
+// ============================================================
+// Backend API Types (UPPER_SNAKE_CASE - Swagger spec)
+// ============================================================
 
 /**
- * 말투 스타일
- * - friendly_informal: 친근한 반말
- * - polite_formal: 정중한 존댓말
- * - playful_informal:장난스러운 반말
- * - broadcast_exaggerated: 방송용 과장된 말투
+ * 캐릭터 성별 (backend)
+ */
+export type Gender = "MALE" | "FEMALE";
+
+/**
+ * 프리셋 타입 (backend)
+ */
+export type PresetType =
+  | "FRIENDLY_CHATTER"
+  | "HIGH_TENSION"
+  | "PLAYFUL_TEASER"
+  | "PROFESSIONAL_MANAGER"
+  | "ROLEPLAY_EXPERT"
+  | "CUSTOM";
+
+/**
+ * 말투 스타일 (backend)
  */
 export type SpeechStyle =
-  | 'friendly_informal'
-  | 'polite_formal'
-  | 'playful_informal'
-  | 'broadcast_exaggerated';
+  | "FRIENDLY_INFORMAL"
+  | "POLITE_FORMAL"
+  | "PLAYFUL_INFORMAL"
+  | "BROADCAST_EXAGGERATED";
 
 /**
- * 성격 타입
+ * 성격 타입 (backend)
  */
-export type Personality = 'energetic' | 'calm' | 'humorous' | 'serious';
+export type Personality = "ACTIVE" | "CALM" | "HUMOROUS" | "SERIOUS";
 
 /**
- * 페르소나 (캐릭터의 전문 분야)
+ * 연령대 (backend)
+ */
+export type AgeGroup = "SENIOR" | "MIDDLE_AGED" | "YOUNG_ADULT" | "TEENAGER";
+
+// ============================================================
+// Persona (공통)
+// ============================================================
+
+/**
+ * 캐릭터 페르소나 요청
+ */
+export interface CharacterPersonaReqDto {
+  presetType: PresetType;
+  speechStyle: SpeechStyle;
+  personality: Personality;
+}
+
+/**
+ * 캐릭터 페르소나 응답
+ */
+export interface CharacterPersonaResDto {
+  presetType: PresetType;
+  speechStyle: SpeechStyle;
+  personality: Personality;
+}
+
+// ============================================================
+// Character Detail / List
+// ============================================================
+
+/**
+ * 캐릭터 상세 응답
+ * - backend CharacterDetailResDto 매칭
+ */
+export interface CharacterDetailResDto {
+  characterId: number;
+  characterName: string;
+  triggerWords: string[];
+  gender: Gender;
+  voiceTypeId: number;
+  characterImageUrl: string;
+  characterPersona: CharacterPersonaResDto;
+  isSelected: boolean;
+}
+
+/**
+ * 캐릭터 목록 항목 응답
+ */
+export interface CharacterListItemResDto {
+  characterId: number;
+  characterName: string;
+  triggerWords: string[];
+  gender: Gender;
+  voiceTypeId: number;
+  characterImageUrl: string;
+  isSelected: boolean;
+}
+
+// ============================================================
+// SliceResponse (페이지네이션)
+// ============================================================
+
+/**
+ * 슬라이스 페이지네이션 응답
+ */
+export interface SliceResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+}
+
+// ============================================================
+// Character Create / Update
+// ============================================================
+
+/**
+ * 캐릭터 생성 요청
+ * - backend CharacterCreateReqDto 매칭
+ */
+export interface CharacterCreateReqDto {
+  characterName: string;
+  triggerWords: string[];
+  gender: Gender;
+  voiceTypeId: number;
+  characterImageId: number;
+  characterPersona: CharacterPersonaReqDto;
+}
+
+/**
+ * 캐릭터 수정 요청
+ * - backend CharacterUpdateReqDto 매칭 (모든 필드 필수)
+ */
+export interface CharacterUpdateReqDto {
+  characterName: string;
+  triggerWords: string[];
+  gender: Gender;
+  voiceTypeId: number;
+  characterImageId: number;
+  characterPersona: CharacterPersonaReqDto;
+}
+
+// ============================================================
+// Character Select
+// ============================================================
+
+/**
+ * 캐릭터 선택 요청
+ */
+export interface CharacterSelectReqDto {
+  isSelected: boolean;
+}
+
+/**
+ * 캐릭터 선택 응답
+ */
+export interface CharacterSelectResDto {
+  selectedCharacterId: number;
+  deselectedCharacterId: number;
+}
+
+// ============================================================
+// Character Settings
+// ============================================================
+
+/**
+ * 음성 타입 응답
+ */
+export interface VoiceTypeResDto {
+  voiceTypeId: number;
+  label: string;
+  gender: Gender;
+  ageGroup: AgeGroup;
+  testUrl: string;
+}
+
+/**
+ * 캐릭터 이미지 응답
+ */
+export interface CharacterImageResDto {
+  imageId: number;
+  gender: Gender;
+  name: string;
+  imageUrl: string;
+}
+
+/**
+ * 캐릭터 설정 옵션 응답
+ * - backend CharacterSettingsResDto 매칭
+ */
+export interface CharacterSettingsResDto {
+  voiceTypes: VoiceTypeResDto[];
+  characterImages: CharacterImageResDto[];
+  presetTypes: string[];
+  speechStyles: string[];
+  personalities: string[];
+}
+
+// ============================================================
+// UI-Internal Types (폼 상태 및 컴포넌트 전용)
+// ============================================================
+
+/**
+ * UI 전용 성별 (lowercase - 폼 내부 사용)
+ */
+export type UiGender = "male" | "female";
+
+/**
+ * UI 전용 말투 스타일 (폼 내부 사용)
+ */
+export type UiSpeechStyle =
+  | "friendly_informal"
+  | "polite_formal"
+  | "playful_informal"
+  | "broadcast_exaggerated";
+
+/**
+ * UI 전용 성격 타입 (폼 내부 사용)
+ */
+export type UiPersonality = "energetic" | "calm" | "humorous" | "serious";
+
+/**
+ * 페르소나 (UI 전용 - 캐릭터의 전문 분야)
  */
 export type Persona =
-  | 'game_specialist'
-  | 'humor_entertainment'
-  | 'focused_serious'
-  | 'chat_social';
+  | "game_specialist"
+  | "humor_entertainment"
+  | "focused_serious"
+  | "chat_social";
 
 /**
- * 채팅 민감도 레벨
+ * 채팅 민감도 레벨 (UI 전용)
  */
-export type SensitivityLevel = 'high' | 'medium' | 'low';
+export type SensitivityLevel = "high" | "medium" | "low";
 
 /**
- * 캐릭터 기본 정보
+ * 캐릭터 기본 정보 (UI 내부용)
  */
 export interface CharacterInfo {
-  gender: Gender;
+  gender: UiGender;
   name: string;
   callSign: string;
   appearancePresetId: string;
   voicePresetId: string;
-  speechStyle: SpeechStyle;
-  personality: Personality;
+  speechStyle: UiSpeechStyle;
+  personality: UiPersonality;
   persona: Persona;
 }
 
 /**
- * 방송 설정 (채팅 민감도, TTS 등)
+ * 방송 설정 (UI 내부용)
  */
 export interface BroadcastSettings {
   chatSensitivity: SensitivityLevel;
@@ -68,7 +262,7 @@ export interface BroadcastSettings {
 }
 
 /**
- * 캐릭터 프리셋 (저장된 캐릭터 전체 정보)
+ * 캐릭터 프리셋 (UI 내부용 - 저장된 캐릭터 전체 정보)
  */
 export interface CharacterPreset {
   id: string;
@@ -79,17 +273,7 @@ export interface CharacterPreset {
 }
 
 /**
- * 캐릭터 상태 (현재 선택된 캐릭터 + 프리셋 목록)
- */
-export interface CharacterState {
-  info: CharacterInfo | null;
-  broadcastSettings: BroadcastSettings | null;
-  presets: CharacterPreset[];
-}
-
-// [Sprint 1 수정] CreateCharacterRequest 추가
-/**
- * 캐릭터 생성 요청 바디
+ * 캐릭터 생성 요청 (UI 내부용)
  */
 export interface CreateCharacterRequest {
   name: string;
@@ -97,10 +281,8 @@ export interface CreateCharacterRequest {
   broadcastSettings: BroadcastSettings;
 }
 
-// [Sprint 1 수정] UpdateCharacterRequest 추가
 /**
- * 캐릭터 수정 요청 바디
- * - 모든 필드가 optional이므로 부분 수정 가능
+ * 캐릭터 수정 요청 (UI 내부용)
  */
 export interface UpdateCharacterRequest {
   name?: string;
@@ -108,17 +290,52 @@ export interface UpdateCharacterRequest {
   broadcastSettings?: Partial<BroadcastSettings>;
 }
 
-// [Sprint 1 수정] CharacterSettingsResponse 추가
 /**
- * 캐릭터 설정 옵션 응답 (프리셋 목록 등)
- * - 캐릭터 생성/수정 시 선택 가능한 옵션들을 서버에서 받아옴
+ * 캐릭터 설정 옵션 응답 (UI 내부용)
  */
 export interface CharacterSettingsResponse {
-  genders: Gender[];
-  speechStyles: SpeechStyle[];
-  personalities: Personality[];
+  genders: UiGender[];
+  speechStyles: UiSpeechStyle[];
+  personalities: UiPersonality[];
   personas: Persona[];
   sensitivityLevels: SensitivityLevel[];
   appearancePresets: { id: string; name: string; thumbnailUrl: string }[];
   voicePresets: { id: string; name: string; sampleUrl: string }[];
+}
+
+/**
+ * 캐릭터 방송 프리셋 (UI 전용)
+ */
+export type BroadcastPreset = "gaming" | "entertainment" | "focused" | "chatty";
+
+/**
+ * 캐릭터 폼 말투 스타일 (UI 전용)
+ */
+export type CharacterFormSpeechStyle = "casual" | "polite" | "playful" | "dramatic";
+
+/**
+ * 캐릭터 생성/수정 폼 상태 (UI 전용)
+ */
+export interface CharacterConfig {
+  name: string;
+  callWords: string[];
+  gender: "male" | "female";
+  voiceId?: string;
+  model2D: { presetId: string | null };
+  speechStyle: CharacterFormSpeechStyle;
+  personality: "energetic" | "calm" | "humorous" | "serious";
+  broadcastPreset: BroadcastPreset | null;
+  conversationRounds: number;
+  autoEndConditions: {
+    onStreamerSpeak: boolean;
+    onTimeout: boolean;
+    timeoutSeconds: number;
+  };
+  pauseChatAnalysis: boolean;
+  ptt: {
+    enabled: boolean;
+    shortcutKey: string;
+    mode: "hold" | "toggle";
+    showFeedback: boolean;
+  };
 }

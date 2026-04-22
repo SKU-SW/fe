@@ -37,7 +37,7 @@ const apiClient = axios.create({
  * - 토큰 재발급(refresh) API 호출 시 사용
  * - 재발급 요청 자체에 토큰이 필요하면 무한 루프에 빠질 수 있으므로 분리
  */
-const bareClient = axios.create({
+export const bareClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
   timeout: 10000,
   headers: {
@@ -145,7 +145,8 @@ apiClient.interceptors.response.use(
         isRefreshing = false;
         useAuthStore.getState().clearAuth();
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          // Electron + HashRouter 환경에서는 hash 경로로 이동해야 함
+          window.location.hash = '#/login';
         }
         return Promise.reject(error);
       }
@@ -169,7 +170,8 @@ apiClient.interceptors.response.use(
         processQueue(error, null);
         useAuthStore.getState().clearAuth();
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          // Electron + HashRouter 환경에서는 hash 경로로 이동해야 함
+          window.location.hash = '#/login';
         }
         return Promise.reject(error);
       } finally {

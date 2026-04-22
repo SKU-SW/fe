@@ -4,7 +4,6 @@
  * @change next/link → react-router-dom Link, 'use client' 제거
  */
 
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Mail, Lock } from 'lucide-react';
@@ -15,8 +14,7 @@ import AuthCard from '@/features/auth/components/AuthCard';
 import GoogleButton from '@/features/auth/components/GoogleButton';
 
 export default function LoginPage() {
-  const [apiError, setApiError] = useState('');
-  const { login, isPending } = useLogin();
+  const { login, isPending, error: apiError } = useLogin();
 
   const {
     register,
@@ -27,16 +25,7 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    setApiError('');
-    try {
-      await login(data);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setApiError(message ?? '로그인에 실패했습니다');
-    }
+    await login(data);
   };
 
   return (
@@ -50,11 +39,12 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-300">이메일</label>
+            <label htmlFor="email" className="text-sm font-medium text-slate-300">이메일</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 pointer-events-none" />
               <input
                 {...register('email')}
+                id="email"
                 type="email"
                 placeholder="name@example.com"
                 className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -67,7 +57,7 @@ export default function LoginPage() {
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-300">비밀번호</label>
+              <label htmlFor="password" className="text-sm font-medium text-slate-300">비밀번호</label>
               <a href="#" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
                 비밀번호 찾기
               </a>
@@ -76,6 +66,7 @@ export default function LoginPage() {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 pointer-events-none" />
               <input
                 {...register('password')}
+                id="password"
                 type="password"
                 placeholder="••••••••"
                 className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"

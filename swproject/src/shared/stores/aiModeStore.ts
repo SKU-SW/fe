@@ -1,22 +1,253 @@
+/**
+ * @file AI 모드 및 대시보드 상태 관리 Store
+ * @created Sprint 2 - Dashboard Main
+ * @dependsOn zustand
+ * @usedBy src/pages/DashboardPage.tsx, src/features/dashboard/components/*
+ */
+
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type AIMode = 'broadcasting' | 'idle' | 'gaming';
 export type ReactionStrategy = 'cheer' | 'normal' | 'critical';
+export type EmotionType = 'joy' | 'anger' | 'sadness' | 'fear' | 'surprise' | 'neutral';
+
+export interface PersonaSlot {
+  id: string | null;
+  name: string;
+  isActive: boolean;
+}
+
+export interface SensitivitySettings {
+  reactionSpeed: number;      // 0-100: 반응 속도
+  emotionIntensity: number;   // 0-100: 감정 강도
+  contextUnderstanding: number; // 0-100: 문맥 이해도
+  creativity: number;          // 0-100: 창의성
+}
+
+export interface QuickToggles {
+  sttEnabled: boolean;         // 음성인식 (STT)
+  ttsEnabled: boolean;         // 음성출력 (TTS)
+  chatReactionEnabled: boolean; // 채팅 반응
+  proactiveReactionEnabled: boolean; // 선제적 반응
+}
+
+export interface DashboardStats {
+  viewerCount: number;
+  chatSpeed: number;           // 분당 채팅 수
+  emotionRatios: Record<EmotionType, number>; // 감정 비율 (%)
+  aiResponseRate: number;      // AI 응답률 (%)
+  broadcastDuration: number;   // 방송 시간 (초)
+  totalChats: number;
+  aiResponses: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  username: string;
+  message: string;
+  emotion: EmotionType;
+  timestamp: Date;
+}
+
+export interface ActivityLog {
+  id: string;
+  type: 'reaction' | 'system' | 'chat' | 'emotion' | 'persona';
+  message: string;
+  timestamp: Date;
+  level?: 'info' | 'warning' | 'error';
+}
 
 interface AIModeStore {
+  // === AI 모드 및 전략 ===
   mode: AIMode;
   reactionStrategy: ReactionStrategy;
   isAutoStrategy: boolean;
+
+  // === 상단 컨트롤 ===
+  isPaused: boolean;
+  isPTTActive: boolean;
+  personaSlots: PersonaSlot[];
+  activePersonaIndex: number;
+
+  // === 빠른 제어 토글 ===
+  toggles: QuickToggles;
+
+  // === AI 반응 설정 (슬라이더) ===
+  sensitivity: SensitivitySettings;
+
+  // === 실시간 상태 ===
+  stats: DashboardStats;
+
+  // === 채팅 모니터 ===
+  chatMessages: ChatMessage[];
+
+  // === AI 활동 로그 ===
+  activityLogs: ActivityLog[];
+
+  // === 액션 함수들 ===
   setMode: (mode: AIMode) => void;
   setReactionStrategy: (strategy: ReactionStrategy) => void;
   setIsAutoStrategy: (isAuto: boolean) => void;
+
+  togglePause: () => void;
+  togglePTT: () => void;
+  setActivePersona: (index: number) => void;
+  updatePersonaSlot: (index: number, slot: Partial<PersonaSlot>) => void;
+
+  setToggle: (key: keyof QuickToggles, value: boolean) => void;
+  setSensitivity: (key: keyof SensitivitySettings, value: number) => void;
+
+  updateStats: (stats: Partial<DashboardStats>) => void;
+  addChatMessage: (message: ChatMessage) => void;
+  clearChatMessages: () => void;
+  addActivityLog: (log: ActivityLog) => void;
+  clearActivityLogs: () => void;
+
+  // === 초기화 ===
+  resetToDefaults: () => void;
 }
 
-export const useAIModeStore = create<AIModeStore>()((set) => ({
-  mode: 'idle',
-  reactionStrategy: 'normal',
-  isAutoStrategy: true,
-  setMode: (mode) => set({ mode }),
-  setReactionStrategy: (reactionStrategy) => set({ reactionStrategy }),
-  setIsAutoStrategy: (isAutoStrategy) => set({ isAutoStrategy }),
-}));
+const MAX_CHAT_MESSAGES = 100;
+const MAX_ACTIVITY_LOGS = 50;
+
+const DEFAULT_SENSITIVITY: SensitivitySettings = {
+  reactionSpeed: 50,
+  emotionIntensity: 50,
+  contextUnderstanding: 50,
+  creativity: 50,
+};
+
+const DEFAULT_TOGGLES: QuickToggles = {
+  sttEnabled: true,
+  ttsEnabled: true,
+  chatReactionEnabled: true,
+  proactiveReactionEnabled: false,
+};
+
+const DEFAULT_PERSONA_SLOTS: PersonaSlot[] = [
+  { id: null, name: '슬롯 1', isActive: false },
+  { id: null, name: '슬롯 2', isActive: false },
+  { id: null, name: '슬롯 3', isActive: false },
+  { id: null, name: '슬롯 4', isActive: false },
+];
+
+const DEFAULT_STATS: DashboardStats = {
+  viewerCount: 0,
+  chatSpeed: 0,
+  emotionRatios: {
+    joy: 0,
+    anger: 0,
+    sadness: 0,
+    fear: 0,
+    surprise: 0,
+    neutral: 0,
+  },
+  aiResponseRate: 0,
+  broadcastDuration: 0,
+  totalChats: 0,
+  aiResponses: 0,
+};
+
+export const useAIModeStore = create<AIModeStore>()(
+  persist(
+    (set) => ({
+      // === 초기 상태 ===
+      mode: 'idle',
+      reactionStrategy: 'normal',
+      isAutoStrategy: true,
+
+      isPaused: false,
+      isPTTActive: false,
+      personaSlots: DEFAULT_PERSONA_SLOTS,
+      activePersonaIndex: 0,
+
+      toggles: DEFAULT_TOGGLES,
+      sensitivity: DEFAULT_SENSITIVITY,
+
+      stats: DEFAULT_STATS,
+      chatMessages: [],
+      activityLogs: [],
+
+      // === AI 모드 및 전략 ===
+      setMode: (mode) => set({ mode }),
+      setReactionStrategy: (reactionStrategy) => set({ reactionStrategy }),
+      setIsAutoStrategy: (isAutoStrategy) => set({ isAutoStrategy }),
+
+      // === 상단 컨트롤 ===
+      togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
+      togglePTT: () => set((state) => ({ isPTTActive: !state.isPTTActive })),
+      setActivePersona: (activePersonaIndex) => set({ activePersonaIndex }),
+      updatePersonaSlot: (index, slot) =>
+        set((state) => ({
+          personaSlots: state.personaSlots.map((p, i) =>
+            i === index ? { ...p, ...slot } : p
+          ),
+        })),
+
+      // === 빠른 제어 토글 ===
+      setToggle: (key, value) =>
+        set((state) => ({
+          toggles: { ...state.toggles, [key]: value },
+        })),
+
+      // === AI 반응 설정 ===
+      setSensitivity: (key, value) =>
+        set((state) => ({
+          sensitivity: { ...state.sensitivity, [key]: value },
+        })),
+
+      // === 실시간 상태 ===
+      updateStats: (stats) =>
+        set((state) => ({
+          stats: { ...state.stats, ...stats },
+        })),
+
+      // === 채팅 모니터 ===
+      addChatMessage: (message) =>
+        set((state) => ({
+          chatMessages: [...state.chatMessages.slice(-(MAX_CHAT_MESSAGES - 1)), message], // 최대 100개 유지
+        })),
+      clearChatMessages: () => set({ chatMessages: [] }),
+
+      // === AI 활동 로그 ===
+      addActivityLog: (log) =>
+        set((state) => ({
+          activityLogs: [...state.activityLogs.slice(-(MAX_ACTIVITY_LOGS - 1)), log], // 최대 50개 유지
+        })),
+      clearActivityLogs: () => set({ activityLogs: [] }),
+
+      // === 초기화 ===
+      resetToDefaults: () =>
+        set({
+          mode: 'idle',
+          reactionStrategy: 'normal',
+          isAutoStrategy: true,
+          isPaused: false,
+          isPTTActive: false,
+          personaSlots: DEFAULT_PERSONA_SLOTS,
+          activePersonaIndex: 0,
+          toggles: DEFAULT_TOGGLES,
+          sensitivity: DEFAULT_SENSITIVITY,
+          stats: DEFAULT_STATS,
+          chatMessages: [],
+          activityLogs: [],
+        }),
+    }),
+    {
+      name: 'ai-mode-storage',
+      partialize: (state) => ({
+        // 영구 저장할 상태만 선택
+        mode: state.mode,
+        reactionStrategy: state.reactionStrategy,
+        isAutoStrategy: state.isAutoStrategy,
+        toggles: state.toggles,
+        sensitivity: state.sensitivity,
+        personaSlots: state.personaSlots,
+        activePersonaIndex: state.activePersonaIndex,
+        // 실시간 데이터는 저장하지 않음
+        // stats, chatMessages, activityLogs 제외
+      }),
+    }
+  )
+);

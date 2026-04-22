@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react';
+
 interface AuthCardProps {
   title: string;
   subtitle: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export default function AuthCard({ title, subtitle, children }: AuthCardProps) {

@@ -1,6 +1,11 @@
-'use client';
+/**
+ * @file WebSocket 연결 관리 커스텀 훅
+ * @created Sprint 2 - Dashboard Main
+ * @dependsOn react
+ * @usedBy src/features/hooks
+ */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 interface UseWebSocketOptions<T> {
   url: string;
@@ -14,6 +19,7 @@ interface UseWebSocketOptions<T> {
 interface UseWebSocketReturn {
   sendMessage: (data: unknown) => void;
   disconnect: () => void;
+  isConnected: boolean;
 }
 
 export function useWebSocket<T>({
@@ -26,6 +32,8 @@ export function useWebSocket<T>({
 }: UseWebSocketOptions<T>): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shouldReconnectRef = useRef(true);
+  const [isConnected, setIsConnected] = useState(false);
 
   // 콜백을 ref에 저장하여 매 렌더마다 connect가 재생성되는 것을 방지
   const onMessageRef = useRef(onMessage);
@@ -40,10 +48,13 @@ export function useWebSocket<T>({
   const connect = useCallback(() => {
     if (!enabled || typeof window === 'undefined') return;
 
+    shouldReconnectRef.current = true;
+
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      setIsConnected(true);
       onOpenRef.current?.();
     };
 
@@ -51,14 +62,17 @@ export function useWebSocket<T>({
       try {
         const data: T = JSON.parse(event.data as string);
         onMessageRef.current(data);
-      } catch {
-        // JSON 파싱 실패 시 무시
+      } catch (parseError) {
+        // JSON 파싱 실패 시 에러 콜백 호출
+        onErrorRef.current?.(new Event('message-parse-error'));
       }
     };
 
     ws.onclose = () => {
+      setIsConnected(false);
       onCloseRef.current?.();
-      // 3초 후 재연결
+      // shouldReconnectRef가 true일 때만 재연결
+      if (!shouldReconnectRef.current || !enabled) return;
       reconnectTimeoutRef.current = setTimeout(() => {
         if (enabled) connect();
       }, 3000);
@@ -67,14 +81,16 @@ export function useWebSocket<T>({
     ws.onerror = (event: Event) => {
       onErrorRef.current?.(event);
     };
-  }, [url, enabled]); // 콜백 제거 — ref로 최신값 참조
+  }, [url, enabled]);
 
   const disconnect = useCallback(() => {
+    shouldReconnectRef.current = false;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
     wsRef.current?.close();
     wsRef.current = null;
+    setIsConnected(false);
   }, []);
 
   const sendMessage = useCallback((data: unknown) => {
@@ -88,5 +104,5 @@ export function useWebSocket<T>({
     return () => disconnect();
   }, [connect, disconnect]);
 
-  return { sendMessage, disconnect };
+  return { sendMessage, disconnect, isConnected };
 }

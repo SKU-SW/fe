@@ -1,23 +1,23 @@
 /**
- * @file 캐릭터 선택/해제 토글 훅 - useSelectCharacter
+ * @file 캐릭터 선택/해제 훅 - useSelectCharacter
  * @created Sprint 1 - Character 훅 구현
+ * @updated Backend Swagger spec alignment
  * @dependsOn src/features/character/api/characterApi.ts (selectCharacter)
- * @dependsOn src/shared/stores/characterStore.ts (selectedId, setSelectedId)
- * @usedBy src/app/(dashboard)/character/page.tsx
+ * @dependsOn src/shared/stores/characterStore.ts (selectedCharacterId, setSelectedCharacterId)
+ * @usedBy src/pages/CharacterPage.tsx
  */
-
-'use client';
 
 import { useState, useCallback } from 'react';
 import { selectCharacter } from '@/features/character/api/characterApi';
 import { useCharacterStore } from '@/shared/stores/characterStore';
+import type { CharacterSelectResDto } from '@/shared/types/character';
 
 /**
  * useSelectCharacter 훅 반환 타입
  */
 interface UseSelectCharacterReturn {
-  /** 캐릭터 선택/해제 토글 함수 - 성공 시 true, 실패 시 false 반환 */
-  select: (characterId: string) => Promise<boolean>;
+  /** 캐릭터 선택/해제 함수 - 성공 시 CharacterSelectResDto 반환, 실패 시 null */
+  select: (characterId: number, isSelected: boolean) => Promise<CharacterSelectResDto | null>;
   /** 선택 요청 진행 중 여부 */
   isPending: boolean;
   /** 에러 메시지 (실패 시) */
@@ -25,36 +25,34 @@ interface UseSelectCharacterReturn {
 }
 
 /**
- * 캐릭터 선택/해제 토글 훅
- * - API 호출 후 selectedId를 토글 방식으로 업데이트:
- *   - 이미 선택된 캐릭터를 다시 클릭하면 해제 (null)
- *   - 선택되지 않은 캐릭터를 클릭하면 선택 (characterId)
- * - 서버에는 항상 selectCharacter PATCH 요청을 보냄 (선택/해제 구분 없이)
+ * 캐릭터 선택/해제 훅
+ * - API 호출: PATCH /api/v1/characters/:characterId with { isSelected: boolean }
+ * - 성공 시 CharacterSelectResDto 반환 (selectedCharacterId, deselectedCharacterId)
+ * - store의 selectedCharacterId를 업데이트
  */
 export function useSelectCharacter(): UseSelectCharacterReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const selectedId = useCharacterStore((s) => s.selectedId);
-  const setSelectedId = useCharacterStore((s) => s.setSelectedId);
+  const setSelectedCharacterId = useCharacterStore((s) => s.setSelectedCharacterId);
 
   const select = useCallback(
-    async (characterId: string) => {
+    async (characterId: number, isSelected: boolean) => {
       setIsPending(true);
       setError(null);
       try {
-        await selectCharacter(characterId);
-        // 토글 방식: 이미 선택된 캐릭터면 해제, 아니면 선택
-        setSelectedId(selectedId === characterId ? null : characterId);
-        return true;
+        const result = await selectCharacter(characterId, { isSelected });
+        // 선택 상태에 따라 store 업데이트
+        setSelectedCharacterId(isSelected ? result.selectedCharacterId : null);
+        return result;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : '캐릭터 선택에 실패했습니다.';
         setError(message);
-        return false;
+        return null;
       } finally {
         setIsPending(false);
       }
     },
-    [selectedId, setSelectedId]
+    [setSelectedCharacterId]
   );
 
   return { select, isPending, error };

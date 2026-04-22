@@ -1,7 +1,7 @@
 /**
  * @file 로그인 훅 - useLogin
  * @created Sprint 1 - Auth 훅 구현
- * @migrated next/navigation → react-router-dom
+ * @updated Backend Swagger spec alignment
  * @dependsOn src/features/auth/api/authApi.ts (loginEmail)
  * @dependsOn src/shared/stores/authStore.ts (setAuth)
  * @usedBy src/pages/auth/LoginPage.tsx
@@ -9,9 +9,10 @@
 
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { AxiosError } from 'axios';
 import { loginEmail } from '@/features/auth/api/authApi';
 import { useAuthStore } from '@/shared/stores/authStore';
-import type { LoginRequest } from '@/shared/types/auth';
+import type { LoginRequest, User } from '@/shared/types/auth';
 
 /**
  * useLogin 훅 반환 타입
@@ -42,12 +43,19 @@ export function useLogin(): UseLoginReturn {
       setError(null);
       try {
         const response = await loginEmail(data);
-        // 로그인 성공: 사용자 정보 + 토큰 쌍을 store에 저장
-        setAuth(response.user, response.accessToken, response.refreshToken);
+        // 로그인 성공: 응답에서 User 객체 구성 후 store에 저장
+        const user: User = {
+          userId: response.userId,
+          email: response.email,
+          name: response.name,
+        };
+        setAuth(user, response.accessToken, response.refreshToken);
         // 대시보드로 이동
         navigate('/dashboard');
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : '로그인에 실패했습니다.';
+        const message =
+          (err as AxiosError<{ message?: string }>)?.response?.data?.message ??
+          (err instanceof Error ? err.message : '로그인에 실패했습니다.');
         setError(message);
         throw err;
       } finally {

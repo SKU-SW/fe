@@ -2,25 +2,16 @@
  * @file 전역 스타일 정의
  * @migrated src/app/globals.css → src/styles/globals.css
  * @change Google Fonts (Inter + JetBrains Mono)로 변경
+ * @fix Tailwind v3 + PostCSS 방식으로 변경
  */
 
-@import "tailwindcss";
-@plugin "@tailwindcss/forms";
-@source "../features/**/*.{js,ts,jsx,tsx}";
-@source "../shared/**/*.{js,ts,jsx,tsx}";
-@source "../pages/**/*.{js,ts,jsx,tsx}";
-@source "../components/**/*.{js,ts,jsx,tsx}";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,5 +24,57 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: 'Inter', sans-serif;
+}
+
+/* ===== 슬라이더 커스텀 스타일 ===== */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, rgb(71, 85, 105), rgb(51, 65, 85));
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+input[type="range"]:hover {
+  background: linear-gradient(to right, rgb(100, 116, 139), rgb(71, 85, 105));
+}
+
+/* Webkit 브라우저 (Chrome, Safari, Edge) */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(59, 130, 246);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: rgb(96, 165, 250);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.6);
+}
+
+/* Firefox */
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(59, 130, 246);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  background: rgb(96, 165, 250);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.6);
 }

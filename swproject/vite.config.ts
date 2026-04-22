@@ -4,6 +4,7 @@
  * @change next.config.ts → vite.config.ts
  * @change output: 'export' → base: './' (Electron 상대 경로 로드)
  * @change Next.js dev 서버(3000) → Vite dev 서버(5173)
+ * @fix Tailwind v3 + PostCSS 방식으로 변경 (@tailwindcss/vite 제거)
  */
 
 import { defineConfig } from 'vite';
