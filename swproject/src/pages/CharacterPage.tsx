@@ -234,11 +234,12 @@ export default function CharacterPage() {
       const payload = toBackendCreatePayload(config);
       const created = await create(payload);
       if (created) {
+        await refetch(); // 목록 새로고침: 생성된 캐릭터 포함 전체 목록 재조회
         await select(created.characterId, true);
         setView("dashboard");
       }
     },
-    [create, select]
+    [create, select, refetch]
   );
 
   const handleUpdate = useCallback(
@@ -249,10 +250,11 @@ export default function CharacterPage() {
       const payload = toBackendUpdatePayload(config);
       const updated = await update(selectedCharacterId, payload);
       if (updated) {
+        await refetch(); // 수정 후 목록 새로고침
         setView("dashboard");
       }
     },
-    [selectedCharacterId, update]
+    [selectedCharacterId, update, refetch]
   );
 
   const handleDelete = useCallback(
