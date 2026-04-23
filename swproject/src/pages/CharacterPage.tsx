@@ -17,7 +17,7 @@ import {
   useDeleteCharacter,
   useSelectCharacter,
 } from "@/features/character/hooks";
-import { CharacterDashboard, CharacterEmptyState, CharacterForm } from "@/features/character/components";
+import { CharacterDashboard, CharacterForm } from "@/features/character/components";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import type {
   CharacterConfig,
@@ -147,12 +147,12 @@ function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
     info: {
       gender: item.gender === "MALE" ? "male" : "female",
       name: item.characterName,
-      callSign: item.triggerWords[0] ?? "AI",
+      callSign: (item.triggerWords ?? []).join(", ") || "AI",
       appearancePresetId: "",
       voicePresetId: String(item.voiceTypeId),
       speechStyle: "friendly_informal",
       personality: "energetic",
-      persona: "game_specialist",
+      persona: "game_specialist", // 목록 API는 persona 미포함, 기본값 사용
     },
     broadcastSettings: {
       chatSensitivity: "medium",
@@ -266,37 +266,9 @@ export default function CharacterPage() {
     [remove, refetch]
   );
 
-  if (charactersError) {
-    return (
-      <div className="h-full bg-slate-950 flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/30">
-          <span className="text-3xl">⚠️</span>
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-3">캐릭터 정보를 불러오지 못했습니다</h2>
-        <p className="text-slate-400 max-w-md mb-8 leading-relaxed">{charactersError}</p>
-        <button
-          onClick={() => void refetch()}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
-        >
-          다시 시도
-        </button>
-      </div>
-    );
-  }
+  // === 뷰 전환 로직 ===
 
-  if (isLoadingCharacters) {
-    return (
-      <div className="h-full bg-slate-950 flex flex-col items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-400 font-medium animate-pulse">캐릭터 정보를 불러오는 중...</p>
-      </div>
-    );
-  }
-
-  if (characters.length === 0 && view === "dashboard") {
-    return <CharacterEmptyState onCreateClick={() => setView("create")} />;
-  }
-
+  // 캐릭터 생성 폼
   if (view === "create") {
     return (
       <CharacterForm
@@ -309,6 +281,7 @@ export default function CharacterPage() {
     );
   }
 
+  // 캐릭터 수정 폼
   if (view === "edit" && selectedCharacter) {
     return (
       <CharacterForm
@@ -322,14 +295,20 @@ export default function CharacterPage() {
     );
   }
 
+  // 캐릭터 목록 대시보드
   return (
     <CharacterDashboard
       characters={characters}
       selectedId={selectedCharacterId ? String(selectedCharacterId) : null}
       isSelecting={isSelecting}
       isDeleting={isDeleting}
+      isLoading={isLoadingCharacters}
+      error={charactersError}
       onCreateClick={() => setView("create")}
       onEditClick={(id) => {
+        // 수정 전 해당 캐릭터를 선택 상태로 설정
+        const cid = Number(id);
+        void select(cid, true);
         setView("edit");
       }}
       onDeleteClick={(id) => {
@@ -339,6 +318,11 @@ export default function CharacterPage() {
         const cid = Number(id);
         const isCurrentlySelected = selectedCharacterId === cid;
         void select(cid, !isCurrentlySelected);
+      }}
+      onViewDetails={(id) => {
+        // 상세보기: 해당 캐릭터 선택 후 대시보드에 표시
+        const cid = Number(id);
+        void select(cid, true);
       }}
     />
   );
