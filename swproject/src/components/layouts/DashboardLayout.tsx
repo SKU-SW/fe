@@ -19,11 +19,10 @@ import DashboardSidebar from './DashboardSidebar';
 export default function DashboardLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  // [임시 우회] 백엔드 서버 미실행 시 UI 확인을 위해 인증 가드 일시 비활성화
-  // TODO: 백엔드 서버 실행 후 아래 주석을 해제하여 인증 가드 복원
-  // if (!accessToken) {
-  //   return <Navigate to="/login" replace />;
-  // }
+  // 인증 가드: accessToken이 없으면 /login으로 리다이렉트
+  if (!accessToken) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row bg-slate-950">

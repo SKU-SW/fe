@@ -46,9 +46,11 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'auth-storage',
-      // 보안상 accessToken은 persist 제외 (메모리에서만 유지)
+      // accessToken도 persist에 포함 (페이지 새로고침 시 인증 상태 유지)
+      // 보안상 민감한 서비스라면 httpOnly cookie + refresh flow 권장
       partialize: (state) => ({
         user: state.user,
+        accessToken: state.accessToken,
         refreshToken: state.refreshToken,
       }),
     }

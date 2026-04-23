@@ -105,11 +105,12 @@ export default function DashboardSidebar({ onCollapse }: DashboardSidebarProps) 
       <div className="px-6 py-5 flex items-center justify-between">
         {!isCollapsed && (
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
-              S
-            </div>
-            <span className="text-lg font-bold text-white">SWproject</span>
+            <img src="/logo.png" alt="AI streamer" className="h-8 w-8 rounded-lg" />
+            <span className="text-lg font-bold text-white">AI streamer</span>
           </div>
+        )}
+        {isCollapsed && (
+          <img src="/logo.png" alt="AI streamer" className="h-8 w-8 rounded-lg mx-auto" />
         )}
         <button
           type="button"

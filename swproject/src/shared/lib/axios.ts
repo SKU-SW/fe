@@ -55,7 +55,7 @@ function unwrapData<T>(payload: T | ApiResponse<T>): T {
     payload &&
     typeof payload === 'object' &&
     'data' in payload &&
-    'success' in payload
+    ('success' in payload || 'status' in payload)
   ) {
     return (payload as ApiResponse<T>).data;
   }
@@ -139,15 +139,10 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      // 리프레시 토큰이 없으면 재발급 불가 → 로그아웃
+      // 리프레시 토큰이 없으면 재발급 불가 → 에러 반환 (로그아웃은 호출 측에서 처리)
       const refreshToken = useAuthStore.getState().refreshToken;
       if (!refreshToken) {
         isRefreshing = false;
-        useAuthStore.getState().clearAuth();
-        if (typeof window !== 'undefined') {
-          // Electron + HashRouter 환경에서는 hash 경로로 이동해야 함
-          window.location.hash = '#/login';
-        }
         return Promise.reject(error);
       }
 
@@ -166,13 +161,8 @@ apiClient.interceptors.response.use(
         processQueue(null, response.accessToken);
         return apiClient(originalRequest);
       } catch {
-        // 재발급 실패: 큐 해제 + 로그아웃
+        // 재발급 실패: 큐 해제 + 에러 반환 (로그아웃은 호출 측에서 처리)
         processQueue(error, null);
-        useAuthStore.getState().clearAuth();
-        if (typeof window !== 'undefined') {
-          // Electron + HashRouter 환경에서는 hash 경로로 이동해야 함
-          window.location.hash = '#/login';
-        }
         return Promise.reject(error);
       } finally {
         isRefreshing = false;
