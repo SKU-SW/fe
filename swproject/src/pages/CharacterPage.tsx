@@ -201,8 +201,8 @@ export default function CharacterPage() {
   const { characters: apiCharacters, refetch, isLoading: isLoadingCharacters, error: charactersError } = useCharacters();
   const { character: apiCharacter } = useCharacter(view === "edit" && selectedCharacterId ? selectedCharacterId : null);
   const { settings } = useCharacterSettings(view === "create" || view === "edit");
-  const { create, isPending: isCreating } = useCreateCharacter();
-  const { update, isPending: isUpdating } = useUpdateCharacter();
+  const { create, isPending: isCreating, error: createError } = useCreateCharacter();
+  const { update, isPending: isUpdating, error: updateError } = useUpdateCharacter();
   const { remove, isPending: isDeleting } = useDeleteCharacter();
   const { select, isPending: isSelecting } = useSelectCharacter();
 
@@ -222,12 +222,13 @@ export default function CharacterPage() {
     return characters.find((item) => item.id === String(selectedCharacterId)) ?? null;
   }, [apiCharacter, characters, selectedCharacterId]);
 
+  // 첫 캐릭터 자동 선택: selectedCharacterId가 비어있고 목록이 존재할 때만 한 번 수행
+  // (characters 참조가 매 렌더마다 바뀌므로, 의존성에서 제외해 루프 방지)
   useEffect(() => {
-    if (!selectedCharacterId && characters.length > 0) {
-      const firstId = Number(characters[0].id);
-      void select(firstId, true);
-    }
-  }, [selectedCharacterId, characters, select]);
+    if (selectedCharacterId || apiCharacters.length === 0) return;
+    const firstId = apiCharacters[0].characterId;
+    void select(firstId, true);
+  }, [selectedCharacterId, apiCharacters, select]);
 
   const handleCreate = useCallback(
     async (config: CharacterConfig) => {
@@ -277,6 +278,7 @@ export default function CharacterPage() {
         mode="create"
         settings={settings as CharacterSettingsResDto | null}
         isSaving={isCreating}
+        error={createError}
         onBack={() => setView("dashboard")}
         onSave={handleCreate}
       />
@@ -291,6 +293,7 @@ export default function CharacterPage() {
         initialData={selectedCharacter}
         settings={settings as CharacterSettingsResDto | null}
         isSaving={isUpdating}
+        error={updateError}
         onBack={() => setView("dashboard")}
         onSave={handleUpdate}
       />

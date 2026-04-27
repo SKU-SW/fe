@@ -67,9 +67,28 @@ function unwrapData<T>(payload: T | ApiResponse<T>): T {
 // 요청 인터셉터: JWT 자동 주입
 // ============================================================
 // apiClient를 통한 모든 요청에 accessToken을 자동으로 추가
-// zustand store에서 직접 읽어오므로 매번 토큰 상태를 반영
+// 단, 인증 엔드포인트(login/register/refresh)는 토큰을 붙이면 안 됨:
+//   - 만료된 토큰이 남아있으면 백엔드가 401로 거부 → 로그인 자체가 막힘
+
+// 토큰을 주입하지 않는 경로 (전체 URL 또는 path 일부 매칭)
+const AUTH_PUBLIC_PATHS = [
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
+  '/api/v1/auth/refresh',
+];
+
 apiClient.interceptors.request.use(
   (config) => {
+    const url = config.url ?? '';
+    const isPublicAuth = AUTH_PUBLIC_PATHS.some((p) => url.startsWith(p));
+    if (isPublicAuth) {
+      // 혹시 남아있을 수 있는 Authorization 헤더 제거
+      if (config.headers && 'Authorization' in config.headers) {
+        delete (config.headers as Record<string, unknown>).Authorization;
+      }
+      return config;
+    }
+
     const token = useAuthStore.getState().accessToken;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -92,6 +111,17 @@ let failedQueue: Array<{
   resolve: (value: unknown) => void;
   reject: (error: unknown) => void;
 }> = [];
+
+/**
+ * 인증이 완전히 만료되었을 때 로그인 페이지로 강제 이동
+ * - HashRouter 사용 중이므로 #/login 경로 사용
+ * - 이미 로그인 페이지면 리다이렉트 생략 (무한 루프 방지)
+ */
+function redirectToLogin() {
+  if (typeof window === 'undefined') return;
+  if (window.location.hash.startsWith('#/login')) return;
+  window.location.hash = '#/login';
+}
 
 /**
  * 대기 큐에 있는 모든 Promise를 처리
@@ -139,10 +169,12 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      // 리프레시 토큰이 없으면 재발급 불가 → 에러 반환 (로그아웃은 호출 측에서 처리)
+      // 리프레시 토큰이 없으면 재발급 불가 → 인증 정리 + 로그인 페이지로
       const refreshToken = useAuthStore.getState().refreshToken;
       if (!refreshToken) {
         isRefreshing = false;
+        useAuthStore.getState().clearAuth();
+        redirectToLogin();
         return Promise.reject(error);
       }
 
@@ -161,8 +193,10 @@ apiClient.interceptors.response.use(
         processQueue(null, response.accessToken);
         return apiClient(originalRequest);
       } catch {
-        // 재발급 실패: 큐 해제 + 에러 반환 (로그아웃은 호출 측에서 처리)
+        // 재발급 실패: refreshToken까지 만료된 상황 → 인증 정리 + 로그인 페이지로
         processQueue(error, null);
+        useAuthStore.getState().clearAuth();
+        redirectToLogin();
         return Promise.reject(error);
       } finally {
         isRefreshing = false;

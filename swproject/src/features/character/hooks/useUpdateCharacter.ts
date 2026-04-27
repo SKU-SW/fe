@@ -53,7 +53,11 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
         updateCharacterInStore(characterId, listItem);
         return character;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : '캐릭터 수정에 실패했습니다.';
+        const axiosErr = err as import('axios').AxiosError<{ message?: string }>;
+        const message =
+          axiosErr?.response?.data?.message ??
+          (err instanceof Error ? err.message : '캐릭터 수정에 실패했습니다.');
+        console.error('[useUpdateCharacter] 실패:', err);
         setError(message);
         return null;
       } finally {

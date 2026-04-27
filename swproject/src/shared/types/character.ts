@@ -172,7 +172,7 @@ export interface CharacterSelectResDto {
  */
 export interface VoiceTypeResDto {
   voiceTypeId: number;
-  label: string;
+  label: string | null;
   gender: Gender;
   ageGroup: AgeGroup;
   testUrl: string;
@@ -186,6 +186,7 @@ export interface CharacterImageResDto {
   gender: Gender;
   name: string;
   imageUrl: string;
+  imageUrl1?: string; // 서버 호환용 (imageUrl1 필드)
 }
 
 /**

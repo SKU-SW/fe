@@ -40,6 +40,7 @@ interface CharacterFormProps {
   initialData?: CharacterPreset | null;
   settings: CharacterSettingsResDto | null;
   isSaving?: boolean;
+  error?: string | null;
   onBack: () => void;
   onSave: (config: CharacterConfig) => Promise<void>;
 }
@@ -76,7 +77,7 @@ function toConfig(data?: CharacterPreset | null): CharacterConfig {
   };
 }
 
-export function CharacterForm({ mode, initialData, settings, isSaving, onBack, onSave }: CharacterFormProps) {
+export function CharacterForm({ mode, initialData, settings, isSaving, error, onBack, onSave }: CharacterFormProps) {
   const initialConfig = useMemo(() => toConfig(initialData), [initialData]);
   const [config, setConfig] = useState<CharacterConfig>(initialConfig);
 
@@ -100,6 +101,14 @@ export function CharacterForm({ mode, initialData, settings, isSaving, onBack, o
               {mode === "create" ? "AI 캐릭터 생성" : "AI 캐릭터 수정"}
             </h2>
             <p className="mb-6 text-sm text-slate-400">방송 스타일에 맞는 AI 동료의 정체성을 설정하세요.</p>
+
+            {error && (
+              <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+                <p className="font-medium">저장 실패</p>
+                <p className="mt-1 text-red-300/80">{error}</p>
+              </div>
+            )}
+
             <CharacterSettings
               config={config}
               settings={settings}
