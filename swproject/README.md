@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SWproject
 
-## Getting Started
+방송 채팅 분석 및 AI 캐릭터 관리 Electron 데스크톱 애플리케이션.
 
-First, run the development server:
+## 기술 스택
+
+React 19 · TypeScript · Vite · Electron 33 · Zustand · React Hook Form + Zod · Tailwind CSS v3 · Axios · Chart.js. 백엔드는 Spring Boot REST API + WebSocket (`localhost:8080`).
+
+> 프로젝트는 원래 Next.js로 시작되었다가 Electron 호환을 위해 Vite + React Router로 마이그레이션됨. 자세한 내용은 소스 곳곳의 `@migrated` 주석 및 `docs/superpowers/` 의 설계 문서 참조.
+
+## 시작하기
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. 의존성 설치
+npm install
+
+# 2. 환경변수 설정
+cp .env.example .env.local
+# 필요 시 .env.local 의 VITE_API_BASE_URL, VITE_WS_URL 수정
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 개발
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev              # Vite dev 서버 (http://localhost:5173)
+npm run electron:dev     # Vite + Electron 동시 실행
+npm run lint             # ESLint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`npm run dev`는 브라우저에서 확인할 때, `npm run electron:dev`는 데스크톱 앱으로 띄울 때 사용.
 
-## Learn More
+## 빌드
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run build            # 웹 빌드 → dist/
+npm run electron:build   # Electron 앱 패키징 → release/
+npm run electron:preview # 프로덕션 모드 Electron 미리보기
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 환경변수 (`.env.local`)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+VITE_API_BASE_URL=http://localhost:8080
+VITE_WS_URL=ws://localhost:8080
+```
 
-## Deploy on Vercel
+Vite 규칙상 클라이언트에 노출되는 환경변수는 `VITE_` 접두사 필수.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 디렉토리 구조
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── pages/        # 라우트별 페이지
+├── features/     # 기능 모듈 (auth, character, dashboard)
+├── shared/       # 공유 stores, types, hooks, lib
+├── components/   # 글로벌 레이아웃
+└── styles/       # 글로벌 스타일
+
+electron/         # Electron 메인 프로세스 + preload
+```
+
+## 추가 문서
+
+- 상위 디렉토리 (`../`) 의 `PROJECT_GUIDE.md`, `SPECIFICATIONS.md`,
+  `API_SPECIFICATIONS.md`, `DEVELOPMENT_GUIDE.md`, `UI_DESIGN.md`
+- `AGENTS.md` — AI 에이전트용 가이드
+- `docs/superpowers/` — 설계/계획 문서 (마이그레이션 히스토리 포함)
