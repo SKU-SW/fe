@@ -13,4 +13,4 @@ export { BasicInfoSection } from "./BasicInfoSection";
 export { PNGTuberSelector } from "./PNGTuberSelector";
 export { PersonaPresetSection } from "./PersonaPresetSection";
 export { VoicePersonalitySection } from "./VoicePersonalitySection";
-export { CharacterPreview } from "./CharacterPreview";
+export { BroadcastConfirmModal } from "./BroadcastConfirmModal";
