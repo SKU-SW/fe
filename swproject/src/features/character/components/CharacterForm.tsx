@@ -1,14 +1,13 @@
 /**
  * @file 캐릭터 생성/수정 폼 레이아웃
  * @created Sprint 3 - Character UI 이식
- * @dependsOn CharacterSettings, CharacterPreview
+ * @dependsOn CharacterSettings
  * @usedBy src/pages/CharacterPage.tsx
  */
 
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { CharacterConfig, CharacterPreset, CharacterSettingsResDto } from "@/shared/types/character";
-import { CharacterPreview } from "./CharacterPreview";
 import { CharacterSettings } from "./CharacterSettings";
 
 const DEFAULT_CONFIG: CharacterConfig = {
@@ -66,14 +65,8 @@ function toConfig(data?: CharacterPreset | null): CharacterConfig {
             ? "playful"
             : "dramatic",
     personality: data.info.personality,
-    broadcastPreset:
-      data.info.persona === "game_specialist"
-        ? "gaming"
-        : data.info.persona === "humor_entertainment"
-          ? "entertainment"
-          : data.info.persona === "focused_serious"
-            ? "focused"
-            : "chatty",
+    // Persona와 BroadcastPreset이 동일한 키 체계를 쓰므로 직접 매핑
+    broadcastPreset: data.info.persona,
   };
 }
 
@@ -96,7 +89,7 @@ export function CharacterForm({ mode, initialData, settings, isSaving, error, on
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto p-8">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-5xl">
             <h2 className="mb-2 text-2xl font-semibold text-white">
               {mode === "create" ? "AI 캐릭터 생성" : "AI 캐릭터 수정"}
             </h2>
@@ -118,9 +111,6 @@ export function CharacterForm({ mode, initialData, settings, isSaving, error, on
               isSaving={isSaving}
             />
           </div>
-        </div>
-        <div className="hidden w-[400px] md:block">
-          <CharacterPreview config={config} />
         </div>
       </div>
     </div>

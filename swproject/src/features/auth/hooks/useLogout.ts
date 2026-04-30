@@ -11,6 +11,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '@/features/auth/api/authApi';
 import { useAuthStore } from '@/shared/stores/authStore';
+import { useAIModeStore } from '@/shared/stores/aiModeStore';
 
 /**
  * useLogout 훅 반환 타입
@@ -52,6 +53,10 @@ export function useLogout(): UseLogoutReturn {
       // 서버 로그아웃 실패해도 로컬에서는 로그아웃 처리
       // 네트워크 오류나 서버 다운 상황에서도 사용자는 로그아웃할 수 있어야 함
     } finally {
+      // 다음 세션이 stale 한 broadcasting 상태로 시작되지 않도록 정리.
+      // (백엔드에 진행 중 방송이 남아있을 수 있지만, 그건 다음 로그인 후
+      //  필요 시 /stream/terminate 또는 /stream/info 로 reconcile 해야 함.)
+      useAIModeStore.getState().clearBroadcast();
       clearAuth();
       setIsPending(false);
       navigate('/login');

@@ -1,12 +1,13 @@
 /**
  * @file 로그인 페이지
  * @migrated Next.js App Router → React Router
- * @change next/link → react-router-dom Link, 'use client' 제거
+ * @updated A1~A4: 비밀번호 보기 토글, autoComplete, 자동 포커스, 죽은 링크 제거
  */
 
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLogin } from '@/features/auth/hooks';
 import { loginSchema, type LoginFormData } from '@/features/auth/schemas/authSchemas';
@@ -15,14 +16,20 @@ import GoogleButton from '@/features/auth/components/GoogleButton';
 
 export default function LoginPage() {
   const { login, isPending, error: apiError } = useLogin();
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
     handleSubmit,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
+
+  useEffect(() => {
+    setFocus('email');
+  }, [setFocus]);
 
   const onSubmit = async (data: LoginFormData) => {
     await login(data);
@@ -32,7 +39,10 @@ export default function LoginPage() {
     <main className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <AuthCard title="환영합니다" subtitle="AI 스트리머 파트너 플랫폼에 로그인하세요">
         {apiError && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+          <div
+            className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm"
+            role="alert"
+          >
             {apiError}
           </div>
         )}
@@ -46,41 +56,51 @@ export default function LoginPage() {
                 {...register('email')}
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="name@example.com"
-                className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                aria-invalid={errors.email ? 'true' : 'false'}
+                aria-describedby={errors.email ? 'email-error' : undefined}
+                className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
               />
             </div>
             {errors.email && (
-              <p className="text-red-400 text-sm">{errors.email.message}</p>
+              <p id="email-error" className="text-red-400 text-sm">{errors.email.message}</p>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="password" className="text-sm font-medium text-slate-300">비밀번호</label>
-              <a href="#" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-                비밀번호 찾기
-              </a>
-            </div>
+            <label htmlFor="password" className="text-sm font-medium text-slate-300">비밀번호</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 pointer-events-none" />
               <input
                 {...register('password')}
                 id="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                aria-invalid={errors.password ? 'true' : 'false'}
+                aria-describedby={errors.password ? 'password-error' : undefined}
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                aria-pressed={showPassword}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
             {errors.password && (
-              <p className="text-red-400 text-sm">{errors.password.message}</p>
+              <p id="password-error" className="text-red-400 text-sm">{errors.password.message}</p>
             )}
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || isPending}
-            className="w-full mt-6 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
+            className="w-full mt-6 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
           >
             {isSubmitting || isPending ? '로그인 중...' : '로그인'}
           </button>
@@ -100,7 +120,7 @@ export default function LoginPage() {
         <div className="mt-8 text-center">
           <p className="text-sm text-slate-400">
             계정이 없으신가요?{' '}
-            <Link to="/signup" className="text-blue-400 hover:text-blue-300 transition-colors">
+            <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 transition-colors">
               회원가입
             </Link>
           </p>

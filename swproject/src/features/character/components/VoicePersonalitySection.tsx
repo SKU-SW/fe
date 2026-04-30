@@ -31,7 +31,7 @@ export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySe
   return (
     <section className="space-y-6 rounded-xl border border-slate-700 bg-slate-800 p-6">
       <div className="flex items-center gap-2">
-        <MessageSquare className="h-5 w-5 text-blue-300" />
+        <MessageSquare className="h-5 w-5 text-indigo-300" />
         <h3 className="text-lg font-semibold text-white">말투 및 성격</h3>
       </div>
 
@@ -45,11 +45,11 @@ export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySe
               onClick={() => onChange({ ...config, speechStyle: style.id })}
               className={`rounded-lg border p-4 text-left transition ${
                 config.speechStyle === style.id
-                  ? "border-blue-500 bg-blue-500/20"
+                  ? "border-indigo-500 bg-indigo-500/20"
                   : "border-slate-600 bg-slate-900 hover:border-slate-500"
               }`}
             >
-              <p className={`text-sm font-medium ${config.speechStyle === style.id ? "text-blue-300" : "text-slate-100"}`}>
+              <p className={`text-sm font-medium ${config.speechStyle === style.id ? "text-indigo-300" : "text-slate-100"}`}>
                 {style.label}
               </p>
               <p className="mt-1 text-xs italic text-slate-400">"{style.example}"</p>
@@ -68,13 +68,13 @@ export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySe
               onClick={() => onChange({ ...config, personality: personality.id })}
               className={`rounded-lg border p-4 text-left transition ${
                 config.personality === personality.id
-                  ? "border-blue-500 bg-blue-500/20"
+                  ? "border-indigo-500 bg-indigo-500/20"
                   : "border-slate-600 bg-slate-900 hover:border-slate-500"
               }`}
             >
               <p
                 className={`text-sm font-medium ${
-                  config.personality === personality.id ? "text-blue-300" : "text-slate-100"
+                  config.personality === personality.id ? "text-indigo-300" : "text-slate-100"
                 }`}
               >
                 {personality.label}

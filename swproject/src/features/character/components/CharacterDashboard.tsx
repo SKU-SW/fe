@@ -8,7 +8,7 @@
  * @usedBy src/pages/CharacterPage.tsx
  */
 
-import { CheckCircle2, Circle, Edit2, Eye, Plus, Radio, Square, Trash2, Zap, Sparkles } from "lucide-react";
+import { CheckCircle2, Circle, Edit2, Plus, Radio, Square, Trash2, Zap, Sparkles } from "lucide-react";
 import type { CharacterPreset } from "@/shared/types/character";
 import { resolveAssetUrl } from "@/shared/lib/utils";
 import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
@@ -28,7 +28,6 @@ interface CharacterDashboardProps {
   onSelectClick: (id: string) => void;
   onBroadcastClick?: (id: string) => void;
   onStopBroadcastClick?: (id: string) => void;
-  onViewDetails?: (id: string) => void;
 }
 
 /**
@@ -53,22 +52,10 @@ function getPersonaColor(persona?: string): string {
     neighbor: "text-emerald-400",
     high_tension: "text-pink-400",
     teaser: "text-purple-400",
-    manager: "text-blue-400",
+    manager: "text-indigo-400",
     immersive: "text-amber-400",
   };
   return colors[persona || ""] || "text-slate-400";
-}
-
-/**
- * 성별 배지 렌더링
- */
-function GenderBadge({ gender }: { gender: string }) {
-  const isFemalse = gender === "female";
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-700/50 px-3 py-1 text-xs font-medium text-slate-200">
-      {isFemalse ? "👩 여성" : "👨 남성"}
-    </span>
-  );
 }
 
 /**
@@ -96,7 +83,7 @@ function CallWordBadges({ callWords }: { callWords: string[] }) {
 function LoadingSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
-      <div className="h-40 rounded-2xl bg-slate-800" />
+      <div className="h-40 rounded-xl bg-slate-800" />
       <div className="space-y-3">
         {[...Array(3)].map((_, i) => (
           <div key={i} className="h-20 rounded-xl bg-slate-800" />
@@ -122,7 +109,7 @@ function ErrorState({ error }: { error: string }) {
  */
 function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
-    <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-12 text-center">
+    <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-12 text-center">
       <div className="mb-4 flex justify-center">
         <div className="rounded-full bg-indigo-500/10 p-4">
           <Sparkles className="h-8 w-8 text-indigo-400" />
@@ -158,7 +145,6 @@ export function CharacterDashboard({
   onSelectClick,
   onBroadcastClick,
   onStopBroadcastClick,
-  onViewDetails,
 }: CharacterDashboardProps) {
   const selectedChar = characters.find((character) => character.id === selectedId) ?? characters[0];
   const hasCharacters = characters.length > 0;
@@ -188,7 +174,7 @@ export function CharacterDashboard({
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-200">
               {isFeaturedBroadcasting ? (
                 <>
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-300 border border-red-500/30">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-300 border border-red-500/30">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
                     LIVE
                   </span>
@@ -203,7 +189,7 @@ export function CharacterDashboard({
             </h2>
 
             <div
-              className={`group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-8 transition-all hover:shadow-lg ${
+              className={`group relative overflow-hidden rounded-xl border bg-gradient-to-br p-8 transition-all hover:shadow-lg ${
                 isFeaturedBroadcasting
                   ? "border-red-500/40 from-slate-800 to-slate-900 hover:border-red-500/60 hover:shadow-red-500/10"
                   : "border-slate-700/50 from-slate-800 to-slate-900 hover:border-slate-600/50 hover:shadow-indigo-500/10"
@@ -230,11 +216,8 @@ export function CharacterDashboard({
 
                   {/* Content */}
                   <div className="flex-1 space-y-5">
-                    {/* Name & Gender */}
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-2xl font-bold text-white">{selectedChar.name}</h3>
-                      <GenderBadge gender={selectedChar.info.gender} />
-                    </div>
+                    {/* Name */}
+                    <h3 className="text-2xl font-bold text-white">{selectedChar.name}</h3>
 
                     {/* Persona */}
                     <div className="flex items-center gap-2">
@@ -351,10 +334,7 @@ export function CharacterDashboard({
                         />
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-white">{character.name}</p>
-                            <GenderBadge gender={character.info.gender} />
-                          </div>
+                          <p className="truncate text-sm font-semibold text-white">{character.name}</p>
                           <p className="mt-1 text-xs text-slate-400">
                             <span className={`font-medium ${getPersonaColor(character.info.persona)}`}>
                               [{getPersonaLabel(character.info.persona)}]
@@ -387,17 +367,6 @@ export function CharacterDashboard({
                           >
                             {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
                             <span className="hidden sm:inline">{isSelected ? "선택됨" : "선택"}</span>
-                          </button>
-                        )}
-
-                        {onViewDetails && (
-                          <button
-                            type="button"
-                            onClick={() => onViewDetails(character.id)}
-                            className="rounded-lg border border-slate-600/50 bg-slate-700/50 p-1.5 text-slate-300 transition hover:bg-slate-700"
-                            title="상세 정보"
-                          >
-                            <Eye className="h-4 w-4" />
                           </button>
                         )}
 
@@ -441,7 +410,7 @@ function FeaturedAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbac
   const resolved = resolveAssetUrl(imageUrl);
   if (resolved) {
     return (
-      <div className="h-32 w-32 overflow-hidden rounded-2xl border border-slate-600/50 bg-gradient-to-br from-slate-700 to-slate-800 shadow-lg">
+      <div className="h-32 w-32 overflow-hidden rounded-xl border border-slate-600/50 bg-gradient-to-br from-slate-700 to-slate-800 shadow-lg">
         <img
           src={resolved}
           alt="character"
@@ -459,7 +428,7 @@ function FeaturedAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbac
     );
   }
   return (
-    <div className="flex h-32 w-32 items-center justify-center rounded-2xl border border-slate-600/50 bg-gradient-to-br from-slate-700 to-slate-800 text-4xl font-bold text-slate-300 shadow-lg">
+    <div className="flex h-32 w-32 items-center justify-center rounded-xl border border-slate-600/50 bg-gradient-to-br from-slate-700 to-slate-800 text-4xl font-bold text-slate-300 shadow-lg">
       {fallbackChar}
     </div>
   );

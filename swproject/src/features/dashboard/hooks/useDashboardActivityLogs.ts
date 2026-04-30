@@ -10,6 +10,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAIModeStore, ActivityLog } from "@/shared/stores/aiModeStore";
 import { getDashboardActivityLogs, DashboardActivityLogDto } from "@/features/dashboard/api/dashboardApi";
 
+interface UseDashboardActivityLogsOptions {
+  /** false 일 때 폴링 정지 (방송 중이 아닐 때 트래픽 차단용) */
+  enabled?: boolean;
+}
+
 interface UseDashboardActivityLogsReturn {
   isLoading: boolean;
   error: string | null;
@@ -73,11 +78,20 @@ function toActivityLog(dto: DashboardActivityLogDto): ActivityLog {
   };
 }
 
-export function useDashboardActivityLogs(): UseDashboardActivityLogsReturn {
+export function useDashboardActivityLogs(
+  options: UseDashboardActivityLogsOptions = {}
+): UseDashboardActivityLogsReturn {
+  const { enabled = true } = options;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const addActivityLog = useAIModeStore((s) => s.addActivityLog);
   const seenIdsRef = useRef<Set<string>>(new Set());
+
+  // 마운트 시 store에 이미 있는 로그 ID를 seen에 등록 (재진입 시 중복 방어)
+  useEffect(() => {
+    const existing = useAIModeStore.getState().activityLogs;
+    existing.forEach((log) => seenIdsRef.current.add(log.id));
+  }, []);
 
   const pushLogs = useCallback(
     (items: DashboardActivityLogDto[]) => {
@@ -114,13 +128,15 @@ export function useDashboardActivityLogs(): UseDashboardActivityLogsReturn {
   }, [fetchLogs]);
 
   useEffect(() => {
+    if (!enabled) return;
     setIsLoading(true);
     fetchLogs().finally(() => {
       setIsLoading(false);
     });
-  }, [fetchLogs]);
+  }, [enabled, fetchLogs]);
 
   useEffect(() => {
+    if (!enabled) return;
     const timerId = setInterval(() => {
       fetchLogs();
     }, POLLING_INTERVAL_MS);
@@ -128,7 +144,7 @@ export function useDashboardActivityLogs(): UseDashboardActivityLogsReturn {
     return () => {
       clearInterval(timerId);
     };
-  }, [fetchLogs]);
+  }, [enabled, fetchLogs]);
 
   return {
     isLoading,

@@ -16,7 +16,8 @@ interface BroadcastConfirmModalProps {
 
 /**
  * 방송 시작 전 주의사항을 안내하고 사용자의 동의를 받는 모달
- * - "다시 받지 않기" 체크박스를 통해 다음 방송부터 모달 생략 가능
+ * - "다시 받지 않기" 체크박스를 통해 해당 캐릭터의 다음 방송부터 모달 생략 가능
+ *   (캐릭터별로 별도 관리 — 다른 캐릭터에는 영향 없음)
  */
 export function BroadcastConfirmModal({
   characterName,
@@ -34,7 +35,7 @@ export function BroadcastConfirmModal({
       onClick={onCancel}
     >
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl"
+        className="relative w-full max-w-md overflow-hidden rounded-xl border border-slate-700/60 bg-slate-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
@@ -81,7 +82,7 @@ export function BroadcastConfirmModal({
               onChange={(e) => setDontShowAgain(e.target.checked)}
               className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:ring-offset-0"
             />
-            이 알림 다시 받지 않기
+            이 캐릭터에 대해 다시 받지 않기
           </label>
         </div>
 

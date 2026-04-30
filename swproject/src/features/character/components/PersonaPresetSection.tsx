@@ -15,32 +15,59 @@ interface PersonaPresetSectionProps {
 
 const PRESETS = [
   {
-    id: "gaming",
-    label: "게임 특화",
-    description: "리액션 중심, 하이라이트 반응 강화",
+    id: "neighbor",
+    label: "동네 친구",
+    tagline: "저스트 채팅 / 소통 특화",
+    description:
+      "가장 무난하고 편안하게 오디오를 채워주는 든든한 국밥 같은 포지션입니다. 적당한 딴지와 밈으로 티키타카를 이어갑니다.",
+    speechStyle: "casual",
+    personality: "humorous",
+    speechLabel: "친근한 반말",
+    personalityLabel: "유머러스",
+  },
+  {
+    id: "high_tension",
+    label: "텐션 폭발",
+    tagline: "리액션 / 하이라이트 특화",
+    description:
+      "텐션이 떨어질 때 방송 분위기를 멱살 잡고 끌어올려 주는 포지션입니다. 리액션이 크고 감정 표현이 풍부합니다.",
     speechStyle: "dramatic",
     personality: "energetic",
+    speechLabel: "방송용 과장체",
+    personalityLabel: "활발함",
   },
   {
-    id: "entertainment",
-    label: "유머/예능",
-    description: "티키타카와 밈 소화에 특화",
+    id: "teaser",
+    label: "깐족 요정",
+    tagline: "게임 특화 / 훈수 및 티배깅",
+    description:
+      "시청자들을 대신해서 스트리머를 긁거나 팩트 폭력을 날리는 얄미운 포지션입니다. 실수를 놓치지 않고 놀려 웃음을 유발합니다.",
     speechStyle: "playful",
-    personality: "humorous",
+    personality: "energetic",
+    speechLabel: "장난기 섞인 반말",
+    personalityLabel: "활발함",
   },
   {
-    id: "focused",
-    label: "진중/집중",
-    description: "정보 전달, 차분한 진행",
+    id: "manager",
+    label: "전문 매니저",
+    tagline: "정보 전달 / 차분한 진행",
+    description:
+      "선 넘는 채팅을 진정시키거나 게임 스토리를 조용히 요약해 주는 비서 같은 포지션입니다. 정보 전달이나 공지에 유용합니다.",
+    speechStyle: "polite",
+    personality: "calm",
+    speechLabel: "깍듯한 존댓말",
+    personalityLabel: "차분함",
+  },
+  {
+    id: "immersive",
+    label: "과몰입 장인",
+    tagline: "스토리 게임 / 롤플레잉 특화",
+    description:
+      "게임 속 캐릭터나 세계관에 완전히 동화되어 진지하게 상황에 임하는 포지션입니다. 농담보다 분위기와 몰입감에 집중합니다.",
     speechStyle: "polite",
     personality: "serious",
-  },
-  {
-    id: "chatty",
-    label: "잡담/소통",
-    description: "편안한 저스트 채팅 흐름",
-    speechStyle: "casual",
-    personality: "calm",
+    speechLabel: "깍듯한 존댓말",
+    personalityLabel: "진지함",
   },
 ] as const;
 
@@ -54,7 +81,7 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
         <h3 className="text-lg font-semibold text-white">페르소나 프리셋</h3>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {PRESETS.map((preset) => {
           const isSelected = config.broadcastPreset === preset.id;
           return (
@@ -69,32 +96,47 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
                   personality: preset.personality,
                 })
               }
-              className={`rounded-xl border p-4 text-left transition ${
+              className={`rounded-lg border px-3 py-2.5 text-center transition ${
                 isSelected
-                  ? "border-blue-500 bg-blue-500/20"
-                  : "border-slate-600 bg-slate-900 hover:border-slate-500"
+                  ? "border-indigo-500 bg-indigo-500/20 shadow-lg shadow-indigo-500/20"
+                  : "border-slate-600 bg-slate-900 hover:border-slate-500 hover:bg-slate-800"
               }`}
             >
-              <p className={`text-sm font-semibold ${isSelected ? "text-blue-300" : "text-slate-100"}`}>
+              <p className={`text-sm font-semibold ${isSelected ? "text-indigo-300" : "text-slate-100"}`}>
                 {preset.label}
               </p>
-              <p className="mt-1 text-xs text-slate-400">{preset.description}</p>
             </button>
           );
         })}
       </div>
 
-      {selectedPreset && (
-        <div className="flex gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
-          <div className="text-sm text-slate-300">
-            <p className="font-medium text-blue-300">{selectedPreset.label} 프리셋 적용됨</p>
-            <p className="mt-1">
-              추천 말투는 <span className="font-medium">{selectedPreset.speechStyle}</span>, 추천 성격은
-              <span className="font-medium"> {selectedPreset.personality}</span> 입니다.
-            </p>
+      {selectedPreset ? (
+        <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-5">
+          <div className="flex items-start gap-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
+            <div className="flex-1 space-y-3">
+              <div>
+                <p className="text-base font-semibold text-indigo-200">{selectedPreset.label}</p>
+                <p className="mt-0.5 text-xs font-medium text-indigo-300/80">{selectedPreset.tagline}</p>
+              </div>
+
+              <p className="text-sm leading-relaxed text-slate-300">{selectedPreset.description}</p>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <span className="inline-flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/20 px-2 py-1 text-xs text-indigo-200">
+                  말투 · {selectedPreset.speechLabel}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/20 px-2 py-1 text-xs text-purple-200">
+                  성격 · {selectedPreset.personalityLabel}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-slate-600 bg-slate-900/40 px-4 py-3 text-center text-xs text-slate-500">
+          위에서 프리셋을 선택하면 상세 설명이 표시됩니다.
+        </p>
       )}
     </section>
   );

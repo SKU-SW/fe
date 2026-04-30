@@ -225,13 +225,14 @@ export type UiSpeechStyle =
 export type UiPersonality = "energetic" | "calm" | "humorous" | "serious";
 
 /**
- * 페르소나 (UI 전용 - 캐릭터의 전문 분야)
+ * 페르소나 (UI 전용) - BroadcastPreset과 1:1 매핑 (5개 페르소나 프리셋 카드)
  */
 export type Persona =
-  | "game_specialist"
-  | "humor_entertainment"
-  | "focused_serious"
-  | "chat_social";
+  | "neighbor"
+  | "high_tension"
+  | "teaser"
+  | "manager"
+  | "immersive";
 
 /**
  * 채팅 민감도 레벨 (UI 전용)
@@ -246,6 +247,8 @@ export interface CharacterInfo {
   name: string;
   callSign: string;
   appearancePresetId: string;
+  /** 백엔드 characterImageUrl - 캐릭터 카드 아바타 표시용 */
+  imageUrl?: string;
   voicePresetId: string;
   speechStyle: UiSpeechStyle;
   personality: UiPersonality;
@@ -305,9 +308,14 @@ export interface CharacterSettingsResponse {
 }
 
 /**
- * 캐릭터 방송 프리셋 (UI 전용)
+ * 캐릭터 방송 프리셋 (UI 전용) - 백엔드 PresetType과 1:1 매핑
+ * - neighbor: 동네 친구 → FRIENDLY_CHATTER
+ * - high_tension: 텐션 폭발 → HIGH_TENSION
+ * - teaser: 깐족 요정 → PLAYFUL_TEASER
+ * - manager: 전문 매니저 → PROFESSIONAL_MANAGER
+ * - immersive: 과몰입 장인 → ROLEPLAY_EXPERT
  */
-export type BroadcastPreset = "gaming" | "entertainment" | "focused" | "chatty";
+export type BroadcastPreset = "neighbor" | "high_tension" | "teaser" | "manager" | "immersive";
 
 /**
  * 캐릭터 폼 말투 스타일 (UI 전용)

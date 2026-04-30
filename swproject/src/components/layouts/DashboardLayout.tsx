@@ -25,14 +25,14 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row bg-slate-950">
-      {/* 사이드바 네비게이션 */}
+    <div className="flex h-screen flex-col md:flex-row bg-slate-950 overflow-hidden">
+      {/* 사이드바 네비게이션 (뷰포트 높이에 고정) */}
       <DashboardSidebar />
 
-      {/* 메인 영역: 헤더 + 페이지 콘텐츠 */}
-      <div className="flex flex-1 flex-col">
-        {/* 헤더: 페이지 타이틀 + 알림 + 사용자 메뉴 */}
-        <DashboardHeader pageTitle="Dashboard" />
+      {/* 메인 영역: 헤더 + 페이지 콘텐츠 (이 안에서만 스크롤) */}
+      <div className="flex flex-1 flex-col min-w-0 min-h-0">
+        {/* 헤더: 라우트별 페이지 타이틀/설명 + 알림 + 설정 */}
+        <DashboardHeader />
 
         {/* React Router Outlet for nested routes */}
         <main className="flex-1 overflow-auto p-4 md:p-6">

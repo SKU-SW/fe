@@ -12,6 +12,11 @@ import { useWebSocket } from "@/shared/hooks/useWebSocket";
 import { useAIModeStore, ChatMessage, EmotionType } from "@/shared/stores/aiModeStore";
 import { getDashboardChatMessages, DashboardChatMessageDto } from "@/features/dashboard/api/dashboardApi";
 
+interface UseDashboardChatStreamOptions {
+  /** false 일 때 폴링/WebSocket 모두 정지 (방송 중이 아닐 때 트래픽 차단용) */
+  enabled?: boolean;
+}
+
 interface UseDashboardChatStreamReturn {
   isLoading: boolean;
   error: string | null;
@@ -68,11 +73,22 @@ function toChatMessage(dto: DashboardChatMessageDto): ChatMessage {
   };
 }
 
-export function useDashboardChatStream(): UseDashboardChatStreamReturn {
+export function useDashboardChatStream(
+  options: UseDashboardChatStreamOptions = {}
+): UseDashboardChatStreamReturn {
+  const { enabled = true } = options;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const addChatMessage = useAIModeStore((s) => s.addChatMessage);
   const seenIdsRef = useRef<Set<string>>(new Set());
+
+  // 마운트 시 store에 이미 있는 메시지 ID를 seen에 등록.
+  // - chatMessages 는 persist 대상이 아니지만 Zustand 자체는 메모리에 남아있어서,
+  //   페이지 재진입 시 같은 메시지가 다시 푸시되면 중복 누적될 수 있음.
+  useEffect(() => {
+    const existing = useAIModeStore.getState().chatMessages;
+    existing.forEach((m) => seenIdsRef.current.add(m.id));
+  }, []);
 
   const wsUrl = useMemo(() => {
     const baseUrl = import.meta.env.VITE_WS_URL;
@@ -122,13 +138,15 @@ export function useDashboardChatStream(): UseDashboardChatStreamReturn {
   }, [fetchLatestChats]);
 
   useEffect(() => {
+    if (!enabled) return;
     setIsLoading(true);
     fetchLatestChats().finally(() => {
       setIsLoading(false);
     });
-  }, [fetchLatestChats]);
+  }, [enabled, fetchLatestChats]);
 
   useEffect(() => {
+    if (!enabled) return;
     const timerId = setInterval(() => {
       fetchLatestChats();
     }, POLLING_INTERVAL_MS);
@@ -136,11 +154,11 @@ export function useDashboardChatStream(): UseDashboardChatStreamReturn {
     return () => {
       clearInterval(timerId);
     };
-  }, [fetchLatestChats]);
+  }, [enabled, fetchLatestChats]);
 
   const { isConnected } = useWebSocket<DashboardChatMessageDto | DashboardChatMessageDto[]>({
     url: wsUrl ?? "",
-    enabled: Boolean(wsUrl),
+    enabled: enabled && Boolean(wsUrl),
     onMessage: (payload) => {
       const items = Array.isArray(payload) ? payload : [payload];
       pushMessages(items);

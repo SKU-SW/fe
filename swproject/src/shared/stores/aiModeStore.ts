@@ -64,6 +64,12 @@ interface AIModeStore {
   reactionStrategy: ReactionStrategy;
   isAutoStrategy: boolean;
 
+  // === 방송 세션 (백엔드 /api/v1/stream/start 응답으로 채워짐) ===
+  /** 백엔드가 발급한 방송 스트림 ID — WebSocket 채널 식별자로도 사용 예정 */
+  broadcastStreamId: string | null;
+  /** 방송 시작 시간 (서버 응답 문자열 그대로 보관, 예: "2026-04-26-14:30:00") */
+  broadcastStartedAt: string | null;
+
   // === 상단 컨트롤 ===
   isPaused: boolean;
   isPTTActive: boolean;
@@ -87,6 +93,14 @@ interface AIModeStore {
 
   // === 액션 함수들 ===
   setMode: (mode: AIMode) => void;
+  /**
+   * 방송 시작 시 사용 — 백엔드 응답으로 mode='broadcasting' + streamId/startedAt 을 원자적으로 셋
+   */
+  setBroadcast: (broadcastStreamId: string, broadcastStartedAt: string) => void;
+  /**
+   * 방송 종료 시 사용 — mode='idle' + streamId/startedAt 을 한 번에 클리어
+   */
+  clearBroadcast: () => void;
   setReactionStrategy: (strategy: ReactionStrategy) => void;
   setIsAutoStrategy: (isAuto: boolean) => void;
 
@@ -157,6 +171,9 @@ export const useAIModeStore = create<AIModeStore>()(
       reactionStrategy: 'normal',
       isAutoStrategy: true,
 
+      broadcastStreamId: null,
+      broadcastStartedAt: null,
+
       isPaused: false,
       isPTTActive: false,
       personaSlots: DEFAULT_PERSONA_SLOTS,
@@ -171,6 +188,10 @@ export const useAIModeStore = create<AIModeStore>()(
 
       // === AI 모드 및 전략 ===
       setMode: (mode) => set({ mode }),
+      setBroadcast: (broadcastStreamId, broadcastStartedAt) =>
+        set({ mode: 'broadcasting', broadcastStreamId, broadcastStartedAt }),
+      clearBroadcast: () =>
+        set({ mode: 'idle', broadcastStreamId: null, broadcastStartedAt: null }),
       setReactionStrategy: (reactionStrategy) => set({ reactionStrategy }),
       setIsAutoStrategy: (isAutoStrategy) => set({ isAutoStrategy }),
 
@@ -221,6 +242,8 @@ export const useAIModeStore = create<AIModeStore>()(
       resetToDefaults: () =>
         set({
           mode: 'idle',
+          broadcastStreamId: null,
+          broadcastStartedAt: null,
           reactionStrategy: 'normal',
           isAutoStrategy: true,
           isPaused: false,
@@ -239,6 +262,8 @@ export const useAIModeStore = create<AIModeStore>()(
       partialize: (state) => ({
         // 영구 저장할 상태만 선택
         mode: state.mode,
+        broadcastStreamId: state.broadcastStreamId,
+        broadcastStartedAt: state.broadcastStartedAt,
         reactionStrategy: state.reactionStrategy,
         isAutoStrategy: state.isAutoStrategy,
         toggles: state.toggles,

@@ -14,9 +14,9 @@ interface CharacterEmptyStateProps {
 export function CharacterEmptyState({ onCreateClick }: CharacterEmptyStateProps) {
   return (
     <div className="h-full min-h-[520px] w-full bg-slate-950 p-8">
-      <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 p-10 text-center">
+      <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center rounded-xl border border-slate-700 bg-slate-900 p-10 text-center">
         <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-slate-700 bg-slate-800">
-          <Sparkles className="h-10 w-10 text-blue-400" />
+          <Sparkles className="h-10 w-10 text-indigo-400" />
         </div>
         <h2 className="mb-3 text-2xl font-bold text-white">등록된 AI 캐릭터가 없습니다</h2>
         <p className="mb-8 max-w-xl leading-relaxed text-slate-400">
@@ -26,7 +26,7 @@ export function CharacterEmptyState({ onCreateClick }: CharacterEmptyStateProps)
         <button
           type="button"
           onClick={onCreateClick}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white transition-colors hover:bg-indigo-700"
         >
           <PlusCircle className="h-5 w-5" />
           AI 캐릭터 생성하기

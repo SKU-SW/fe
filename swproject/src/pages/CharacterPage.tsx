@@ -3,8 +3,10 @@
  * @created Sprint 3 - Character UI 이식 및 페이지 연동
  * @updated Backend Swagger spec alignment
  * @updated Sprint 4 - 방송 시작 동의 모달 + 방송 상태(aiMode) 연동, 캐릭터 10개 한도 가드
+ * @updated 방송 시작/종료를 백엔드 API(/stream/start, /stream/terminate)와 연결
  * @dependsOn src/features/character/hooks/index.ts
  * @dependsOn src/features/character/components/index.ts
+ * @dependsOn src/features/broadcast/hooks (useStartBroadcast, useTerminateBroadcast)
  * @dependsOn src/shared/stores/aiModeStore.ts (방송 mode 동기화)
  * @dependsOn src/shared/constants/character.ts (MAX_CHARACTERS_PER_USER)
  * @usedBy src/App.tsx
@@ -21,6 +23,7 @@ import {
   useSelectCharacter,
 } from "@/features/character/hooks";
 import { BroadcastConfirmModal, CharacterDashboard, CharacterForm } from "@/features/character/components";
+import { useStartBroadcast, useTerminateBroadcast } from "@/features/broadcast/hooks";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
@@ -43,8 +46,36 @@ import type {
 
 type CharacterView = "dashboard" | "create" | "edit";
 
-/** 방송 시작 시 사용자가 "다시 받지 않기"를 체크한 경우 저장되는 localStorage 키 */
-const BROADCAST_NOTICE_SKIP_KEY = "broadcast-notice-skip";
+/**
+ * 방송 시작 모달을 "다시 받지 않기"로 스킵한 캐릭터 ID 목록 (localStorage 키)
+ * - 값은 JSON.stringify된 캐릭터 ID 문자열 배열
+ * - 캐릭터별로 별도 관리: 한 캐릭터에서 체크해도 다른 캐릭터에는 영향 없음
+ */
+const BROADCAST_NOTICE_SKIP_IDS_KEY = "broadcast-notice-skip-ids";
+
+/** 모달 스킵 대상 캐릭터 ID 집합 읽기 (파싱 실패 시 빈 집합) */
+function readBroadcastSkipIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(BROADCAST_NOTICE_SKIP_IDS_KEY);
+    if (!raw) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map(String));
+  } catch {
+    return new Set();
+  }
+}
+
+/** 캐릭터 ID를 스킵 목록에 추가 */
+function addBroadcastSkipId(id: string): void {
+  try {
+    const ids = readBroadcastSkipIds();
+    ids.add(id);
+    localStorage.setItem(BROADCAST_NOTICE_SKIP_IDS_KEY, JSON.stringify([...ids]));
+  } catch {
+    // localStorage 사용 불가 환경(시크릿 모드 등)에서는 무시
+  }
+}
 
 // ============================================================
 // UI 매핑 함수들 (CharacterConfig → Backend DTO)
@@ -227,7 +258,6 @@ export default function CharacterPage() {
   const [pendingBroadcastId, setPendingBroadcastId] = useState<string | null>(null);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const aiMode = useAIModeStore((s) => s.mode);
-  const setAIMode = useAIModeStore((s) => s.setMode);
 
   // 방송 중 캐릭터 ID는 별도 저장하지 않고 aiModeStore.mode + 선택된 캐릭터로 도출
   // - 단일 진실 원천(single source of truth)으로 두 store 동기화 비용 제거
@@ -243,6 +273,20 @@ export default function CharacterPage() {
   const { update, isPending: isUpdating, error: updateError } = useUpdateCharacter();
   const { remove, isPending: isDeleting } = useDeleteCharacter();
   const { select, isPending: isSelecting } = useSelectCharacter();
+  const { start: startBroadcastApi, isPending: isStartingBroadcast, error: startBroadcastError } = useStartBroadcast();
+  const { terminate: terminateBroadcastApi, isPending: isTerminatingBroadcast, error: terminateBroadcastError } = useTerminateBroadcast();
+
+  // 방송 시작/종료 에러를 alert 으로 노출 (이 페이지의 기존 에러 처리 패턴과 일관성)
+  useEffect(() => {
+    if (startBroadcastError) {
+      window.alert(startBroadcastError);
+    }
+  }, [startBroadcastError]);
+  useEffect(() => {
+    if (terminateBroadcastError) {
+      window.alert(terminateBroadcastError);
+    }
+  }, [terminateBroadcastError]);
 
   // API 응답을 UI CharacterPreset으로 변환
   const characters = useMemo(
@@ -267,6 +311,15 @@ export default function CharacterPage() {
     const firstId = apiCharacters[0].characterId;
     void select(firstId, true);
   }, [selectedCharacterId, apiCharacters, select]);
+
+  // 구버전(글로벌 단일 boolean) 키 정리: 캐릭터별 관리로 전환됐으므로 더 이상 사용하지 않음
+  useEffect(() => {
+    try {
+      localStorage.removeItem("broadcast-notice-skip");
+    } catch {
+      // localStorage 사용 불가 환경에서는 무시
+    }
+  }, []);
 
   const handleCreate = useCallback(
     async (config: CharacterConfig) => {
@@ -316,55 +369,60 @@ export default function CharacterPage() {
   // === 방송 시작/종료 ===
 
   /**
+   * 캐릭터 선택 동기화 후 백엔드 /stream/start 호출.
+   * - 백엔드 스펙: "선택하지 않은 AI 캐릭터로 방송 시작 시 예외" — 따라서 select 가 선행되어야 함.
+   * - 이미 선택된 캐릭터면 select 호출 생략 (불필요한 PATCH 방지).
+   */
+  const performStart = useCallback(
+    async (cid: number) => {
+      if (selectedCharacterId !== cid) {
+        await select(cid, true);
+      }
+      await startBroadcastApi(cid);
+    },
+    [select, selectedCharacterId, startBroadcastApi]
+  );
+
+  /**
    * 방송 시작 버튼 클릭 핸들러
    * 동작 순서:
-   *   1) 이미 방송 중이면 무시 (UI에서도 비활성화되지만 이중 방어)
-   *   2) 클릭한 캐릭터가 현재 선택된 캐릭터와 다르면 먼저 선택 처리 (broadcastingId 일관성 보장)
-   *   3) "다시 받지 않기"가 저장돼 있으면 모달 스킵하고 즉시 방송 시작
-   *      그렇지 않으면 동의 모달을 띄움 (pendingBroadcastId 설정)
+   *   1) 이미 방송 중이거나 시작 요청 진행 중이면 무시
+   *   2) "다시 받지 않기" 저장된 캐릭터면 모달 스킵하고 즉시 performStart 호출
+   *   3) 그렇지 않으면 동의 모달 표시 + 모달 떠 있는 동안 백엔드 선택 동기화 미리 시작
    */
   const handleBroadcastStart = useCallback(
     (characterId: string) => {
-      if (aiMode === "broadcasting") return;
+      if (aiMode === "broadcasting" || isStartingBroadcast) return;
 
-      // localStorage 접근은 시크릿 모드 등에서 throw 할 수 있으므로 try/catch
-      const skipNotice = (() => {
-        try {
-          return localStorage.getItem(BROADCAST_NOTICE_SKIP_KEY) === "true";
-        } catch {
-          return false;
-        }
-      })();
-
-      // 다른 카드의 방송 시작 버튼을 눌렀을 수도 있으므로 해당 캐릭터를 선택 상태로 정렬
       const cid = Number(characterId);
+      const skipNotice = readBroadcastSkipIds().has(characterId);
+
+      if (skipNotice) {
+        void performStart(cid);
+        return;
+      }
+
+      // 모달 떠 있는 동안 백엔드 선택을 미리 동기화 (확인 클릭 시 race 최소화)
       if (selectedCharacterId !== cid) {
         void select(cid, true);
       }
-
-      if (skipNotice) {
-        setAIMode("broadcasting");
-      } else {
-        setPendingBroadcastId(characterId);
-      }
+      setPendingBroadcastId(characterId);
     },
-    [aiMode, select, selectedCharacterId, setAIMode]
+    [aiMode, isStartingBroadcast, performStart, select, selectedCharacterId]
   );
 
   /** 모달에서 시작 버튼 확정 */
   const handleBroadcastConfirm = useCallback(
-    (dontShowAgain: boolean) => {
+    async (dontShowAgain: boolean) => {
+      if (!pendingBroadcastId) return;
       if (dontShowAgain) {
-        try {
-          localStorage.setItem(BROADCAST_NOTICE_SKIP_KEY, "true");
-        } catch {
-          // localStorage 사용 불가 환경(시크릿 모드 등)에서는 무시
-        }
+        addBroadcastSkipId(pendingBroadcastId);
       }
+      const cid = Number(pendingBroadcastId);
       setPendingBroadcastId(null);
-      setAIMode("broadcasting");
+      await performStart(cid);
     },
-    [setAIMode]
+    [pendingBroadcastId, performStart]
   );
 
   /** 모달 취소 */
@@ -372,10 +430,11 @@ export default function CharacterPage() {
     setPendingBroadcastId(null);
   }, []);
 
-  /** 방송 종료 */
-  const handleBroadcastStop = useCallback(() => {
-    setAIMode("idle");
-  }, [setAIMode]);
+  /** 방송 종료 — 백엔드 /stream/terminate 호출, 성공 시 hook 내부에서 clearBroadcast() 처리 */
+  const handleBroadcastStop = useCallback(async () => {
+    if (isTerminatingBroadcast) return;
+    await terminateBroadcastApi();
+  }, [isTerminatingBroadcast, terminateBroadcastApi]);
 
   // 모달에 표시할 캐릭터 이름 (pendingBroadcastId 기준)
   const pendingCharacterName = useMemo(() => {
@@ -448,11 +507,6 @@ export default function CharacterPage() {
         }}
         onBroadcastClick={handleBroadcastStart}
         onStopBroadcastClick={handleBroadcastStop}
-        onViewDetails={(id) => {
-          // 상세보기: 해당 캐릭터 선택 후 대시보드에 표시
-          const cid = Number(id);
-          void select(cid, true);
-        }}
       />
 
       {pendingBroadcastId && (

@@ -153,7 +153,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
   return (
     <section className="space-y-6 rounded-xl border border-slate-700 bg-slate-800 p-6">
       <div className="flex items-center gap-2">
-        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20 text-xs font-bold text-blue-300">
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-300">
           1
         </div>
         <h3 className="text-lg font-semibold text-white">외모 및 목소리</h3>
@@ -168,7 +168,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                 key={gender}
                 type="button"
                 onClick={() => selectAppearanceGender(gender)}
-                className={`rounded-md px-4 py-1.5 text-sm ${
+                className={`rounded-lg px-4 py-1.5 text-sm ${
                   currentAppearanceGender === gender
                     ? "bg-slate-700 text-white"
                     : "text-slate-400 hover:text-slate-200"
@@ -189,7 +189,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                 onClick={() => onChange({ ...config, model2D: { presetId: String(image.imageId) } })}
                 className={`rounded-xl border p-3 text-left transition ${
                   config.model2D.presetId === String(image.imageId)
-                    ? "border-blue-500 bg-blue-500/20"
+                    ? "border-indigo-500 bg-indigo-500/20"
                     : "border-slate-600 bg-slate-900 hover:border-slate-500"
                 }`}
               >
@@ -233,7 +233,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                 key={gender}
                 type="button"
                 onClick={() => selectVoiceGender(gender)}
-                className={`rounded-md px-4 py-1.5 text-sm ${
+                className={`rounded-lg px-4 py-1.5 text-sm ${
                   currentVoiceGender === gender
                     ? "bg-slate-700 text-white"
                     : "text-slate-400 hover:text-slate-200"
@@ -254,7 +254,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                   key={voice.voiceTypeId}
                   className={`rounded-xl border p-3 transition ${
                     config.voiceId === String(voice.voiceTypeId)
-                      ? "border-blue-500 bg-blue-500/20"
+                      ? "border-indigo-500 bg-indigo-500/20"
                       : "border-slate-600 bg-slate-900 hover:border-slate-500"
                   }`}
                 >
@@ -280,7 +280,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                               toggleVoiceSample(voice.voiceTypeId, voice.testUrl);
                             }
                           }}
-                          className="cursor-pointer text-slate-400 hover:text-blue-400 transition-colors"
+                          className="cursor-pointer text-slate-400 hover:text-indigo-400 transition-colors"
                           title={isPlaying ? "정지" : "샘플 듣기"}
                         >
                           {isPlaying ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
