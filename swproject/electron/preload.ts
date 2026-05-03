@@ -13,6 +13,11 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+type STTResult = {
+  text: string;
+  isFinal: boolean;
+};
+
 /**
  * Renderer → Main IPC 통신 브리지
  * - window.electronAPI로 renderer에서 접근 가능
@@ -22,6 +27,14 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:version'),
   getPlatform: () => ipcRenderer.invoke('app:platform'),
-  // 필요시 IPC 채널 추가
-  // sendMessage: (channel: string, data: unknown) => ipcRenderer.invoke(channel, data),
+  stt: {
+    start: () => ipcRenderer.invoke('stt:start'),
+    stop: () => ipcRenderer.invoke('stt:stop'),
+    debugPush: (text: string) => ipcRenderer.invoke('stt:debug-push', text),
+    onResult: (callback: (payload: STTResult) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: STTResult) => callback(payload);
+      ipcRenderer.on('stt:result', listener);
+      return () => ipcRenderer.removeListener('stt:result', listener);
+    },
+  },
 });

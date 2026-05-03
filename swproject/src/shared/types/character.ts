@@ -160,7 +160,7 @@ export interface CharacterSelectReqDto {
  */
 export interface CharacterSelectResDto {
   selectedCharacterId: number;
-  deselectedCharacterId: number;
+  deselectedCharacterId: number | null;
 }
 
 // ============================================================

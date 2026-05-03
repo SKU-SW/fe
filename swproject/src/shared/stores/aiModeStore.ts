@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { StreamDialogue, StreamEmotion } from '@/shared/types/stream';
 
 export type AIMode = 'broadcasting' | 'idle' | 'gaming';
 export type ReactionStrategy = 'cheer' | 'normal' | 'critical';
@@ -91,6 +92,12 @@ interface AIModeStore {
   // === AI 활동 로그 ===
   activityLogs: ActivityLog[];
 
+  // === 방송 대화 / 오버레이 준비 상태 ===
+  dialogues: StreamDialogue[];
+  dialogueCursorId: number | null;
+  currentEmotion: StreamEmotion;
+  currentTranscript: string;
+
   // === 액션 함수들 ===
   setMode: (mode: AIMode) => void;
   /**
@@ -117,6 +124,10 @@ interface AIModeStore {
   clearChatMessages: () => void;
   addActivityLog: (log: ActivityLog) => void;
   clearActivityLogs: () => void;
+  upsertDialogues: (items: StreamDialogue[], cursorId: number | null) => void;
+  clearDialogues: () => void;
+  setEmotion: (emotion: StreamEmotion) => void;
+  setCurrentTranscript: (transcript: string) => void;
 
   // === 초기화 ===
   resetToDefaults: () => void;
@@ -185,6 +196,10 @@ export const useAIModeStore = create<AIModeStore>()(
       stats: DEFAULT_STATS,
       chatMessages: [],
       activityLogs: [],
+      dialogues: [],
+      dialogueCursorId: null,
+      currentEmotion: 'default',
+      currentTranscript: '',
 
       // === AI 모드 및 전략 ===
       setMode: (mode) => set({ mode }),
@@ -238,6 +253,26 @@ export const useAIModeStore = create<AIModeStore>()(
         })),
       clearActivityLogs: () => set({ activityLogs: [] }),
 
+      // === 방송 대화 / 오버레이 ===
+      upsertDialogues: (items, cursorId) =>
+        set((state) => {
+          const map = new Map(state.dialogues.map((item) => [item.id, item]));
+          items.forEach((item) => map.set(item.id, item));
+          const dialogues = [...map.values()].sort((a, b) => {
+            if (a.cursorId == null && b.cursorId == null) return 0;
+            if (a.cursorId == null) return -1;
+            if (b.cursorId == null) return 1;
+            return a.cursorId - b.cursorId;
+          });
+          return {
+            dialogues,
+            dialogueCursorId: cursorId ?? state.dialogueCursorId,
+          };
+        }),
+      clearDialogues: () => set({ dialogues: [], dialogueCursorId: null }),
+      setEmotion: (currentEmotion) => set({ currentEmotion }),
+      setCurrentTranscript: (currentTranscript) => set({ currentTranscript }),
+
       // === 초기화 ===
       resetToDefaults: () =>
         set({
@@ -255,6 +290,10 @@ export const useAIModeStore = create<AIModeStore>()(
           stats: DEFAULT_STATS,
           chatMessages: [],
           activityLogs: [],
+          dialogues: [],
+          dialogueCursorId: null,
+          currentEmotion: 'default',
+          currentTranscript: '',
         }),
     }),
     {

@@ -12,7 +12,7 @@
  * - 보안: contextIsolation=true, nodeIntegration=false
  */
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, session } from 'electron';
 import path from 'path';
 
 // 개발 모드 여부
@@ -21,6 +21,11 @@ import path from 'path';
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
+let sttListening = false;
+
+function sendSttResult(payload: { text: string; isFinal: boolean }) {
+  mainWindow?.webContents.send('stt:result', payload);
+}
 
 /**
  * 메인 윈도우 생성
@@ -64,10 +69,35 @@ function createWindow() {
 
 // Electron 초기화 완료 시
 app.whenReady().then(async () => {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'media') {
+      callback(true);
+      return;
+    }
+    callback(false);
+  });
+
   // IPC 핸들러 등록 (필요시 확장)
   // renderer → main 통신 채널
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
+  ipcMain.handle('stt:start', () => {
+    sttListening = true;
+    sendSttResult({ text: '음성인식 대기 중...', isFinal: false });
+    return { ok: true };
+  });
+  ipcMain.handle('stt:stop', () => {
+    sttListening = false;
+    sendSttResult({ text: '', isFinal: true });
+    return { ok: true };
+  });
+  ipcMain.handle('stt:debug-push', (_event, text: string) => {
+    if (!sttListening) {
+      return { ok: false };
+    }
+    sendSttResult({ text, isFinal: true });
+    return { ok: true };
+  });
 
   createWindow();
 

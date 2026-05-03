@@ -18,6 +18,12 @@ interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   /** 실행 플랫폼 조회 (main: process.platform) */
   getPlatform: () => Promise<string>;
+  stt: {
+    start: () => Promise<{ ok: boolean }>;
+    stop: () => Promise<{ ok: boolean }>;
+    debugPush: (text: string) => Promise<{ ok: boolean }>;
+    onResult: (callback: (payload: { text: string; isFinal: boolean }) => void) => () => void;
+  };
 }
 
 /**

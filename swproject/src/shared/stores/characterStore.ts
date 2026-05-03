@@ -60,6 +60,12 @@ export const useCharacterStore = create<CharacterStore>()(
         })),
       reset: () => set({ characters: [], selectedCharacterId: null, selectedCharacter: null }),
     }),
-    { name: 'character-storage' }
+    {
+      name: 'character-storage',
+      partialize: (state) => ({
+        characters: state.characters,
+        selectedCharacterId: state.selectedCharacterId,
+      }),
+    }
   )
 );

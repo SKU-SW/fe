@@ -24,6 +24,7 @@ import {
 } from "@/features/character/hooks";
 import { BroadcastConfirmModal, CharacterDashboard, CharacterForm } from "@/features/character/components";
 import { useStartBroadcast, useTerminateBroadcast } from "@/features/broadcast/hooks";
+import { useBroadcastNoticeStore } from "@/shared/stores/broadcastNoticeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
@@ -45,37 +46,6 @@ import type {
 } from "@/shared/types/character";
 
 type CharacterView = "dashboard" | "create" | "edit";
-
-/**
- * 방송 시작 모달을 "다시 받지 않기"로 스킵한 캐릭터 ID 목록 (localStorage 키)
- * - 값은 JSON.stringify된 캐릭터 ID 문자열 배열
- * - 캐릭터별로 별도 관리: 한 캐릭터에서 체크해도 다른 캐릭터에는 영향 없음
- */
-const BROADCAST_NOTICE_SKIP_IDS_KEY = "broadcast-notice-skip-ids";
-
-/** 모달 스킵 대상 캐릭터 ID 집합 읽기 (파싱 실패 시 빈 집합) */
-function readBroadcastSkipIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(BROADCAST_NOTICE_SKIP_IDS_KEY);
-    if (!raw) return new Set();
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.map(String));
-  } catch {
-    return new Set();
-  }
-}
-
-/** 캐릭터 ID를 스킵 목록에 추가 */
-function addBroadcastSkipId(id: string): void {
-  try {
-    const ids = readBroadcastSkipIds();
-    ids.add(id);
-    localStorage.setItem(BROADCAST_NOTICE_SKIP_IDS_KEY, JSON.stringify([...ids]));
-  } catch {
-    // localStorage 사용 불가 환경(시크릿 모드 등)에서는 무시
-  }
-}
 
 // ============================================================
 // UI 매핑 함수들 (CharacterConfig → Backend DTO)
@@ -256,7 +226,10 @@ function detailToPreset(detail: CharacterDetailResDto): CharacterPreset {
 export default function CharacterPage() {
   const [view, setView] = useState<CharacterView>("dashboard");
   const [pendingBroadcastId, setPendingBroadcastId] = useState<string | null>(null);
+  const [pageNotice, setPageNotice] = useState<{ tone: "error" | "info"; message: string } | null>(null);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
+  const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
+  const skipNoticeForCharacter = useBroadcastNoticeStore((s) => s.skipNoticeForCharacter);
   const aiMode = useAIModeStore((s) => s.mode);
 
   // 방송 중 캐릭터 ID는 별도 저장하지 않고 aiModeStore.mode + 선택된 캐릭터로 도출
@@ -276,15 +249,14 @@ export default function CharacterPage() {
   const { start: startBroadcastApi, isPending: isStartingBroadcast, error: startBroadcastError } = useStartBroadcast();
   const { terminate: terminateBroadcastApi, isPending: isTerminatingBroadcast, error: terminateBroadcastError } = useTerminateBroadcast();
 
-  // 방송 시작/종료 에러를 alert 으로 노출 (이 페이지의 기존 에러 처리 패턴과 일관성)
   useEffect(() => {
     if (startBroadcastError) {
-      window.alert(startBroadcastError);
+      setPageNotice({ tone: "error", message: startBroadcastError });
     }
   }, [startBroadcastError]);
   useEffect(() => {
     if (terminateBroadcastError) {
-      window.alert(terminateBroadcastError);
+      setPageNotice({ tone: "error", message: terminateBroadcastError });
     }
   }, [terminateBroadcastError]);
 
@@ -312,20 +284,14 @@ export default function CharacterPage() {
     void select(firstId, true);
   }, [selectedCharacterId, apiCharacters, select]);
 
-  // 구버전(글로벌 단일 boolean) 키 정리: 캐릭터별 관리로 전환됐으므로 더 이상 사용하지 않음
-  useEffect(() => {
-    try {
-      localStorage.removeItem("broadcast-notice-skip");
-    } catch {
-      // localStorage 사용 불가 환경에서는 무시
-    }
-  }, []);
-
   const handleCreate = useCallback(
     async (config: CharacterConfig) => {
       // 방어 체크: 대시보드 버튼이 비활성화되어 있어도, 직접 view 전환 등으로 우회될 수 있어 한 번 더 검증
       if (apiCharacters.length >= MAX_CHARACTERS_PER_USER) {
-        window.alert(`AI 캐릭터는 최대 ${MAX_CHARACTERS_PER_USER}개까지 생성할 수 있습니다.`);
+        setPageNotice({
+          tone: "info",
+          message: `AI 캐릭터는 최대 ${MAX_CHARACTERS_PER_USER}개까지 생성할 수 있습니다.`,
+        });
         setView("dashboard");
         return;
       }
@@ -395,7 +361,7 @@ export default function CharacterPage() {
       if (aiMode === "broadcasting" || isStartingBroadcast) return;
 
       const cid = Number(characterId);
-      const skipNotice = readBroadcastSkipIds().has(characterId);
+      const skipNotice = shouldSkipBroadcastNotice(characterId);
 
       if (skipNotice) {
         void performStart(cid);
@@ -416,13 +382,13 @@ export default function CharacterPage() {
     async (dontShowAgain: boolean) => {
       if (!pendingBroadcastId) return;
       if (dontShowAgain) {
-        addBroadcastSkipId(pendingBroadcastId);
+        skipNoticeForCharacter(pendingBroadcastId);
       }
       const cid = Number(pendingBroadcastId);
       setPendingBroadcastId(null);
       await performStart(cid);
     },
-    [pendingBroadcastId, performStart]
+    [pendingBroadcastId, performStart, skipNoticeForCharacter]
   );
 
   /** 모달 취소 */
@@ -476,6 +442,14 @@ export default function CharacterPage() {
   // 캐릭터 목록 대시보드
   return (
     <>
+      {pageNotice && (
+        <InlineNotice
+          tone={pageNotice.tone}
+          message={pageNotice.message}
+          onClose={() => setPageNotice(null)}
+        />
+      )}
+
       <CharacterDashboard
         characters={characters}
         selectedId={selectedCharacterId ? String(selectedCharacterId) : null}
@@ -486,7 +460,10 @@ export default function CharacterPage() {
         broadcastingId={broadcastingId}
         onCreateClick={() => {
           if (apiCharacters.length >= MAX_CHARACTERS_PER_USER) {
-            window.alert(`AI 캐릭터는 최대 ${MAX_CHARACTERS_PER_USER}개까지 생성할 수 있습니다.`);
+            setPageNotice({
+              tone: "info",
+              message: `AI 캐릭터는 최대 ${MAX_CHARACTERS_PER_USER}개까지 생성할 수 있습니다.`,
+            });
             return;
           }
           setView("create");
@@ -517,5 +494,35 @@ export default function CharacterPage() {
         />
       )}
     </>
+  );
+}
+
+function InlineNotice({
+  tone,
+  message,
+  onClose,
+}: {
+  tone: "error" | "info";
+  message: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className={`mb-4 flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
+        tone === "error"
+          ? "border-red-500/30 bg-red-500/10 text-red-200"
+          : "border-indigo-500/30 bg-indigo-500/10 text-indigo-200"
+      }`}
+      role="alert"
+    >
+      <p className="leading-6">{message}</p>
+      <button
+        type="button"
+        onClick={onClose}
+        className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-current transition hover:bg-white/10"
+      >
+        닫기
+      </button>
+    </div>
   );
 }

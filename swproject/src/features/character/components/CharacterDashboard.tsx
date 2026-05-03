@@ -9,6 +9,7 @@
  */
 
 import { CheckCircle2, Circle, Edit2, Plus, Radio, Square, Trash2, Zap, Sparkles } from "lucide-react";
+import { useState } from "react";
 import type { CharacterPreset } from "@/shared/types/character";
 import { resolveAssetUrl } from "@/shared/lib/utils";
 import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
@@ -146,6 +147,7 @@ export function CharacterDashboard({
   onBroadcastClick,
   onStopBroadcastClick,
 }: CharacterDashboardProps) {
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const selectedChar = characters.find((character) => character.id === selectedId) ?? characters[0];
   const hasCharacters = characters.length > 0;
   // 상단 카드(featured)에 표시 중인 캐릭터가 곧 방송 중인지 여부
@@ -380,19 +382,39 @@ export function CharacterDashboard({
                           <Edit2 className="h-4 w-4" />
                         </button>
 
-                        <button
-                          type="button"
-                          disabled={isDeleting || isBroadcastingThis}
-                          onClick={() => {
-                            if (window.confirm("이 캐릭터를 삭제하시겠습니까?")) {
-                              onDeleteClick(character.id);
-                            }
-                          }}
-                          className="rounded-lg border border-red-900/30 bg-red-950/20 p-1.5 text-red-400 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
-                          title={isBroadcastingThis ? "방송 중에는 삭제할 수 없습니다" : "삭제"}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {pendingDeleteId === character.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => {
+                                onDeleteClick(character.id);
+                                setPendingDeleteId(null);
+                              }}
+                              className="rounded-lg border border-red-500/40 bg-red-500/15 px-2 py-1 text-[11px] font-semibold text-red-300 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              삭제 확인
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => setPendingDeleteId(null)}
+                              className="rounded-lg border border-slate-600/50 bg-slate-700/50 px-2 py-1 text-[11px] font-medium text-slate-300 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isDeleting || isBroadcastingThis}
+                            onClick={() => setPendingDeleteId(character.id)}
+                            className="rounded-lg border border-red-900/30 bg-red-950/20 p-1.5 text-red-400 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
+                            title={isBroadcastingThis ? "방송 중에는 삭제할 수 없습니다" : "삭제"}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

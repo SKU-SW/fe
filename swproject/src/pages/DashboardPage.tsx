@@ -21,6 +21,7 @@ import { Activity, MicOff, Users, MessageSquare, Sparkles } from "lucide-react";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useCharacter } from "@/features/character/hooks";
+import { useSTT } from "@/features/stt/hooks";
 import { useDashboardChatStream } from "@/features/dashboard/hooks/useDashboardChatStream";
 import { useDashboardActivityLogs } from "@/features/dashboard/hooks/useDashboardActivityLogs";
 import {
@@ -65,6 +66,15 @@ export default function DashboardPage() {
 
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const { character } = useCharacter(selectedCharacterId);
+  const {
+    isListening,
+    currentTranscript,
+    isSupported,
+    error: sttError,
+    startListening,
+    stopListening,
+    pushDebugTranscript,
+  } = useSTT();
 
   // 방송 중 + 백엔드 실시간 준비 완료일 때만 폴링/WebSocket 가동.
   // BACKEND_REALTIME_READY 가 false 인 동안에는 훅이 호출되어도 내부에서 즉시 short-circuit.
@@ -84,6 +94,7 @@ export default function DashboardPage() {
   });
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [micNoticeDismissed, setMicNoticeDismissed] = useState(false);
+  const [debugInput, setDebugInput] = useState("");
 
   useEffect(() => {
     if (toggles.sttEnabled) {
@@ -180,6 +191,71 @@ export default function DashboardPage() {
         onToggleAi={togglePause}
         onResetRecords={() => setResetModalOpen(true)}
       />
+
+      <section className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-white">음성인식 디버그 패널</h2>
+            <p className="mt-1 text-xs text-slate-400">
+              실제 마이크 입력으로 브라우저 음성인식을 테스트합니다. 필요하면 아래 debug 텍스트도 수동 주입할 수 있습니다.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void startListening()}
+              disabled={!isSupported}
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
+            >
+              {isListening ? "수신 중" : "음성인식 시작"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void stopListening()}
+              disabled={!isSupported}
+              className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-slate-700"
+            >
+              음성인식 중지
+            </button>
+          </div>
+        </div>
+
+        {!isSupported && (
+          <p className="mt-3 text-xs text-amber-300">이 환경에서는 브라우저 음성인식을 지원하지 않습니다.</p>
+        )}
+
+        {sttError && (
+          <p className="mt-3 text-xs text-red-300">{sttError}</p>
+        )}
+
+        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/70 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current Transcript</p>
+          <p className="mt-2 min-h-10 text-sm text-slate-200">
+            {currentTranscript || "아직 수신된 음성 텍스트가 없습니다."}
+          </p>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2 md:flex-row">
+          <input
+            type="text"
+            value={debugInput}
+            onChange={(e) => setDebugInput(e.target.value)}
+            placeholder="테스트용 음성인식 텍스트 입력"
+            className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              void pushDebugTranscript(debugInput);
+              setDebugInput("");
+            }}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+          >
+            Debug 텍스트 주입
+          </button>
+        </div>
+      </section>
 
       {/* KPI 4개 카드 */}
       <KpiGrid stats={stats} />
