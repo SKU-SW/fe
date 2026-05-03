@@ -3,6 +3,7 @@
  * @updated 실데이터 연결 (Phase C) - useDashboardChatStream / useDashboardActivityLogs 훅 호출,
  *          MOCK 제거, store.chatMessages 를 ConversationStream 으로, store.activityLogs 를 ActivityLogPanel 로 연결
  * @updated 백엔드 실시간 엔드포인트 배포 전이라 BACKEND_REALTIME_READY 로 폴링/WS 임시 차단
+ * @updated STT/선제반응 토글 및 마이크 비활성 알림 배너 추가
  * @dependsOn src/features/dashboard/components/* (UI 컴포넌트)
  * @dependsOn src/features/dashboard/hooks/* (실시간 채팅/활동 로그 훅)
  * @dependsOn src/shared/stores/aiModeStore.ts (mode/toggles/stats/chatMessages/activityLogs)
@@ -15,8 +16,8 @@
  *   - 그 외엔 빈 상태 (캐릭터 페이지로 가는 CTA)
  */
 
-import { useMemo, useState } from "react";
-import { Activity, Users, MessageSquare, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Activity, MicOff, Users, MessageSquare, Sparkles } from "lucide-react";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useCharacter } from "@/features/character/hooks";
@@ -82,6 +83,13 @@ export default function DashboardPage() {
     chat: true,
   });
   const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [micNoticeDismissed, setMicNoticeDismissed] = useState(false);
+
+  useEffect(() => {
+    if (toggles.sttEnabled) {
+      setMicNoticeDismissed(false);
+    }
+  }, [toggles.sttEnabled]);
 
   // store.chatMessages (시청자 채팅) → ConversationStream 의 통합 메시지 모델로 변환.
   // 현재 백엔드는 시청자 채팅만 제공하므로 speaker='chat' 으로 고정.
@@ -114,6 +122,13 @@ export default function DashboardPage() {
       <PageHeader />
 
       <BroadcastHeader logOpen={logOpen} onToggleLog={() => setLogOpen((v) => !v)} />
+
+      {!toggles.sttEnabled && !micNoticeDismissed && (
+        <MicWarningBanner
+          onEnable={() => setToggle("sttEnabled", true)}
+          onDismiss={() => setMicNoticeDismissed(true)}
+        />
+      )}
 
       {!BACKEND_REALTIME_READY && (
         <div
@@ -153,9 +168,13 @@ export default function DashboardPage() {
 
       {/* 컨트롤 바 */}
       <BroadcastControls
+        sttOn={toggles.sttEnabled}
+        proactiveOn={toggles.proactiveReactionEnabled}
         ttsOn={toggles.ttsEnabled}
         chatLogOn={toggles.chatReactionEnabled}
         aiOn={!isPaused}
+        onToggleStt={() => setToggle("sttEnabled", !toggles.sttEnabled)}
+        onToggleProactive={() => setToggle("proactiveReactionEnabled", !toggles.proactiveReactionEnabled)}
         onToggleTts={() => setToggle("ttsEnabled", !toggles.ttsEnabled)}
         onToggleChatLog={() => setToggle("chatReactionEnabled", !toggles.chatReactionEnabled)}
         onToggleAi={togglePause}
@@ -165,9 +184,7 @@ export default function DashboardPage() {
       {/* KPI 4개 카드 */}
       <KpiGrid stats={stats} />
 
-      {logOpen && (
-        <ActivityLogPanel logs={activityLogs} onClose={() => setLogOpen(false)} />
-      )}
+      <ActivityLogPanel open={logOpen} logs={activityLogs} onClose={() => setLogOpen(false)} />
 
       {resetModalOpen && (
         <ResetConfirmModal
@@ -192,6 +209,44 @@ function PageHeader() {
     <div className="space-y-1">
       <h1 className="text-2xl font-bold text-white">대시보드</h1>
       <p className="text-sm text-slate-400">AI 스트리머 동료 시스템 실시간 모니터링</p>
+    </div>
+  );
+}
+
+function MicWarningBanner({ onEnable, onDismiss }: { onEnable: () => void; onDismiss: () => void }) {
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-amber-500/15 p-2 text-amber-300">
+            <MicOff className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-100">마이크가 꺼져 있습니다</p>
+            <p className="mt-1 text-xs leading-6 text-amber-200/90">
+              현재 상태에서는 스트리머 음성을 입력받지 못해 호출어 감지와 음성인식 기반 반응을 수행할
+              수 없습니다. 방송 흐름을 따라가려면 음성인식을 켜주세요.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-medium text-amber-100 transition hover:bg-amber-500/10"
+          >
+            나중에
+          </button>
+          <button
+            type="button"
+            onClick={onEnable}
+            className="rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-300"
+          >
+            음성인식 켜기
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

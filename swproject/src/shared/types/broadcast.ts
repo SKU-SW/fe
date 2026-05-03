@@ -4,8 +4,8 @@
  * @usedBy src/features/broadcast/api/broadcastApi.ts
  * @usedBy src/shared/stores/aiModeStore.ts
  *
- * Backend Swagger 기준:
- *   - BroadcastStartResDto, BroadcastTerminateResDto, BroadcastStatus enum
+ * Backend Notion/최신 계약 기준:
+ *   - BroadcastStartResDto, BroadcastTerminateReqDto, BroadcastTerminateResDto, BroadcastStatus enum
  */
 
 export type BroadcastStatus = "BROADCASTING" | "TERMINATED" | "ABNORMAL_TERMINATED";
@@ -20,10 +20,17 @@ export interface BroadcastStartResDto {
 }
 
 /**
- * POST /api/v1/stream/terminate 응답
+ * PATCH /api/v1/stream/termination 요청
+ */
+export interface BroadcastTerminateReqDto {
+  broadcastStreamId: string;
+}
+
+/**
+ * PATCH /api/v1/stream/termination 응답
  */
 export interface BroadcastTerminateResDto {
-  terminatedBroadcastStreamId: string;
+  broadcastStreamId: string;
   broadcastStatus: BroadcastStatus;
   broadcastTerminatedAt: string;
 }

@@ -1,7 +1,7 @@
 /**
  * @file 방송 중 대시보드 상단 헤더
  * - 좌측: AI가 방송 흐름을 수집 중이라는 상태 텍스트
- * - 우측: 실시간 대화 기록 로그 페이지 토글 버튼
+ * - 우측: 우측 슬라이드 패널을 여는 대화 기록 버튼
  * @usedBy src/pages/DashboardPage.tsx
  */
 
@@ -31,10 +31,10 @@ export function BroadcastHeader({ logOpen, onToggleLog }: BroadcastHeaderProps) 
             : "border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600 hover:bg-slate-800"
         }`}
         aria-pressed={logOpen}
-        aria-label="실시간 대화 기록 로그 페이지 토글"
+        aria-label="우측 대화 기록 패널 토글"
       >
         <ScrollText className="h-4 w-4" />
-        <span>대화 기록</span>
+        <span>{logOpen ? "대화 기록 닫기 ←" : "대화 기록 →"}</span>
         <span
           className={`ml-1 inline-block h-2 w-2 rounded-full transition ${
             logOpen ? "bg-indigo-300" : "bg-slate-600"

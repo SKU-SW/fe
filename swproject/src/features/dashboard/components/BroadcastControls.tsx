@@ -1,19 +1,25 @@
 /**
  * @file 방송 컨트롤 바
- * - 좌측: 캐릭터 액션 (감정 / TTS 음성 출력 토글)
+ * - 좌측: 음성인식 / 선제 반응 / 캐릭터 액션 / TTS 음성 출력 토글
  * - 우측: 대화 기록 ON/OFF / AI 동작 ON/OFF + 기록 초기화 트리거
  * @usedBy src/pages/DashboardPage.tsx
  */
 
-import { Smile, Volume2, VolumeX, MessageSquare, Zap, RotateCcw } from "lucide-react";
+import { Mic, MicOff, Smile, Volume2, VolumeX, MessageSquare, Zap, RotateCcw } from "lucide-react";
 
 interface BroadcastControlsProps {
+  /** 음성인식 (마이크 입력) ON 여부 */
+  sttOn: boolean;
+  /** 선제 반응 ON 여부 */
+  proactiveOn: boolean;
   /** TTS (음성 출력) ON 여부 */
   ttsOn: boolean;
   /** 채팅 기록(반응) ON 여부 */
   chatLogOn: boolean;
   /** AI 동작 ON 여부 */
   aiOn: boolean;
+  onToggleStt: () => void;
+  onToggleProactive: () => void;
   onToggleTts: () => void;
   onToggleChatLog: () => void;
   onToggleAi: () => void;
@@ -24,9 +30,13 @@ interface BroadcastControlsProps {
 }
 
 export function BroadcastControls({
+  sttOn,
+  proactiveOn,
   ttsOn,
   chatLogOn,
   aiOn,
+  onToggleStt,
+  onToggleProactive,
   onToggleTts,
   onToggleChatLog,
   onToggleAi,
@@ -37,6 +47,18 @@ export function BroadcastControls({
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3">
       {/* 좌측: 캐릭터 액션 */}
       <div className="flex items-center gap-2">
+        <ToggleSwitch
+          icon={sttOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          label="음성인식"
+          on={sttOn}
+          onClick={onToggleStt}
+        />
+        <ToggleSwitch
+          icon={<Zap className="h-4 w-4" />}
+          label="선제 반응"
+          on={proactiveOn}
+          onClick={onToggleProactive}
+        />
         {onEmotionAction && (
           <IconAction onClick={onEmotionAction} label="감정 표현" icon={<Smile className="h-4 w-4" />} />
         )}
