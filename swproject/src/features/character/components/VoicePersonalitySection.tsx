@@ -29,14 +29,14 @@ const PERSONALITIES = [
 
 export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySectionProps) {
   return (
-    <section className="space-y-6 rounded-xl border border-slate-700 bg-slate-800 p-6">
+    <section className="space-y-6 rounded-xl border border-discord-dark bg-discord-sidebar p-6">
       <div className="flex items-center gap-2">
-        <MessageSquare className="h-5 w-5 text-indigo-300" />
+        <MessageSquare className="h-5 w-5 text-discord-blurple" />
         <h3 className="text-lg font-semibold text-white">말투 및 성격</h3>
       </div>
 
       <div>
-        <label className="mb-3 block text-sm font-medium text-slate-300">말투 선택</label>
+        <label className="mb-3 block text-sm font-medium text-discord-text">말투 선택</label>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {SPEECH_STYLES.map((style) => (
             <button
@@ -45,21 +45,21 @@ export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySe
               onClick={() => onChange({ ...config, speechStyle: style.id })}
               className={`rounded-lg border p-4 text-left transition ${
                 config.speechStyle === style.id
-                  ? "border-indigo-500 bg-indigo-500/20"
-                  : "border-slate-600 bg-slate-900 hover:border-slate-500"
+                  ? "border-discord-blurple bg-discord-blurple/15"
+                  : "border-discord-dark bg-discord-sidebar hover:border-discord-active"
               }`}
             >
-              <p className={`text-sm font-medium ${config.speechStyle === style.id ? "text-indigo-300" : "text-slate-100"}`}>
+              <p className={`text-sm font-medium ${config.speechStyle === style.id ? "text-discord-blurple" : "text-discord-textHover"}`}>
                 {style.label}
               </p>
-              <p className="mt-1 text-xs italic text-slate-400">"{style.example}"</p>
+              <p className="mt-1 text-xs italic text-discord-textMuted">"{style.example}"</p>
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className="mb-3 block text-sm font-medium text-slate-300">성격</label>
+        <label className="mb-3 block text-sm font-medium text-discord-text">성격</label>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {PERSONALITIES.map((personality) => (
             <button
@@ -68,18 +68,18 @@ export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySe
               onClick={() => onChange({ ...config, personality: personality.id })}
               className={`rounded-lg border p-4 text-left transition ${
                 config.personality === personality.id
-                  ? "border-indigo-500 bg-indigo-500/20"
-                  : "border-slate-600 bg-slate-900 hover:border-slate-500"
+                  ? "border-discord-blurple bg-discord-blurple/15"
+                  : "border-discord-dark bg-discord-sidebar hover:border-discord-active"
               }`}
             >
               <p
                 className={`text-sm font-medium ${
-                  config.personality === personality.id ? "text-indigo-300" : "text-slate-100"
+                  config.personality === personality.id ? "text-discord-blurple" : "text-discord-textHover"
                 }`}
               >
                 {personality.label}
               </p>
-              <p className="mt-1 text-xs italic text-slate-400">"{personality.example}"</p>
+              <p className="mt-1 text-xs italic text-discord-textMuted">"{personality.example}"</p>
             </button>
           ))}
         </div>

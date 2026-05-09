@@ -245,7 +245,10 @@ export type SensitivityLevel = "high" | "medium" | "low";
 export interface CharacterInfo {
   gender: UiGender;
   name: string;
+  /** 표시용 호출어 합본 문자열 (예: "강희야, 야, 친구야"). 입력/저장 용도로 쓰지 말 것 — triggerWords 사용 */
   callSign: string;
+  /** 호출어 원본 배열 (BE triggerWords 와 1:1) — 입력 폼/수정/저장 시 반드시 이 필드 사용 */
+  triggerWords: string[];
   appearancePresetId: string;
   /** 백엔드 characterImageUrl - 캐릭터 카드 아바타 표시용 */
   imageUrl?: string;

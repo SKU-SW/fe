@@ -49,10 +49,24 @@ function toConfig(data?: CharacterPreset | null): CharacterConfig {
     return DEFAULT_CONFIG;
   }
 
+  // 호출어는 반드시 원본 배열(triggerWords) 에서 복원해야 한다.
+  // - 이전 구현: callWords = [callSign]  → callSign 이 콤마 합본 문자열이라 1원소(콤마 포함) 배열로 망가짐
+  //   → 수정 후 저장 시 BE 에 "강희야, 야, 친구야" 통문자열이 1원소 배열로 전송 → 호출어 매칭 영구 실패
+  // - 현재: triggerWords 배열을 그대로 복사. 빈 배열이거나 누락이면 callSign split 으로 fallback.
+  const callWords =
+    data.info.triggerWords && data.info.triggerWords.length > 0
+      ? [...data.info.triggerWords]
+      : data.info.callSign
+        ? data.info.callSign
+            .split(",")
+            .map((w) => w.trim())
+            .filter(Boolean)
+        : [];
+
   return {
     ...DEFAULT_CONFIG,
     name: data.info.name,
-    callWords: data.info.callSign ? [data.info.callSign] : [],
+    callWords,
     gender: data.info.gender,
     voiceId: data.info.voicePresetId,
     model2D: { presetId: data.info.appearancePresetId || null },
@@ -75,12 +89,12 @@ export function CharacterForm({ mode, initialData, settings, isSaving, error, on
   const [config, setConfig] = useState<CharacterConfig>(initialConfig);
 
   return (
-    <div className="flex h-full min-h-[640px] flex-col overflow-hidden bg-slate-950">
-      <div className="border-b border-slate-800 px-8 py-4">
+    <div className="flex h-full min-h-[640px] flex-col overflow-hidden bg-discord-main">
+      <div className="border-b border-discord-dark px-8 py-4">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-slate-400 transition-colors hover:text-white"
+          className="inline-flex items-center gap-2 text-discord-textMuted transition-colors hover:text-discord-textHover"
         >
           <ArrowLeft className="h-5 w-5" />
           목록으로 돌아가기
@@ -90,15 +104,15 @@ export function CharacterForm({ mode, initialData, settings, isSaving, error, on
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto p-8">
           <div className="mx-auto max-w-5xl">
-            <h2 className="mb-2 text-2xl font-semibold text-white">
+            <h2 className="mb-2 text-2xl font-bold text-discord-textHover">
               {mode === "create" ? "AI 캐릭터 생성" : "AI 캐릭터 수정"}
             </h2>
-            <p className="mb-6 text-sm text-slate-400">방송 스타일에 맞는 AI 동료의 정체성을 설정하세요.</p>
+            <p className="mb-6 text-sm text-discord-textMuted">방송 스타일에 맞는 AI 동료의 정체성을 설정하세요.</p>
 
             {error && (
-              <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+              <div className="mb-4 rounded-md border border-discord-danger/30 bg-discord-danger/10 p-4 text-sm text-discord-danger">
                 <p className="font-medium">저장 실패</p>
-                <p className="mt-1 text-red-300/80">{error}</p>
+                <p className="mt-1 opacity-80">{error}</p>
               </div>
             )}
 

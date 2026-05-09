@@ -168,13 +168,17 @@ function safeIdToString(value: number | null | undefined): string {
 
 /** UI CharacterPreset으로 변환 (목록 표시용) */
 function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
+  // 원본 배열 — triggerWords 로 보존하여 수정/저장 시 손실 방지
+  const triggerWords = item.triggerWords ?? [];
   return {
     id: String(item.characterId),
     name: item.characterName,
     info: {
       gender: item.gender === "MALE" ? "male" : "female",
       name: item.characterName,
-      callSign: (item.triggerWords ?? []).join(", ") || "AI",
+      // callSign 은 표시용 합본. 원본은 triggerWords 에서 가져갈 것
+      callSign: triggerWords.join(", ") || "AI",
+      triggerWords,
       appearancePresetId: "",
       imageUrl: item.characterImageUrl,
       voicePresetId: safeIdToString(item.voiceTypeId),
@@ -195,13 +199,16 @@ function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
 /** UI CharacterPreset으로 변환 (상세 표시용) */
 function detailToPreset(detail: CharacterDetailResDto): CharacterPreset {
   const persona = detail.characterPersona;
+  // 상세 API 도 triggerWords 가 배열로 옴 — 첫 원소만 쓰지 말고 전체 보존
+  const triggerWords = detail.triggerWords ?? [];
   return {
     id: String(detail.characterId),
     name: detail.characterName,
     info: {
       gender: detail.gender === "MALE" ? "male" : "female",
       name: detail.characterName,
-      callSign: detail.triggerWords[0] ?? "AI",
+      callSign: triggerWords.join(", ") || "AI",
+      triggerWords,
       appearancePresetId: "",
       imageUrl: detail.characterImageUrl,
       voicePresetId: safeIdToString(detail.voiceTypeId),
@@ -336,17 +343,18 @@ export default function CharacterPage() {
 
   /**
    * 캐릭터 선택 동기화 후 백엔드 /stream/start 호출.
-   * - 백엔드 스펙: "선택하지 않은 AI 캐릭터로 방송 시작 시 예외" — 따라서 select 가 선행되어야 함.
-   * - 이미 선택된 캐릭터면 select 호출 생략 (불필요한 PATCH 방지).
+   * - 백엔드 스펙: "선택하지 않은 AI 캐릭터로 방송 시작 시 예외" — select 가 선행되어야 함.
+   * - 이전엔 selectedCharacterId 가 cid 와 같으면 select 호출을 생략했으나,
+   *   FE store 와 BE user.selectedCharacterId 가 어긋난 케이스 (persist 잔재 / 다른 세션 / 캐시 등)에서
+   *   start 가 BROADCAST_CHARACTER_NOT_SELECTED 로 거부되는 문제가 발생.
+   *   → 매번 select 를 호출해 BE 측 동기화를 강제 (추가 PATCH 1회 비용 < 정확성 이득).
    */
   const performStart = useCallback(
     async (cid: number) => {
-      if (selectedCharacterId !== cid) {
-        await select(cid, true);
-      }
+      await select(cid, true);
       await startBroadcastApi(cid);
     },
-    [select, selectedCharacterId, startBroadcastApi]
+    [select, startBroadcastApi]
   );
 
   /**
@@ -508,10 +516,10 @@ function InlineNotice({
 }) {
   return (
     <div
-      className={`mb-4 flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
+      className={`mb-4 flex items-start justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
         tone === "error"
-          ? "border-red-500/30 bg-red-500/10 text-red-200"
-          : "border-indigo-500/30 bg-indigo-500/10 text-indigo-200"
+          ? "border-discord-danger/30 bg-discord-danger/10 text-discord-danger"
+          : "border-discord-blurple/30 bg-discord-blurple/10 text-discord-blurple"
       }`}
       role="alert"
     >
@@ -519,7 +527,7 @@ function InlineNotice({
       <button
         type="button"
         onClick={onClose}
-        className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-current transition hover:bg-white/10"
+        className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-current transition-colors hover:bg-white/10"
       >
         닫기
       </button>

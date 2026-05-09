@@ -42,7 +42,21 @@ export function useSelectCharacter(): UseSelectCharacterReturn {
       try {
         const result = await selectCharacter(characterId, { isSelected });
         // 선택 상태에 따라 store 업데이트
-        setSelectedCharacterId(isSelected ? result.selectedCharacterId : null);
+        if (isSelected) {
+          // BE 응답이 비정상(누락/null/타입 어긋남) 인 경우 요청한 characterId 로 fallback.
+          // - BE 가 정상이면 result.selectedCharacterId === characterId 일 것
+          // - 어긋나면 콘솔 경고 후 요청 ID 우선 (FE 의도와 BE 진실 사이의 안전망)
+          const returnedId = result.selectedCharacterId;
+          if (typeof returnedId !== 'number' || returnedId !== characterId) {
+            console.warn(
+              '[useSelectCharacter] PATCH 응답의 selectedCharacterId 가 요청과 다릅니다.',
+              { requested: characterId, returned: returnedId }
+            );
+          }
+          setSelectedCharacterId(typeof returnedId === 'number' ? returnedId : characterId);
+        } else {
+          setSelectedCharacterId(null);
+        }
         return result;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : '캐릭터 선택에 실패했습니다.';

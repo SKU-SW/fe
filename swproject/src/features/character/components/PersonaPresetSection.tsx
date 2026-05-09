@@ -5,7 +5,7 @@
  * @usedBy src/features/character/components/CharacterSettings.tsx
  */
 
-import { Info, Zap } from "lucide-react";
+import { Info } from "lucide-react";
 import type { CharacterConfig } from "@/shared/types/character";
 
 interface PersonaPresetSectionProps {
@@ -75,11 +75,8 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
   const selectedPreset = PRESETS.find((preset) => preset.id === config.broadcastPreset);
 
   return (
-    <section className="space-y-5 rounded-xl border border-slate-700 bg-slate-800 p-6">
-      <div className="flex items-center gap-2">
-        <Zap className="h-5 w-5 text-indigo-300" />
-        <h3 className="text-lg font-semibold text-white">페르소나 프리셋</h3>
-      </div>
+    <section className="space-y-5 rounded-lg border border-discord-dark bg-discord-sidebar p-6">
+      <h3 className="text-lg font-semibold text-discord-textHover">페르소나 프리셋</h3>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {PRESETS.map((preset) => {
@@ -96,13 +93,17 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
                   personality: preset.personality,
                 })
               }
-              className={`rounded-lg border px-3 py-2.5 text-center transition ${
+              className={`rounded-md border px-3 py-2.5 text-center transition-colors ${
                 isSelected
-                  ? "border-indigo-500 bg-indigo-500/20 shadow-lg shadow-indigo-500/20"
-                  : "border-slate-600 bg-slate-900 hover:border-slate-500 hover:bg-slate-800"
+                  ? "border-discord-blurple bg-discord-blurple/15"
+                  : "border-discord-dark bg-discord-main hover:border-discord-active hover:bg-discord-hover"
               }`}
             >
-              <p className={`text-sm font-semibold ${isSelected ? "text-indigo-300" : "text-slate-100"}`}>
+              <p
+                className={`text-sm font-semibold ${
+                  isSelected ? "text-discord-blurple" : "text-discord-textHover"
+                }`}
+              >
                 {preset.label}
               </p>
             </button>
@@ -111,22 +112,24 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
       </div>
 
       {selectedPreset ? (
-        <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-5">
+        <div className="rounded-md border border-discord-blurple/30 bg-discord-blurple/10 p-5">
           <div className="flex items-start gap-3">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-discord-blurple" />
             <div className="flex-1 space-y-3">
               <div>
-                <p className="text-base font-semibold text-indigo-200">{selectedPreset.label}</p>
-                <p className="mt-0.5 text-xs font-medium text-indigo-300/80">{selectedPreset.tagline}</p>
+                <p className="text-base font-semibold text-discord-blurple">{selectedPreset.label}</p>
+                <p className="mt-0.5 text-xs font-medium text-discord-blurple/80">
+                  {selectedPreset.tagline}
+                </p>
               </div>
 
-              <p className="text-sm leading-relaxed text-slate-300">{selectedPreset.description}</p>
+              <p className="text-sm leading-relaxed text-discord-text">{selectedPreset.description}</p>
 
               <div className="flex flex-wrap gap-2 pt-1">
-                <span className="inline-flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/20 px-2 py-1 text-xs text-indigo-200">
+                <span className="inline-flex items-center gap-1 rounded-md border border-discord-blurple/30 bg-discord-blurple/20 px-2 py-1 text-xs text-discord-blurple">
                   말투 · {selectedPreset.speechLabel}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/20 px-2 py-1 text-xs text-purple-200">
+                <span className="inline-flex items-center gap-1 rounded-md border border-discord-success/30 bg-discord-success/15 px-2 py-1 text-xs text-discord-success">
                   성격 · {selectedPreset.personalityLabel}
                 </span>
               </div>
@@ -134,7 +137,7 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
           </div>
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-slate-600 bg-slate-900/40 px-4 py-3 text-center text-xs text-slate-500">
+        <p className="rounded-md border border-dashed border-discord-dark bg-discord-main px-4 py-3 text-center text-xs text-discord-textMuted">
           위에서 프리셋을 선택하면 상세 설명이 표시됩니다.
         </p>
       )}
