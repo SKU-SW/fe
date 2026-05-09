@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stt: {
     start: () => ipcRenderer.invoke('stt:start'),
     stop: () => ipcRenderer.invoke('stt:stop'),
+    transcribe: (audioBuffer: ArrayBuffer, mimeType: string) =>
+      ipcRenderer.invoke('stt:transcribe', audioBuffer, mimeType),
     debugPush: (text: string) => ipcRenderer.invoke('stt:debug-push', text),
     onResult: (callback: (payload: STTResult) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: STTResult) => callback(payload);

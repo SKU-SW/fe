@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""
+SKU-SW STT daemon (Faster Whisper).
+
+데몬 모드:
+  - 시작 시 모델 1번 로드 후 무한 루프
+  - stdin 한 줄 = JSON 요청 1건
+  - stdout 한 줄 = JSON 응답 1건 (id 로 매칭)
+  - stdin EOF 시 정상 종료
+
+Protocol:
+  Request:  {"id": "<uuid>", "audio_path": "/tmp/foo.webm"}
+  Response: {"id": "<uuid>", "ok": true, "text": "..."}
+            {"id": "<uuid>", "ok": false, "error": "..."}
+  Lifecycle (id 없음):
+    {"event": "ready", "model": "small"}
+    {"event": "fatal", "error": "..."}        # 시작 단계 치명적 실패
+
+환경변수:
+  SKU_SW_STT_MODEL  — 기본 "small". tiny|base|small|medium|large-v3 등
+  SKU_SW_STT_PROMPT — initial_prompt 문자열 (한국어 도메인 컨텍스트)
+"""
+
+import json
+import os
+import sys
+
+
+def emit(payload):
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def main():
+    try:
+        from faster_whisper import WhisperModel
+    except Exception:
+        emit({
+            "event": "fatal",
+            "error": "faster-whisper 미설치. 'pip3 install faster-whisper' 후 재시작.",
+        })
+        return 1
+
+    model_name = os.environ.get("SKU_SW_STT_MODEL", "small")
+    initial_prompt = os.environ.get(
+        "SKU_SW_STT_PROMPT",
+        "방송 중 게임 채팅. 스트리머, AI 캐릭터, 시청자 대화. "
+        "리그 오브 레전드 챔피언 이즈리얼, 아리, 야스오, 제드, 미드, 탑, 정글, 원딜, 서폿. "
+        "발로란트, 오버워치, 배틀그라운드.",
+    )
+
+    try:
+        model = WhisperModel(model_name, device="auto", compute_type="int8")
+    except Exception as exc:
+        emit({"event": "fatal", "error": f"모델 로드 실패: {exc}"})
+        return 1
+
+    emit({"event": "ready", "model": model_name})
+
+    # 메인 루프: 한 줄 = 한 요청 (line-delimited JSON)
+    for raw_line in sys.stdin:
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        req_id = None
+        try:
+            req = json.loads(line)
+            req_id = req.get("id")
+            audio_path = req.get("audio_path")
+
+            if not audio_path:
+                emit({"id": req_id, "ok": False, "error": "audio_path 누락"})
+                continue
+            if not os.path.exists(audio_path):
+                emit({"id": req_id, "ok": False, "error": f"audio not found: {audio_path}"})
+                continue
+
+            segments, _info = model.transcribe(
+                audio_path,
+                language="ko",
+                beam_size=5,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 500},
+                condition_on_previous_text=True,
+                initial_prompt=initial_prompt,
+            )
+            text = " ".join(s.text.strip() for s in segments if s.text.strip()).strip()
+            emit({"id": req_id, "ok": True, "text": text})
+
+        except json.JSONDecodeError as exc:
+            emit({"id": None, "ok": False, "error": f"JSON 파싱 실패: {exc}"})
+        except Exception as exc:
+            emit({"id": req_id, "ok": False, "error": str(exc)})
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main() or 0)

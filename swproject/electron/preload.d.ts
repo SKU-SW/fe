@@ -21,6 +21,7 @@ interface ElectronAPI {
   stt: {
     start: () => Promise<{ ok: boolean }>;
     stop: () => Promise<{ ok: boolean }>;
+    transcribe: (audioBuffer: ArrayBuffer, mimeType: string) => Promise<{ ok: boolean; text?: string; error?: string }>;
     debugPush: (text: string) => Promise<{ ok: boolean }>;
     onResult: (callback: (payload: { text: string; isFinal: boolean }) => void) => () => void;
   };

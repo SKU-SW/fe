@@ -1,7 +1,6 @@
 /**
  * @file 방송 중 대시보드 상단 헤더
- * - 좌측: AI가 방송 흐름을 수집 중이라는 상태 텍스트
- * - 우측: 우측 슬라이드 패널을 여는 대화 기록 버튼
+ * Discord Style Header
  * @usedBy src/pages/DashboardPage.tsx
  */
 
@@ -16,31 +15,25 @@ interface BroadcastHeaderProps {
 
 export function BroadcastHeader({ logOpen, onToggleLog }: BroadcastHeaderProps) {
   return (
-    <div className="flex items-center justify-between gap-4 px-1 py-2">
-      <div className="flex items-center gap-2 text-sm text-slate-300">
-        <Activity className="h-4 w-4 animate-pulse text-emerald-400" />
-        <span>AI 캐릭터가 방송 흐름을 계속 수집 중입니다…</span>
+    <div className="flex items-center justify-between gap-4 py-2 border-b border-discord-dark pb-3 mb-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-discord-textMuted">
+        <Activity className="h-4 w-4 animate-pulse text-discord-success" />
+        <span>AI가 방송 상황을 모니터링하고 있어요</span>
       </div>
 
+      {/* 우측 상단 대화 기록 토글 버튼 */}
       <button
         type="button"
         onClick={onToggleLog}
-        className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+        className={`inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-bold transition ${
           logOpen
-            ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-200"
-            : "border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600 hover:bg-slate-800"
+            ? "bg-discord-active text-discord-textHover"
+            : "bg-discord-dark text-discord-textMuted hover:bg-[#3f4147] hover:text-discord-textHover"
         }`}
         aria-pressed={logOpen}
-        aria-label="우측 대화 기록 패널 토글"
       >
         <ScrollText className="h-4 w-4" />
-        <span>{logOpen ? "대화 기록 닫기 ←" : "대화 기록 →"}</span>
-        <span
-          className={`ml-1 inline-block h-2 w-2 rounded-full transition ${
-            logOpen ? "bg-indigo-300" : "bg-slate-600"
-          }`}
-          aria-hidden
-        />
+        <span>대화 로그</span>
       </button>
     </div>
   );

@@ -2,36 +2,263 @@
  * @file Electron 메인 프로세스
  * @created Sprint 1 - Electron 앱 기본 구조 구현
  * @migrated Next.js dev 서버(3000) → Vite dev 서버(5173), out/ → dist/
+ * @updated STT 사이드카를 데몬 모드로 전환 — 매 호출마다 spawn 하지 않고
+ *          앱 시작 시 1번 띄워 두고 stdin/stdout 으로 line-delimited JSON IPC.
  * @dependsOn 없음 (Electron 자체 모듈만 사용)
  * @related electron/preload.ts (IPC 브리지)
+ * @related electron/stt_server.py (Faster Whisper 데몬)
  *
  * 아키텍처:
  * - 개발 모드: Vite dev 서버(localhost:5173)를 로드
- *   (Vite dev 서버는 외부에서 `npm run dev`로 실행)
  * - 프로덕션 모드: 빌드된 정적 파일(dist/index.html)을 로드
  * - 보안: contextIsolation=true, nodeIntegration=false
  */
 
 import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { existsSync, promises as fs } from 'fs';
+import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import os from 'os';
 import path from 'path';
 
-// 개발 모드 여부
-// NODE_ENV === 'development' 이면 개발 모드, 그 외에는 프로덕션 모드
-// (electron:preview는 NODE_ENV=production으로 실행되므로 dist/index.html 로드)
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
 let sttListening = false;
 
+function resolveSttScriptPath(): string {
+  const candidates = [
+    path.join(process.resourcesPath, 'electron/stt_server.py'),
+    path.join(app.getAppPath(), 'electron/stt_server.py'),
+    path.join(__dirname, '../electron/stt_server.py'),
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[candidates.length - 1];
+}
+
 function sendSttResult(payload: { text: string; isFinal: boolean }) {
   mainWindow?.webContents.send('stt:result', payload);
 }
 
-/**
- * 메인 윈도우 생성
- * - macOS: hiddenInset 타이틀바 스타일 (네이티브 느낌)
- * - 보안: preload 스크립트로만 IPC 통신 허용 (nodeIntegration 비활성화)
- */
+function getAudioExtension(mimeType: string): string {
+  if (mimeType.includes('webm')) return 'webm';
+  if (mimeType.includes('mp4') || mimeType.includes('mpeg')) return 'mp4';
+  if (mimeType.includes('wav')) return 'wav';
+  return 'bin';
+}
+
+// ============================================================
+// STT 데몬 매니저 (Faster Whisper sidecar)
+// ============================================================
+
+type TranscribeResult = { ok: boolean; text?: string; error?: string };
+
+interface PendingRequest {
+  id: string;
+  audioPath: string;
+  resolve: (result: TranscribeResult) => void;
+}
+
+class STTManager {
+  private child: ChildProcessWithoutNullStreams | null = null;
+  private ready = false;
+  private fatalError: string | null = null;
+  private inFlight = new Map<string, PendingRequest>();
+  /** ready 전에 들어온 요청 임시 보관 */
+  private queue: PendingRequest[] = [];
+  /** 줄 단위 파서 — stdout 데이터가 chunk 로 잘려도 라인 경계 복원 */
+  private stdoutBuffer = '';
+  private nextSeq = 0;
+  private shuttingDown = false;
+
+  start() {
+    if (this.child) return;
+    const scriptPath = resolveSttScriptPath();
+    console.info('[stt] spawning daemon:', scriptPath);
+
+    this.child = spawn('python3', [scriptPath], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    this.child.stdout.setEncoding('utf-8');
+    this.child.stdout.on('data', (chunk: string) => this.handleStdout(chunk));
+
+    this.child.stderr.setEncoding('utf-8');
+    this.child.stderr.on('data', (chunk: string) => {
+      // 디버그용 stderr — Hugging Face 다운로드 진행 표시 등이 여기 옴
+      console.warn('[stt-stderr]', chunk.trimEnd());
+    });
+
+    this.child.on('exit', (code, signal) => {
+      console.warn(`[stt] daemon exited (code=${code}, signal=${signal})`);
+      this.child = null;
+      this.ready = false;
+      // in-flight 요청 모두 reject
+      for (const req of this.inFlight.values()) {
+        req.resolve({
+          ok: false,
+          error: this.fatalError ?? 'STT 데몬이 종료되었습니다.',
+        });
+      }
+      this.inFlight.clear();
+      // 큐도 같이 정리
+      for (const req of this.queue) {
+        req.resolve({
+          ok: false,
+          error: this.fatalError ?? 'STT 데몬이 종료되었습니다.',
+        });
+      }
+      this.queue = [];
+
+      // 종료 중이 아니면 자동 재시작 (3초 후)
+      if (!this.shuttingDown && !this.fatalError) {
+        setTimeout(() => {
+          if (!this.shuttingDown && !this.fatalError) this.start();
+        }, 3000);
+      }
+    });
+
+    this.child.on('error', (err) => {
+      console.error('[stt] spawn error:', err);
+      this.fatalError = err.message;
+    });
+  }
+
+  private handleStdout(chunk: string) {
+    this.stdoutBuffer += chunk;
+    let idx;
+    while ((idx = this.stdoutBuffer.indexOf('\n')) >= 0) {
+      const line = this.stdoutBuffer.slice(0, idx).trim();
+      this.stdoutBuffer = this.stdoutBuffer.slice(idx + 1);
+      if (line) this.handleLine(line);
+    }
+  }
+
+  private handleLine(line: string) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      console.warn('[stt] non-JSON line:', line);
+      return;
+    }
+    if (!parsed || typeof parsed !== 'object') return;
+    const obj = parsed as Record<string, unknown>;
+
+    // 라이프사이클 이벤트
+    if (typeof obj.event === 'string') {
+      if (obj.event === 'ready') {
+        console.info('[stt] daemon ready, model =', obj.model);
+        this.ready = true;
+        this.fatalError = null;
+        this.flushQueue();
+        return;
+      }
+      if (obj.event === 'fatal') {
+        const msg = typeof obj.error === 'string' ? obj.error : 'STT 데몬 시작 실패';
+        console.error('[stt] fatal:', msg);
+        this.fatalError = msg;
+        // 자식 종료 후 exit 핸들러가 큐/in-flight 정리함
+        return;
+      }
+    }
+
+    // 일반 응답 (id 매칭)
+    const id = typeof obj.id === 'string' ? obj.id : null;
+    if (!id) return;
+    const req = this.inFlight.get(id);
+    if (!req) return;
+    this.inFlight.delete(id);
+    req.resolve({
+      ok: !!obj.ok,
+      text: typeof obj.text === 'string' ? obj.text : undefined,
+      error: typeof obj.error === 'string' ? obj.error : undefined,
+    });
+  }
+
+  private flushQueue() {
+    while (this.queue.length && this.child && this.ready) {
+      const req = this.queue.shift()!;
+      this.dispatch(req);
+    }
+  }
+
+  private dispatch(req: PendingRequest) {
+    if (!this.child) {
+      req.resolve({ ok: false, error: 'STT 데몬이 실행 중이 아닙니다.' });
+      return;
+    }
+    this.inFlight.set(req.id, req);
+    const payload = JSON.stringify({ id: req.id, audio_path: req.audioPath }) + '\n';
+    this.child.stdin.write(payload);
+  }
+
+  async transcribe(audioBuffer: ArrayBuffer, mimeType: string): Promise<TranscribeResult> {
+    // temp 파일 작성 (데몬은 path 로 받음 — IPC 페이로드를 가볍게 유지)
+    const ext = getAudioExtension(mimeType);
+    const tempPath = path.join(os.tmpdir(), `sku-sw-stt-${Date.now()}-${this.nextSeq}.${ext}`);
+    await fs.writeFile(tempPath, Buffer.from(audioBuffer));
+
+    const id = `req-${this.nextSeq++}`;
+
+    return new Promise<TranscribeResult>((resolve) => {
+      const req: PendingRequest = {
+        id,
+        audioPath: tempPath,
+        resolve: (result) => {
+          // 응답 받은 뒤 (또는 reject 시) temp 파일 정리
+          fs.unlink(tempPath).catch(() => undefined);
+          resolve(result);
+        },
+      };
+
+      // fatal 상태면 즉시 거절
+      if (this.fatalError && !this.child) {
+        req.resolve({ ok: false, error: this.fatalError });
+        return;
+      }
+
+      // 데몬 미가동 → 시작 + 큐에 적재
+      if (!this.child) {
+        this.queue.push(req);
+        this.start();
+        return;
+      }
+      // 가동 중이지만 아직 ready 전 → 큐
+      if (!this.ready) {
+        this.queue.push(req);
+        return;
+      }
+
+      this.dispatch(req);
+    });
+  }
+
+  shutdown() {
+    this.shuttingDown = true;
+    if (!this.child) return;
+    try {
+      this.child.stdin.end();
+    } catch {
+      /* ignore */
+    }
+    // 3초 후에도 살아있으면 SIGTERM, 그 후 2초 더면 SIGKILL
+    const child = this.child;
+    setTimeout(() => {
+      if (child && !child.killed) child.kill('SIGTERM');
+    }, 3000);
+    setTimeout(() => {
+      if (child && !child.killed) child.kill('SIGKILL');
+    }, 5000);
+  }
+}
+
+const sttManager = new STTManager();
+
+// ============================================================
+// BrowserWindow
+// ============================================================
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -40,15 +267,13 @@ function createWindow() {
     minHeight: 768,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,   // 컨텍스트 분리: renderer에서 node API 직접 접근 불가
-      nodeIntegration: false,   // Node.js 통합 비활성화 (보안)
+      contextIsolation: true,
+      nodeIntegration: false,
     },
-    titleBarStyle: 'hiddenInset', // macOS 네이티브 타이틀바
-    show: false,  // ready-to-show 이후에 표시 (깜빡임 방지)
+    titleBarStyle: 'hiddenInset',
+    show: false,
   });
 
-  // 개발 모드: Vite dev 서버 연결 (port 5173)
-  // 프로덕션: 빌드된 정적 파일 로드 (dist/index.html)
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
@@ -56,18 +281,19 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // 콘텐츠 준비 완료 시 윈도우 표시 (화면 깜빡임 방지)
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
   });
 
-  // 윈도우 닫힘 시 참조 해제
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-// Electron 초기화 완료 시
+// ============================================================
+// 앱 라이프사이클
+// ============================================================
+
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     if (permission === 'media') {
@@ -77,8 +303,10 @@ app.whenReady().then(async () => {
     callback(false);
   });
 
-  // IPC 핸들러 등록 (필요시 확장)
-  // renderer → main 통신 채널
+  // STT 데몬 사전 부팅 — 사용자 첫 발화 전 모델 로딩 끝내두기
+  sttManager.start();
+
+  // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
   ipcMain.handle('stt:start', () => {
@@ -91,6 +319,13 @@ app.whenReady().then(async () => {
     sendSttResult({ text: '', isFinal: true });
     return { ok: true };
   });
+  ipcMain.handle('stt:transcribe', async (_event, audioBuffer: ArrayBuffer, mimeType: string) => {
+    const result = await sttManager.transcribe(audioBuffer, mimeType);
+    if (result.ok) {
+      sendSttResult({ text: result.text ?? '', isFinal: true });
+    }
+    return result;
+  });
   ipcMain.handle('stt:debug-push', (_event, text: string) => {
     if (!sttListening) {
       return { ok: false };
@@ -101,7 +336,6 @@ app.whenReady().then(async () => {
 
   createWindow();
 
-  // macOS: dock 아이콘 클릭 시 윈도우 재생성
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -109,8 +343,10 @@ app.whenReady().then(async () => {
   });
 });
 
-// 모든 윈도우가 닫혔을 때
-// macOS는 앱이 종료되지 않음 (dock에 상주)
+app.on('before-quit', () => {
+  sttManager.shutdown();
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();

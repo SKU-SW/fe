@@ -1,28 +1,25 @@
 /**
  * @file 대시보드 사이드바 컴포넌트
- * @created Sprint 2 - Dashboard Sidebar
- * @dependsOn react-router-dom, lucide-react, useAuthStore, useLogout, useAIModeStore
- * @usedBy DashboardLayout
- *
- * 아이콘 네비게이션 + 항상 보이는 AI 모드 상태 + 사용자 패널(footer)
+ * @updated 슬라이드(Collapse) 기능 부활 및 아이콘 추가, 마이크/스피커 축소 모드 UI 개선
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Zap,
-  MessageCircle,
-  Shield,
+import { 
+  LayoutDashboard, 
+  Users, 
+  MessageSquareText, 
+  BarChart3, 
+  ShieldAlert, 
   Gamepad2,
-  BarChart3,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
   Pause,
-  LogOut,
-  User,
+  LogOut
 } from 'lucide-react';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useLogout } from '@/features/auth/hooks';
@@ -31,51 +28,17 @@ import { useAIModeStore, AIMode } from '@/shared/stores/aiModeStore';
 interface NavItem {
   href: string;
   label: string;
-  icon: React.ReactNode;
   group: 'main' | 'settings';
+  icon: React.ElementType;
 }
 
-// 사용 빈도 기준 정렬:
-// - main: 매일/방송마다 보는 화면 (대시보드 = 시작점, AI 캐릭터 = 방송 시작 지점, 채팅 분석/통계 = 방송 중·후 확인)
-// - tools: 가끔 만지는 보조 기능 (안전·게임 연동)
 const NAV_ITEMS: NavItem[] = [
-  {
-    href: '/dashboard',
-    label: '대시보드',
-    icon: <LayoutDashboard className="h-5 w-5" />,
-    group: 'main',
-  },
-  {
-    href: '/character',
-    label: 'AI 캐릭터',
-    icon: <Zap className="h-5 w-5" />,
-    group: 'main',
-  },
-  {
-    href: '/chat-analysis',
-    label: '채팅 분석',
-    icon: <MessageCircle className="h-5 w-5" />,
-    group: 'main',
-  },
-  {
-    href: '/stats',
-    label: '방송 통계',
-    icon: <BarChart3 className="h-5 w-5" />,
-    group: 'main',
-  },
-
-  {
-    href: '/safety',
-    label: '안전 관리',
-    icon: <Shield className="h-5 w-5" />,
-    group: 'settings',
-  },
-  {
-    href: '/game',
-    label: '게임 연동',
-    icon: <Gamepad2 className="h-5 w-5" />,
-    group: 'settings',
-  },
+  { href: '/dashboard', label: '대시보드', group: 'main', icon: LayoutDashboard },
+  { href: '/character', label: 'AI 캐릭터', group: 'main', icon: Users },
+  { href: '/chat-analysis', label: '채팅 분석', group: 'main', icon: MessageSquareText },
+  { href: '/stats', label: '방송 통계', group: 'main', icon: BarChart3 },
+  { href: '/safety', label: '안전 관리', group: 'settings', icon: ShieldAlert },
+  { href: '/game', label: '게임 연동', group: 'settings', icon: Gamepad2 },
 ];
 
 const MODE_LABEL: Record<AIMode, string> = {
@@ -84,19 +47,13 @@ const MODE_LABEL: Record<AIMode, string> = {
   gaming: '게임 중',
 };
 
-// dot 색상: broadcasting=빨강(라이브), gaming=보라, idle=회색
 const MODE_DOT_CLASS: Record<AIMode, string> = {
-  broadcasting: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]',
-  gaming: 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]',
-  idle: 'bg-slate-500',
+  broadcasting: 'bg-red-500',
+  gaming: 'bg-purple-500',
+  idle: 'bg-discord-textMuted',
 };
 
-interface DashboardSidebarProps {
-  onCollapse?: (collapsed: boolean) => void;
-}
-
-export default function DashboardSidebar({ onCollapse }: DashboardSidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { isCollapsed: boolean; onToggleCollapse: () => void }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const location = useLocation();
 
@@ -105,207 +62,244 @@ export default function DashboardSidebar({ onCollapse }: DashboardSidebarProps) 
   const mode = useAIModeStore((s) => s.mode);
   const isPaused = useAIModeStore((s) => s.isPaused);
   const isPTTActive = useAIModeStore((s) => s.isPTTActive);
-
-  const toggleCollapse = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    onCollapse?.(newState);
-  };
+  const sttEnabled = useAIModeStore((s) => s.toggles.sttEnabled);
+  const ttsEnabled = useAIModeStore((s) => s.toggles.ttsEnabled);
+  const setToggle = useAIModeStore((s) => s.setToggle);
 
   const handleLogout = async () => {
     await logout();
     setShowUserMenu(false);
   };
 
-  const isActive = (href: string) => location.pathname === href;
+  const isActive = (href: string) => location.pathname.startsWith(href);
+
+  // Mac 스타일 슬라이딩 인디케이터 상태 및 참조
+  const navRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
+  const [indicator, setIndicator] = useState({ top: 0, height: 0, opacity: 0 });
+
+  // 메뉴 변경 및 축소/확장 시 인디케이터 재계산
+  useEffect(() => {
+    const activeItem = NAV_ITEMS.find((item) => isActive(item.href));
+    if (activeItem && itemRefs.current[activeItem.href]) {
+      const activeEl = itemRefs.current[activeItem.href];
+      if (activeEl) {
+        setIndicator({
+          top: activeEl.offsetTop,
+          height: activeEl.offsetHeight,
+          opacity: 1,
+        });
+      }
+    } else {
+      setIndicator((prev) => ({ ...prev, opacity: 0 }));
+    }
+  }, [location.pathname, isCollapsed]);
 
   const mainItems = NAV_ITEMS.filter((item) => item.group === 'main');
   const settingsItems = NAV_ITEMS.filter((item) => item.group === 'settings');
 
   return (
-    <aside
-      className={`${
-        isCollapsed ? 'w-20' : 'w-64'
-      } shrink-0 flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-300`}
+    <aside 
+      className={`h-full ${isCollapsed ? 'w-20' : 'w-64'} shrink-0 flex flex-col bg-discord-sidebar border-r border-[#1e1f22] transition-all duration-300 z-10 relative`}
     >
-      {/* 로고 영역 */}
-      <div className="px-6 py-5 flex items-center justify-between">
-        {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="AI streamer" className="h-8 w-8 rounded-lg" />
-            <span className="text-lg font-bold text-white">AI streamer</span>
-          </div>
-        )}
-        {isCollapsed && (
-          <img src="/logo.png" alt="AI streamer" className="h-8 w-8 rounded-lg mx-auto" />
-        )}
-        <button
-          type="button"
-          onClick={toggleCollapse}
-          className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-          aria-label={isCollapsed ? '사이드바 확장' : '사이드바 축소'}
+      {/* 1. 상단 로고 및 타이틀 영역 */}
+      <div className="h-16 flex items-center shrink-0 border-b border-[#1e1f22] relative">
+        <Link 
+          to="/dashboard" 
+          className={`flex items-center gap-3 transition-colors group overflow-hidden ${
+            isCollapsed ? 'mx-auto p-2 rounded-lg hover:bg-white/5' : 'pl-5 pr-4 py-2 w-full hover:bg-white/5 mx-2 rounded-lg'
+          }`}
+          title={isCollapsed ? '대시보드로 이동' : undefined}
         >
-          {isCollapsed ? (
-            <ChevronRight className="h-5 w-5" />
-          ) : (
-            <ChevronLeft className="h-5 w-5" />
+          <img 
+            src="/logo.png" 
+            alt="Logo" 
+            className="w-7 h-7 rounded-md object-cover shadow-sm group-hover:scale-105 transition-transform shrink-0" 
+          />
+          {!isCollapsed && (
+            <span className="text-[14.5px] font-extrabold text-[#f2f3f5] tracking-tight whitespace-nowrap">
+              AI streamer partner
+            </span>
           )}
+        </Link>
+
+        {/* 접기/펼치기 토글 버튼 (플로팅) */}
+        <button 
+          onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-discord-sidebar border border-[#1e1f22] rounded-full flex items-center justify-center text-discord-textMuted hover:text-discord-textHover z-20 shadow-md transition-colors"
+          aria-label={isCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
+        >
+          {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
       </div>
 
-      {/* 네비게이션 */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="메인 네비게이션">
-        {/* Main 섹션 */}
-        {!isCollapsed && (
-          <p className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">메인</p>
-        )}
-        {mainItems.map((item) => (
-          <Link
-            key={item.href}
-            to={item.href}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-              isActive(item.href)
-                ? 'bg-indigo-600/20 text-indigo-400 border-l-2 border-indigo-500'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-            title={isCollapsed ? item.label : undefined}
-            aria-current={isActive(item.href) ? 'page' : undefined}
-          >
-            {item.icon}
-            {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
-          </Link>
-        ))}
+      {/* 2. 네비게이션 메뉴 */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden" aria-label="메인 네비게이션">
+        <div ref={navRef} className="relative flex flex-col px-3 py-2">
+          {/* 슬라이딩 백그라운드 인디케이터 */}
+          <div
+            className="absolute bg-[#404249]/80 rounded-md pointer-events-none z-0"
+            style={{
+              top: `${indicator.top}px`,
+              left: '12px', // px-3
+              right: '12px',
+              height: `${indicator.height}px`,
+              opacity: indicator.opacity,
+              transition: 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+            }}
+          />
 
-        {/* 보조 도구 섹션 */}
-        {!isCollapsed && <hr className="border-slate-800 my-4" />}
-        {!isCollapsed && (
-          <p className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">도구</p>
-        )}
-        {settingsItems.map((item) => (
-          <Link
-            key={item.href}
-            to={item.href}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-              isActive(item.href)
-                ? 'bg-indigo-600/20 text-indigo-400 border-l-2 border-indigo-500'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-            title={isCollapsed ? item.label : undefined}
-            aria-current={isActive(item.href) ? 'page' : undefined}
-          >
-            {item.icon}
-            {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
-          </Link>
-        ))}
+          {!isCollapsed && (
+            <p className="relative z-10 px-3 pt-3 pb-2 text-[11px] font-bold text-discord-textMuted/70 uppercase tracking-wider select-none whitespace-nowrap">
+              메인 메뉴
+            </p>
+          )}
+          {isCollapsed && <div className="h-4" />}
+
+          {mainItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                ref={(el) => { itemRefs.current[item.href] = el; }}
+                title={isCollapsed ? item.label : undefined}
+                className={`relative z-10 flex items-center ${isCollapsed ? 'justify-center py-3' : 'px-3 py-2.5'} mb-0.5 rounded-md transition-colors ${
+                  active
+                    ? 'text-[#f2f3f5] font-semibold'
+                    : 'text-[#b5bac1] font-medium hover:text-[#dbdee1] hover:bg-white/5'
+                }`}
+              >
+                <Icon className={`w-[18px] h-[18px] shrink-0 ${active ? 'text-[#f2f3f5]' : 'text-[#80848e]'}`} />
+                {!isCollapsed && <span className="ml-3 text-[14.5px] tracking-wide whitespace-nowrap">{item.label}</span>}
+              </Link>
+            );
+          })}
+
+          {!isCollapsed && (
+            <p className="relative z-10 px-3 pt-6 pb-2 text-[11px] font-bold text-discord-textMuted/70 uppercase tracking-wider select-none whitespace-nowrap">
+              설정 및 도구
+            </p>
+          )}
+          {isCollapsed && <div className="h-6 border-t border-[#1e1f22] my-2 mx-2" />}
+
+          {settingsItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                ref={(el) => { itemRefs.current[item.href] = el; }}
+                title={isCollapsed ? item.label : undefined}
+                className={`relative z-10 flex items-center ${isCollapsed ? 'justify-center py-3' : 'px-3 py-2.5'} mb-0.5 rounded-md transition-colors ${
+                  active
+                    ? 'text-[#f2f3f5] font-semibold'
+                    : 'text-[#b5bac1] font-medium hover:text-[#dbdee1] hover:bg-white/5'
+                }`}
+              >
+                <Icon className={`w-[18px] h-[18px] shrink-0 ${active ? 'text-[#f2f3f5]' : 'text-[#80848e]'}`} />
+                {!isCollapsed && <span className="ml-3 text-[14.5px] tracking-wide whitespace-nowrap">{item.label}</span>}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
-      {/* AI 모드 상태 (항상 표시) */}
-      <div
-        className={`border-t border-slate-800 ${
-          isCollapsed ? 'px-0 py-3 flex justify-center' : 'px-4 py-3'
-        }`}
-        title={isCollapsed ? `${MODE_LABEL[mode]}${isPaused ? ' · 일시정지' : ''}${isPTTActive ? ' · PTT' : ''}` : undefined}
-        aria-label="AI 모드 상태"
-      >
-        {isCollapsed ? (
-          <div className="relative">
-            <span className={`block h-2.5 w-2.5 rounded-full ${MODE_DOT_CLASS[mode]}`} />
-            {isPTTActive && (
-              <Mic className="absolute -top-2 -right-2 h-3 w-3 text-emerald-400" />
-            )}
+      {/* 3. AI 모드 상태 */}
+      <div className={`px-5 py-3.5 bg-[#232428] flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-t border-[#1e1f22]`}>
+        <div className="flex items-center gap-2.5 min-w-0" title={isCollapsed ? MODE_LABEL[mode] : undefined}>
+          <span className={`block h-2.5 w-2.5 rounded-full shrink-0 ${MODE_DOT_CLASS[mode]} shadow-sm`} />
+          {!isCollapsed && <span className="text-sm font-semibold text-[#f2f3f5] tracking-wide truncate">{MODE_LABEL[mode]}</span>}
+        </div>
+        {!isCollapsed && (
+          <div className="flex items-center gap-1.5 shrink-0">
             {isPaused && (
-              <Pause className="absolute -bottom-2 -right-2 h-3 w-3 text-amber-400" />
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-discord-blurple uppercase">정지</span>
             )}
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className={`block h-2.5 w-2.5 rounded-full shrink-0 ${MODE_DOT_CLASS[mode]}`} />
-              <span className="text-sm font-medium text-white truncate">{MODE_LABEL[mode]}</span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {isPaused && (
-                <span
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300"
-                  aria-label="일시정지"
-                >
-                  <Pause className="h-3 w-3" />
-                </span>
-              )}
-              {isPTTActive && (
-                <span
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-300"
-                  aria-label="PTT 활성"
-                >
-                  <Mic className="h-3 w-3" />
-                  PTT
-                </span>
-              )}
-            </div>
+            {isPTTActive && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-discord-success uppercase">PTT</span>
+            )}
           </div>
         )}
       </div>
 
-      {/* 사용자 패널 (footer) */}
-      <div className="relative border-t border-slate-800 p-2">
+      {/* 4. 장치 토글 */}
+      <div className={`flex items-center justify-center p-3 bg-[#232428] ${isCollapsed ? 'flex-col gap-2' : 'gap-3 w-full'}`}>
+        <DeviceToggleButton
+          label="MIC"
+          active={sttEnabled}
+          isCollapsed={isCollapsed}
+          iconOn={<Mic className="w-[18px] h-[18px]" />}
+          iconOff={<MicOff className="w-[18px] h-[18px]" />}
+          onClick={() => setToggle('sttEnabled', !sttEnabled)}
+        />
+        <DeviceToggleButton
+          label="SPK"
+          active={ttsEnabled}
+          isCollapsed={isCollapsed}
+          iconOn={<Volume2 className="w-[18px] h-[18px]" />}
+          iconOff={<VolumeX className="w-[18px] h-[18px]" />}
+          onClick={() => setToggle('ttsEnabled', !ttsEnabled)}
+        />
+      </div>
+
+      {/* 5. 사용자 프로필 메뉴 */}
+      <div className="relative p-3 bg-[#232428]">
         <button
           type="button"
           onClick={() => setShowUserMenu((v) => !v)}
-          className={`w-full flex items-center gap-3 rounded-lg p-2 hover:bg-slate-800 transition-colors ${
-            isCollapsed ? 'justify-center' : ''
-          }`}
-          aria-label="사용자 메뉴"
-          aria-expanded={showUserMenu}
-          aria-haspopup="true"
+          className={`w-full flex items-center gap-3 rounded-md py-1.5 hover:bg-white/5 transition-colors ${isCollapsed ? 'justify-center px-0' : 'px-2'}`}
           title={isCollapsed ? user?.name || 'User' : undefined}
         >
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-sm font-medium text-white shrink-0">
+          <div className="h-8 w-8 rounded-full bg-[#5865F2] flex items-center justify-center text-sm font-bold text-white shadow-sm shrink-0">
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           {!isCollapsed && (
-            <>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-white truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-slate-400 truncate">{user?.email || 'user@example.com'}</p>
-              </div>
-              <ChevronUp
-                className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${
-                  showUserMenu ? 'rotate-180' : ''
-                }`}
-              />
-            </>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-[13px] font-bold text-[#f2f3f5] truncate">{user?.name || 'User'}</p>
+              <p className="text-[11px] text-[#949ba4] truncate">{user?.email || 'user@example.com'}</p>
+            </div>
           )}
         </button>
 
         {showUserMenu && (
-          <div
-            className={`absolute z-50 rounded-lg bg-slate-800 border border-slate-700 shadow-lg py-1 ${
-              isCollapsed
-                ? 'left-full bottom-2 ml-2 w-48'
-                : 'left-2 right-2 bottom-full mb-2'
-            }`}
-            role="menu"
-          >
-            <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400">
-              <User className="h-4 w-4" />
-              <span className="truncate">{user?.email || ''}</span>
-            </div>
-            <hr className="border-slate-700 my-1" />
+          <div className={`absolute z-50 bottom-full mb-2 rounded-lg bg-[#111214] border border-[#1e1f22] p-1.5 shadow-xl ${isCollapsed ? 'left-full ml-2 w-40' : 'left-3 right-3'}`}>
             <button
               type="button"
-              onClick={() => {
-                void handleLogout();
-              }}
+              onClick={() => void handleLogout()}
               disabled={isPending}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-slate-700 disabled:opacity-50 transition-colors"
-              role="menuitem"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-[13px] font-medium text-[#f23f42] hover:bg-[#f23f42] hover:text-white disabled:opacity-50 transition-colors"
             >
-              <LogOut className="h-4 w-4" />
+              {!isCollapsed && <LogOut className="w-4 h-4" />}
               {isPending ? '로그아웃 중...' : '로그아웃'}
             </button>
           </div>
         )}
       </div>
     </aside>
+  );
+}
+
+interface DeviceToggleButtonProps {
+  label: string;
+  active: boolean;
+  isCollapsed: boolean;
+  iconOn: React.ReactNode;
+  iconOff: React.ReactNode;
+  onClick: () => void;
+}
+
+function DeviceToggleButton({ label, active, isCollapsed, iconOn, iconOff, onClick }: DeviceToggleButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      title={`${label} ${active ? '켜짐' : '꺼짐'}`}
+      className={`flex items-center justify-center rounded-md transition-colors ${isCollapsed ? 'py-2.5 w-full' : 'w-10 h-10'} ${active ? 'bg-[#313338] text-[#23a559] hover:bg-[#3f4147]' : 'bg-[#313338] text-[#f23f42] hover:bg-[#3f4147]'}`}
+    >
+      {active ? iconOn : iconOff}
+    </button>
   );
 }

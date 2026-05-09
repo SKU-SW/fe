@@ -203,10 +203,37 @@ export const useAIModeStore = create<AIModeStore>()(
 
       // === AI 모드 및 전략 ===
       setMode: (mode) => set({ mode }),
+      /**
+       * 새 방송 세션 시작.
+       * - mode/streamId/startedAt 셋팅과 동시에 이전 세션의 dialogues/activityLogs/currentEmotion/currentTranscript 를 비움.
+       *   (캐릭터 전환 후 이전 캐릭터의 채팅 기록이 잔재로 남는 버그 방지)
+       */
       setBroadcast: (broadcastStreamId, broadcastStartedAt) =>
-        set({ mode: 'broadcasting', broadcastStreamId, broadcastStartedAt }),
+        set({
+          mode: 'broadcasting',
+          broadcastStreamId,
+          broadcastStartedAt,
+          dialogues: [],
+          dialogueCursorId: null,
+          activityLogs: [],
+          currentEmotion: 'default',
+          currentTranscript: '',
+        }),
+      /**
+       * 방송 종료 — 세션 관련 모든 휘발성 데이터 같이 정리.
+       * (mode/streamId 만 비우고 dialogues 가 남아있으면 다음 세션에 잔재로 노출됨)
+       */
       clearBroadcast: () =>
-        set({ mode: 'idle', broadcastStreamId: null, broadcastStartedAt: null }),
+        set({
+          mode: 'idle',
+          broadcastStreamId: null,
+          broadcastStartedAt: null,
+          dialogues: [],
+          dialogueCursorId: null,
+          activityLogs: [],
+          currentEmotion: 'default',
+          currentTranscript: '',
+        }),
       setReactionStrategy: (reactionStrategy) => set({ reactionStrategy }),
       setIsAutoStrategy: (isAutoStrategy) => set({ isAutoStrategy }),
 
@@ -259,9 +286,16 @@ export const useAIModeStore = create<AIModeStore>()(
           const map = new Map(state.dialogues.map((item) => [item.id, item]));
           items.forEach((item) => map.set(item.id, item));
           const dialogues = [...map.values()].sort((a, b) => {
-            if (a.cursorId == null && b.cursorId == null) return 0;
-            if (a.cursorId == null) return -1;
-            if (b.cursorId == null) return 1;
+            // cursorId 가 null 인 항목은 FE 에서 optimistic 으로 추가한 로컬 발화 (예: STREAMER STT 결과).
+            // BE 응답을 못 받은 가장 최신 항목이므로 목록의 마지막(아래쪽)에 배치.
+            // 둘 다 null 이면 timestamp 비교로 안정 정렬.
+            if (a.cursorId == null && b.cursorId == null) {
+              const ta = new Date(a.timestamp).getTime();
+              const tb = new Date(b.timestamp).getTime();
+              return ta - tb;
+            }
+            if (a.cursorId == null) return 1;
+            if (b.cursorId == null) return -1;
             return a.cursorId - b.cursorId;
           });
           return {
@@ -300,9 +334,6 @@ export const useAIModeStore = create<AIModeStore>()(
       name: 'ai-mode-storage',
       partialize: (state) => ({
         // 영구 저장할 상태만 선택
-        mode: state.mode,
-        broadcastStreamId: state.broadcastStreamId,
-        broadcastStartedAt: state.broadcastStartedAt,
         reactionStrategy: state.reactionStrategy,
         isAutoStrategy: state.isAutoStrategy,
         toggles: state.toggles,

@@ -5,7 +5,7 @@
  * @usedBy src/pages/CharacterPage.tsx
  *
  * 동작:
- *   1) store 의 broadcastStreamId 를 body 로 담아 terminateBroadcast(broadcastStreamId) 호출
+ *   1) terminateBroadcast() 호출 (인자/body 없음 — Swagger 기준)
  *   2) 성공 → aiModeStore.clearBroadcast() 로 mode='idle' + streamId 초기화
  *   3) 404 (서버에 진행 중 방송 없음) → 로컬 상태도 정리하고 정상 종료로 간주
  *   4) 그 외 실패 → setError 로 노출
@@ -44,19 +44,13 @@ function deriveMessage(err: unknown): string {
 export function useTerminateBroadcast(): UseTerminateBroadcastReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const broadcastStreamId = useAIModeStore((s) => s.broadcastStreamId);
   const clearBroadcast = useAIModeStore((s) => s.clearBroadcast);
 
   const terminate = useCallback(async (): Promise<BroadcastTerminateResDto | null> => {
     setIsPending(true);
     setError(null);
-    if (!broadcastStreamId) {
-      setError("진행 중인 방송 ID가 없어 종료 요청을 보낼 수 없습니다.");
-      setIsPending(false);
-      return null;
-    }
     try {
-      const res = await terminateBroadcast(broadcastStreamId);
+      const res = await terminateBroadcast();
       clearBroadcast();
       return res;
     } catch (err: unknown) {
@@ -72,7 +66,7 @@ export function useTerminateBroadcast(): UseTerminateBroadcastReturn {
     } finally {
       setIsPending(false);
     }
-  }, [broadcastStreamId, clearBroadcast]);
+  }, [clearBroadcast]);
 
   return { terminate, isPending, error };
 }

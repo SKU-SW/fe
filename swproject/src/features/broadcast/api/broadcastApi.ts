@@ -4,15 +4,14 @@
  * @dependsOn src/shared/types/broadcast.ts
  * @usedBy src/features/broadcast/hooks/*
  *
- * Backend 최신 계약:
- *   - POST /api/v1/stream/start?characterId={id}  (Bearer)
- *   - PATCH /api/v1/stream/termination             (Bearer, body: { broadcastStreamId })
+ * Backend Swagger (진실의 근원):
+ *   - POST /api/v1/stream/start?characterId={id}     (Bearer)
+ *   - POST /api/v1/stream/terminate                  (Bearer, body 없음)
  */
 
 import apiClient from "@/shared/lib/axios";
 import type {
   BroadcastStartResDto,
-  BroadcastTerminateReqDto,
   BroadcastTerminateResDto,
 } from "@/shared/types/broadcast";
 
@@ -20,11 +19,10 @@ const STREAM_BASE = "/api/v1/stream";
 
 /**
  * 방송 시작
- * - characterId 는 query string. body 는 없음.
+ * - characterId 는 query string. body 없음.
  * - 200: { broadcastStreamId, broadcastStartedAt }
  * - 400: 잘못된 요청 / 이미 방송 중
  * - 404: 캐릭터 없음
- * - 401/403: 인증/권한
  */
 export async function startBroadcast(characterId: number): Promise<BroadcastStartResDto> {
   const res = await apiClient.post<BroadcastStartResDto>(`${STREAM_BASE}/start`, null, {
@@ -35,17 +33,11 @@ export async function startBroadcast(characterId: number): Promise<BroadcastStar
 
 /**
  * 방송 종료
- * - 현재 진행 중인 방송 ID를 body 로 전달해 종료.
- * - 200: { broadcastStreamId, broadcastStatus, broadcastTerminatedAt }
+ * - 현재 로그인 사용자의 진행 중 방송을 종료. body 없음, 인자 없음.
+ * - 200: { terminatedBroadcastStreamId, broadcastStatus, broadcastTerminatedAt }
  * - 404: 진행 중인 방송 없음
  */
-export async function terminateBroadcast(
-  broadcastStreamId: string
-): Promise<BroadcastTerminateResDto> {
-  const body: BroadcastTerminateReqDto = { broadcastStreamId };
-  const res = await apiClient.patch<BroadcastTerminateResDto>(
-    `${STREAM_BASE}/termination`,
-    body
-  );
+export async function terminateBroadcast(): Promise<BroadcastTerminateResDto> {
+  const res = await apiClient.post<BroadcastTerminateResDto>(`${STREAM_BASE}/terminate`);
   return res.data;
 }

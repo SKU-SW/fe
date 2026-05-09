@@ -1,24 +1,23 @@
 /**
  * @file 실시간 대화 스트림 + 화자 타입 필터
- * - 메시지 타입(스트리머/AI/채팅)별 색상·정렬·아이콘 분기
- * - 상단 체크박스로 타입 필터링: OFF 시 슬라이드 아웃 애니메이션 (CSS only)
+ * KakaoTalk bubble style
  * @usedBy src/pages/DashboardPage.tsx
  */
 
 import { useEffect, useRef } from "react";
-import { Check, MessageCircle, Mic, User } from "lucide-react";
 import type { ConversationFilterState, ConversationMessage, ConversationSpeaker } from "../types";
 
 interface ConversationStreamProps {
   messages: ConversationMessage[];
   filter: ConversationFilterState;
   onFilterChange: (next: ConversationFilterState) => void;
+  chatLogOn?: boolean;
+  onToggleChatLog?: () => void;
 }
 
-export function ConversationStream({ messages, filter, onFilterChange }: ConversationStreamProps) {
+export function ConversationStream({ messages, filter, onFilterChange, chatLogOn, onToggleChatLog }: ConversationStreamProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 새 메시지 들어오면 자동 스크롤 (가장 최근 메시지 보이게)
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -26,39 +25,62 @@ export function ConversationStream({ messages, filter, onFilterChange }: Convers
   }, [messages.length]);
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-slate-700/50 bg-slate-900/60">
-      {/* 필터 체크박스 */}
-      <div className="flex items-center gap-2 border-b border-slate-700/50 px-4 py-2.5">
-        <FilterChip
-          label="AI 캐릭터"
-          icon={<Mic className="h-3 w-3" />}
-          active={filter.ai}
-          onClick={() => onFilterChange({ ...filter, ai: !filter.ai })}
-          accent="amber"
-        />
-        <FilterChip
-          label="스트리머"
-          icon={<User className="h-3 w-3" />}
-          active={filter.streamer}
-          onClick={() => onFilterChange({ ...filter, streamer: !filter.streamer })}
-          accent="indigo"
-        />
-        <FilterChip
-          label="채팅"
-          icon={<MessageCircle className="h-3 w-3" />}
-          active={filter.chat}
-          onClick={() => onFilterChange({ ...filter, chat: !filter.chat })}
-          accent="emerald"
-        />
+    <div className="flex h-full flex-col rounded bg-[#2b2d31] border border-[#1e1f22]">
+      {/* 상단 필터 및 전체 채팅 스위치 바 */}
+      <div className="flex items-center justify-between border-b border-[#1e1f22] bg-transparent px-4 py-2">
+        <div className="flex items-center gap-2">
+          <FilterChip
+            label="AI 캐릭터"
+            active={filter.ai}
+            onClick={() => onFilterChange({ ...filter, ai: !filter.ai })}
+            colorClass="bg-[#949ba4]"
+          />
+          <FilterChip
+            label="스트리머"
+            active={filter.streamer}
+            onClick={() => onFilterChange({ ...filter, streamer: !filter.streamer })}
+            colorClass="bg-[#0ea5e9]"
+          />
+          <FilterChip
+            label="시청자 채팅"
+            active={filter.chat}
+            onClick={() => onFilterChange({ ...filter, chat: !filter.chat })}
+            colorClass="bg-[#4752c4]"
+          />
+        </div>
+
+        {onToggleChatLog && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#949ba4]">
+              전체 채팅
+            </span>
+            <button
+              type="button"
+              onClick={onToggleChatLog}
+              role="switch"
+              aria-checked={chatLogOn}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                chatLogOn ? "bg-[#23a559]" : "bg-[#4e5058]"
+              }`}
+            >
+              <span className="sr-only">전체 채팅</span>
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  chatLogOn ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 메시지 영역 */}
-      <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+      {/* 메시지 영역 (카카오톡 말풍선 스타일) */}
+      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
-          <p className="py-12 text-center text-xs text-slate-500">아직 대화가 없습니다.</p>
+          <p className="py-12 text-center text-sm font-medium text-[#949ba4]">아직 대화가 없습니다.</p>
         ) : (
           messages.map((m) => (
-            <MessageBubble key={m.id} message={m} hidden={!filter[m.speaker]} />
+            <MessageRow key={m.id} message={m} hidden={!filter[m.speaker]} />
           ))
         )}
       </div>
@@ -66,96 +88,79 @@ export function ConversationStream({ messages, filter, onFilterChange }: Convers
   );
 }
 
-// ============================================================
-// 메시지 버블
-// ============================================================
-
-const SPEAKER_ALIGN: Record<ConversationSpeaker, string> = {
-  streamer: "self-end",
-  chat: "self-end",
-  ai: "self-start",
-};
-
-const SPEAKER_BUBBLE: Record<ConversationSpeaker, string> = {
-  streamer: "bg-indigo-500/20 border-indigo-500/40 text-indigo-100",
-  ai: "bg-amber-500/15 border-amber-500/30 text-amber-100",
-  chat: "bg-emerald-500/15 border-emerald-500/30 text-emerald-100",
-};
-
 const SPEAKER_LABEL: Record<ConversationSpeaker, string> = {
   streamer: "스트리머",
   ai: "AI",
   chat: "채팅",
 };
 
-function MessageBubble({ message, hidden }: { message: ConversationMessage; hidden: boolean }) {
-  const isRight = message.speaker !== "ai";
+function formatTime(date: Date) {
+  return date.toLocaleTimeString("ko-KR", { hour12: true, hour: "numeric", minute: "2-digit" });
+}
 
+function MessageRow({ message, hidden }: { message: ConversationMessage; hidden: boolean }) {
+  if (hidden) return null;
+
+  // 카카오톡 스타일: AI는 왼쪽, 스트리머/시청자는 오른쪽
+  const isAI = message.speaker === "ai";
+  
   return (
-    <div
-      className={`flex transition-all duration-300 ease-out ${
-        hidden
-          ? `pointer-events-none max-h-0 -my-1 opacity-0 ${isRight ? "translate-x-12" : "-translate-x-12"}`
-          : "max-h-40 opacity-100 translate-x-0"
-      } ${isRight ? "justify-end" : "justify-start"}`}
-      aria-hidden={hidden}
-    >
-      <div className={`flex max-w-[85%] flex-col gap-0.5 ${SPEAKER_ALIGN[message.speaker]}`}>
-        <span className="px-1 text-[10px] text-slate-500">
-          {SPEAKER_LABEL[message.speaker]}
-          {message.username && <> · {message.username}</>}
+    <div className={`flex w-full ${isAI ? "justify-start" : "justify-end"}`}>
+      <div className={`flex max-w-[75%] flex-col ${isAI ? "items-start" : "items-end"}`}>
+        
+        {/* 발화자 이름 표시 (채팅이면 유저명, 아니면 스피커 라벨) */}
+        <span className="mb-1 text-xs font-semibold text-[#949ba4] px-1">
+          {message.username ? message.username : SPEAKER_LABEL[message.speaker]}
         </span>
-        <div
-          className={`rounded-xl border px-3 py-2 text-sm leading-relaxed ${SPEAKER_BUBBLE[message.speaker]}`}
-        >
-          {message.text}
+        
+        <div className={`flex items-end gap-2 ${isAI ? "flex-row" : "flex-row-reverse"}`}>
+          {/* 말풍선 */}
+          <div 
+            className={`rounded-2xl px-4 py-2 text-sm text-white leading-relaxed break-words shadow-sm ${
+              message.speaker === "ai"
+                ? "bg-[#4e5058] rounded-tl-sm" // AI (회색)
+                : message.speaker === "streamer"
+                ? "bg-[#0ea5e9] rounded-tr-sm" // 스트리머 (하늘색)
+                : "bg-[#4752c4] rounded-tr-sm" // 시청자 채팅 (진한 파란색)
+            }`}
+          >
+            {message.text}
+          </div>
+
+          {/* 시간 표시 */}
+          <span className="text-[10px] font-medium text-[#949ba4] shrink-0 mb-1">
+            {formatTime(message.timestamp || new Date())}
+          </span>
         </div>
+
       </div>
     </div>
   );
 }
 
-// ============================================================
-// 필터 칩
-// ============================================================
-
-const ACCENT_CLASSES = {
-  amber: { on: "border-amber-500/40 bg-amber-500/15 text-amber-200", off: "border-slate-700 bg-slate-800/40 text-slate-500" },
-  indigo: { on: "border-indigo-500/40 bg-indigo-500/15 text-indigo-200", off: "border-slate-700 bg-slate-800/40 text-slate-500" },
-  emerald: { on: "border-emerald-500/40 bg-emerald-500/15 text-emerald-200", off: "border-slate-700 bg-slate-800/40 text-slate-500" },
-} as const;
-
 function FilterChip({
   label,
-  icon,
   active,
   onClick,
-  accent,
+  colorClass,
 }: {
   label: string;
-  icon: React.ReactNode;
   active: boolean;
   onClick: () => void;
-  accent: keyof typeof ACCENT_CLASSES;
+  colorClass: string;
 }) {
-  const cls = ACCENT_CLASSES[accent];
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-        active ? cls.on : cls.off
+      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[13px] font-bold transition-colors ${
+        active 
+          ? "bg-[#404249] text-[#f2f3f5]" 
+          : "bg-transparent text-[#949ba4] hover:bg-[#3f4147]"
       }`}
       aria-pressed={active}
     >
-      <span
-        className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded border ${
-          active ? "border-current bg-current/20" : "border-slate-600"
-        }`}
-      >
-        {active && <Check className="h-3 w-3" />}
-      </span>
-      {icon}
+      <span className={`h-2 w-2 rounded-full ${active ? colorClass : "bg-[#4e5058]"}`} />
       {label}
     </button>
   );
