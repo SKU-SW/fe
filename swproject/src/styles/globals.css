@@ -34,14 +34,14 @@ input[type="range"] {
   width: 100%;
   height: 6px;
   border-radius: 9999px;
-  background: linear-gradient(to right, rgb(71, 85, 105), rgb(51, 65, 85));
+  background: rgb(71, 85, 105);
   outline: none;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 input[type="range"]:hover {
-  background: linear-gradient(to right, rgb(100, 116, 139), rgb(71, 85, 105));
+  background: rgb(100, 116, 139);
 }
 
 /* Webkit 브라우저 (Chrome, Safari, Edge) */
@@ -53,13 +53,13 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 50%;
   background: rgb(59, 130, 246);
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+  
   transition: background 0.2s, box-shadow 0.2s;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
   background: rgb(96, 165, 250);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.6);
+  
 }
 
 /* Firefox */
@@ -70,11 +70,11 @@ input[type="range"]::-moz-range-thumb {
   background: rgb(59, 130, 246);
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+  
   transition: background 0.2s, box-shadow 0.2s;
 }
 
 input[type="range"]::-moz-range-thumb:hover {
   background: rgb(96, 165, 250);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.6);
+  
 }

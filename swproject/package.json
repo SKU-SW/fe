@@ -54,6 +54,12 @@
     "directories": {
       "output": "release"
     },
+    "extraResources": [
+      {
+        "from": "electron/stt_server.py",
+        "to": "electron/stt_server.py"
+      }
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",

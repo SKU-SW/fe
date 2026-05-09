@@ -14,7 +14,7 @@ interface AuthCardProps {
 
 export default function AuthCard({ title, subtitle, children }: AuthCardProps) {
   return (
-    <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl shadow-xl overflow-hidden">
+    <div className="w-full max-w-md bg-discord-sidebar border border-discord-dark rounded-xl shadow-xl overflow-hidden">
       <div className="p-8 pb-6 text-center">
         <img
           src="/logo.png"
@@ -22,7 +22,7 @@ export default function AuthCard({ title, subtitle, children }: AuthCardProps) {
           className="mx-auto mb-4 h-12 w-12 rounded-xl shadow-md"
         />
         <h1 className="text-2xl font-bold text-white mb-2">{title}</h1>
-        <p className="text-slate-400 text-sm">{subtitle}</p>
+        <p className="text-discord-textMuted text-sm">{subtitle}</p>
       </div>
       <div className="px-8 pb-8">{children}</div>
     </div>

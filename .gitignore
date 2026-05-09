@@ -42,3 +42,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 개발 중 일시 변환 스크립트 (sed/replace 작업 흔적)
+swproject/fix_*.sh
+swproject/replace_*.sh
+swproject/replace_*.js
+swproject/update_*.js

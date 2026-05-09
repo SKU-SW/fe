@@ -18,11 +18,11 @@ const EMOTION_LABELS: Record<StreamEmotion, string> = {
 };
 
 const EMOTION_CLASSES: Record<StreamEmotion, string> = {
-  happy: "from-yellow-400/70 to-orange-500/70 border-yellow-300/50",
-  sad: "from-blue-400/70 to-sky-600/70 border-sky-300/50",
-  angry: "from-rose-500/70 to-red-700/70 border-rose-300/50",
-  crying: "from-cyan-300/70 to-blue-500/70 border-cyan-200/50",
-  default: "from-slate-500/70 to-slate-700/70 border-slate-300/40",
+  happy: "bg-yellow-500 border-yellow-600",
+  sad: "bg-blue-500 border-blue-600",
+  angry: "bg-red-500 border-red-600",
+  crying: "bg-cyan-500 border-cyan-600",
+  default: "bg-slate-600 border-discord-dark",
 };
 
 export default function OverlayPage() {
@@ -47,7 +47,7 @@ export default function OverlayPage() {
     <div className="flex h-screen w-screen items-end justify-between bg-transparent p-6">
       <div className="pointer-events-none flex items-end gap-4">
         <div
-          className={`flex h-72 w-72 items-end justify-center overflow-hidden rounded-[28px] border bg-gradient-to-b p-6 text-white shadow-2xl ${EMOTION_CLASSES[currentEmotion]}`}
+          className={`flex h-72 w-72 items-end justify-center overflow-hidden rounded-[28px] border p-6 text-white shadow-2xl ${EMOTION_CLASSES[currentEmotion]}`}
         >
           <div className="w-full rounded-2xl bg-black/25 px-4 py-3 text-center backdrop-blur-sm">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/70">OBS Overlay</p>
