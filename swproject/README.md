@@ -2,6 +2,8 @@
 
 방송 채팅 분석 및 AI 캐릭터 관리 Electron 데스크톱 애플리케이션.
 
+> 문서 시작점: 상위 폴더의 [`docs/README.md`](../docs/README.md)
+
 ## 기술 스택
 
 React 19 · TypeScript · Vite · Electron 33 · Zustand · React Hook Form + Zod · Tailwind CSS v3 · Axios · Chart.js. 백엔드는 Spring Boot REST API + WebSocket (`localhost:8080`).
@@ -61,7 +63,8 @@ electron/         # Electron 메인 프로세스 + preload
 
 ## 추가 문서
 
-- 상위 디렉토리 (`../`) 의 `PROJECT_GUIDE.md`, `SPECIFICATIONS.md`,
-  `API_SPECIFICATIONS.md`, `DEVELOPMENT_GUIDE.md`, `UI_DESIGN.md`
+- `../docs/README.md` — 문서 허브
+- `../docs/ARCHITECTURE.md` — 실제 코드 기준 아키텍처 요약
+- `../docs/features/*.md` — 페이지별 문서
 - `AGENTS.md` — AI 에이전트용 가이드
-- `docs/superpowers/` — 설계/계획 문서 (마이그레이션 히스토리 포함)
+- `docs/superpowers/` — 과거 설계/계획 문서

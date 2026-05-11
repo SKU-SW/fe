@@ -1,6 +1,6 @@
 # SKU-SW 백엔드 API 명세서
 
-> 최종 업데이트: 2025-04-21
+> 최종 업데이트: 2025-05-11
 > Spring Boot 백엔드 REST API 및 WebSocket 스펙
 
 ## 📋 목차
@@ -12,9 +12,10 @@
 5. [게임 (Game)](#4-게임-game)
 6. [안전 관리 (Safety)](#5-안전-관리-safety)
 7. [방송 통계 (Broadcast Statistics)](#6-방송-통계-broadcast-statistics)
-8. [WebSocket](#7-websocket)
-9. [에러 처리](#8-에러-처리)
-10. [레이트 리미팅 & 보안](#9-레이트-리미팅--보안)
+8. [방송 스트림 (Broadcasting Stream)](#7-방송-스트림-broadcasting-stream)
+9. [WebSocket](#8-websocket)
+10. [에러 처리](#9-에러-처리)
+11. [레이트 리미팅 & 보안](#10-레이트-리미팅--보안)
 
 ---
 
@@ -944,15 +945,209 @@ Authorization: Bearer {accessToken}
 
 ---
 
-## 7. WebSocket
+## 7. 방송 스트림 (Broadcasting Stream)
 
-### 7.1 WebSocket 연결
+### 7.1 방송 시작
+
+**엔드포인트**: `POST /api/v1/stream/start`
+
+**요청 헤더**:
+```
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**쿼리 파라미터**:
+- `characterId`: 방송할 캐릭터 ID (필수)
+
+**요청 본문**:
+```json
+{}
+```
+
+**응답 (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "broadcastStreamId": "stream_abc123def456",
+    "broadcastStartedAt": "2025-04-21T10:30:00Z"
+  },
+  "message": "방송 시작 성공"
+}
+```
+
+**설명**:
+- 선택된 캐릭터로 새로운 방송 스트림을 시작합니다.
+- `broadcastStreamId`는 이후 스트림 정보 조회 및 WebSocket 연결에 필요합니다.
+- 반환된 ID는 클라이언트에서 저장하여 스트림 관리에 사용합니다.
+
+**에러 응답**:
+- 400: 유효하지 않은 캐릭터 ID 또는 이미 진행 중인 방송
+- 401: 인증 필요
+- 404: 캐릭터 없음
+
+---
+
+### 7.2 방송 종료
+
+**엔드포인트**: `POST /api/v1/stream/terminate`
+
+**요청 헤더**:
+```
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**요청 본문**:
+```json
+{
+  "broadcastStreamId": "stream_abc123def456"
+}
+```
+
+**응답 (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "terminatedBroadcastStreamId": "stream_abc123def456",
+    "broadcastStatus": "TERMINATED",
+    "broadcastTerminatedAt": "2025-04-21T10:35:00Z"
+  },
+  "message": "방송 종료 성공"
+}
+```
+
+**설명**:
+- 진행 중인 방송 스트림을 종료합니다.
+- 404 응답도 성공으로 처리됩니다 (멱등성 설계).
+- 종료 후 WebSocket 연결은 자동으로 닫힙니다.
+
+**에러 응답**:
+- 400: 유효하지 않은 스트림 ID
+- 401: 인증 필요
+- 404: 스트림 없음 (성공으로 처리)
+
+---
+
+### 7.3 스트림 정보 조회
+
+**엔드포인트**: `GET /api/v1/stream/info`
+
+**요청 헤더**:
+```
+Authorization: Bearer {accessToken}
+```
+
+**쿼리 파라미터**:
+- `size`: 조회할 콘텐츠 개수 (기본값: 20, 최대: 100)
+
+**응답 (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "broadcastCharacterInfo": {
+      "characterId": "char_123",
+      "characterName": "AI 동료",
+      "gender": "FEMALE",
+      "appearanceId": "appearance_2",
+      "voiceId": "voice_2"
+    },
+    "content": [
+      {
+        "id": "dialogue_1",
+        "text": "안녕하세요!",
+        "timestamp": "2025-04-21T10:30:05Z",
+        "type": "AI_RESPONSE"
+      },
+      {
+        "id": "dialogue_2",
+        "text": "오늘 날씨가 좋네요.",
+        "timestamp": "2025-04-21T10:30:10Z",
+        "type": "AI_RESPONSE"
+      }
+    ],
+    "size": 2,
+    "hasNext": true,
+    "nextCursor": "cursor_xyz789"
+  }
+}
+```
+
+**설명**:
+- 현재 진행 중인 방송의 스트림 정보와 최근 대화 내용을 조회합니다.
+- `hasNext`가 true이면 `nextCursor`를 사용하여 다음 페이지를 조회할 수 있습니다.
+- 콘텐츠는 시간순으로 정렬됩니다.
+
+**에러 응답**:
+- 401: 인증 필요
+- 404: 진행 중인 방송 없음 (정보 조회 전용, 에러로 처리)
+
+---
+
+### 7.4 스트림 대화 목록 조회 (커서 기반 페이지네이션)
+
+**엔드포인트**: `GET /api/v1/stream/info/dialogues`
+
+**요청 헤더**:
+```
+Authorization: Bearer {accessToken}
+```
+
+**쿼리 파라미터**:
+- `cursor`: 페이지네이션 커서 (선택사항, 첫 요청 시 생략)
+- `size`: 조회할 대화 개수 (기본값: 20, 최대: 100)
+
+**응답 (200 OK)**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "id": "dialogue_1",
+        "text": "안녕하세요!",
+        "timestamp": "2025-04-21T10:30:05Z",
+        "type": "AI_RESPONSE",
+        "characterId": "char_123"
+      },
+      {
+        "id": "dialogue_2",
+        "text": "오늘 날씨가 좋네요.",
+        "timestamp": "2025-04-21T10:30:10Z",
+        "type": "AI_RESPONSE",
+        "characterId": "char_123"
+      }
+    ],
+    "hasNext": true,
+    "nextCursor": "cursor_xyz789",
+    "size": 2
+  }
+}
+```
+
+**설명**:
+- 방송 스트림의 모든 대화를 커서 기반 페이지네이션으로 조회합니다.
+- 무한 스크롤 UI 구현에 사용됩니다.
+- `hasNext`가 true이면 `nextCursor`를 사용하여 다음 배치를 조회합니다.
+
+**에러 응답**:
+- 401: 인증 필요
+- 404: 진행 중인 방송 없음
+
+---
+
+## 8. WebSocket
+
+### 8.1 일반 WebSocket 연결
 
 **URL**: `ws://localhost:8080/api/v1/ws?token={accessToken}`
 
 **프로토콜**: `json`
 
-### 7.2 메시지 구조
+### 8.2 메시지 구조
 
 모든 WebSocket 메시지는 JSON 형식:
 
@@ -964,9 +1159,9 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-### 7.3 클라이언트 → 서버 메시지
+### 8.3 클라이언트 → 서버 메시지
 
-#### 7.3.1 채팅 메시지 구독
+#### 8.3.1 채팅 메시지 구독
 
 ```json
 {
@@ -977,7 +1172,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-#### 7.3.2 게임 이벤트 구독
+#### 8.3.2 게임 이벤트 구독
 
 ```json
 {
@@ -988,7 +1183,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-#### 7.3.3 구독 해제
+#### 8.3.3 구독 해제
 
 ```json
 {
@@ -999,9 +1194,9 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-### 7.4 서버 → 클라이언트 메시지
+### 8.4 서버 → 클라이언트 메시지
 
-#### 7.4.1 실시간 채팅 메시지
+#### 8.4.1 실시간 채팅 메시지
 
 ```json
 {
@@ -1016,7 +1211,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-#### 7.4.2 게임 이벤트
+#### 8.4.2 게임 이벤트
 
 ```json
 {
@@ -1036,7 +1231,7 @@ Authorization: Bearer {accessToken}
 
 **이벤트 타입**: KILL, DEATH, ASSIST, MULTIKILL, BARON, DRAGON, TURRET, GAME_END
 
-#### 7.4.3 채팅 여론 업데이트
+#### 8.4.3 채팅 여론 업데이트
 
 ```json
 {
@@ -1051,7 +1246,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-#### 7.4.4 연결 상태
+#### 8.4.4 연결 상태
 
 ```json
 {
@@ -1063,7 +1258,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-### 7.5 WebSocket 에러
+### 8.5 WebSocket 에러
 
 ```json
 {
@@ -1078,9 +1273,70 @@ Authorization: Bearer {accessToken}
 
 ---
 
-## 8. 에러 처리
+### 8.6 방송 스트림 WebSocket 연결
 
-### 8.1 에러 코드
+**URL**: `ws://localhost:8080/api/v1/stream/ws`
+
+**쿼리 파라미터**:
+- `broadcastStreamId`: 방송 스트림 ID (필수, POST /stream/start에서 반환)
+- `accessToken`: JWT 액세스 토큰 (필수)
+
+**프로토콜**: Binary + Text 프레임 쌍
+
+**메시지 형식**:
+
+방송 스트림 WebSocket은 표준 JSON 메시지 대신 **Binary 프레임 + Text 프레임 쌍**을 사용합니다:
+
+1. **Binary 프레임**: TTS 생성 오디오 (Blob)
+2. **Text 프레임**: 메타데이터 (JSON)
+
+```json
+{
+  "type": "AUDIO_METADATA",
+  "data": {
+    "duration": 2500,
+    "characterId": "char_123",
+    "text": "안녕하세요!",
+    "timestamp": "2025-04-21T10:30:05Z"
+  }
+}
+```
+
+**연결 관리**:
+- 자동 재연결: 연결 끊김 시 3초 후 자동 재연결 시도
+- 정상 종료 (close code 1000, 1008): 재연결 안 함
+- 기타 에러: 3초 지연 후 재연결
+
+**에러 처리**:
+- 401 Unauthorized: 토큰 만료 또는 유효하지 않음
+- 404 Not Found: 스트림 ID 유효하지 않음
+- 403 Forbidden: 권한 부족
+
+**사용 예시** (TypeScript):
+
+```typescript
+const ws = new WebSocket(
+  `ws://localhost:8080/api/v1/stream/ws?broadcastStreamId=${streamId}&accessToken=${token}`
+);
+
+ws.onmessage = (event) => {
+  if (event.data instanceof Blob) {
+    // Binary 프레임: 오디오 데이터
+    const audioBlob = event.data;
+    // 오디오 재생 로직
+  } else {
+    // Text 프레임: 메타데이터
+    const metadata = JSON.parse(event.data);
+    console.log('Audio metadata:', metadata);
+  }
+};
+```
+
+---
+
+## 9. 에러 처리
+
+### 9.1 에러 코드
 
 | 코드 | 설명 | HTTP 상태 |
 |------|------|----------|
@@ -1093,7 +1349,7 @@ Authorization: Bearer {accessToken}
 | SERVER_ERROR | 서버 에러 | 500 |
 | SERVICE_UNAVAILABLE | 서비스 이용 불가 | 503 |
 
-### 8.2 에러 응답 예시
+### 9.2 에러 응답 예시
 
 ```json
 {
@@ -1111,9 +1367,9 @@ Authorization: Bearer {accessToken}
 
 ---
 
-## 9. 레이트 리미팅 & 보안
+## 10. 레이트 리미팅 & 보안
 
-### 9.1 레이트 리미팅
+### 10.1 레이트 리미팅
 
 | 엔드포인트 | 제한 | 시간 |
 |-----------|------|------|
@@ -1130,7 +1386,7 @@ X-RateLimit-Remaining: 95
 X-RateLimit-Reset: 1640000000
 ```
 
-### 9.2 CORS
+### 10.2 CORS
 
 ```
 Access-Control-Allow-Origin: http://localhost:5173, http://localhost:3000
@@ -1139,7 +1395,7 @@ Access-Control-Allow-Headers: Content-Type, Authorization
 Access-Control-Allow-Credentials: true
 ```
 
-### 9.3 보안 헤더
+### 10.3 보안 헤더
 
 ```
 X-Content-Type-Options: nosniff
@@ -1148,7 +1404,7 @@ X-XSS-Protection: 1; mode=block
 Strict-Transport-Security: max-age=31536000
 ```
 
-### 9.4 데이터 검증
+### 10.4 데이터 검증
 
 모든 입력값은 다음과 같이 검증됩니다:
 - XSS 방지: HTML 특수문자 이스케이프
@@ -1210,5 +1466,6 @@ apiClient.interceptors.response.use(
 
 | 버전 | 날짜 | 변경 사항 |
 |------|------|---------|
+| 1.1 | 2025-05-11 | § 7 방송 스트림 API 추가 (POST /stream/start, POST /stream/terminate, GET /stream/info, GET /stream/info/dialogues) + § 8.6 방송 스트림 WebSocket 추가 |
 | 1.0 | 2025-04-21 | 초본 작성 |
 

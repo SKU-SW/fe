@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { CharacterConfig, CharacterSettingsResDto } from "@/shared/types/character";
+import { getTriggerWordsValidationError } from "@/features/character/lib/triggerWords";
 import { BasicInfoSection } from "./BasicInfoSection";
 import { PNGTuberSelector } from "./PNGTuberSelector";
 import { PersonaPresetSection } from "./PersonaPresetSection";
@@ -40,8 +41,9 @@ export function CharacterSettings({
   const missingFields: string[] = [];
   if (!config.name.trim()) missingFields.push("캐릭터 이름");
   if (!config.broadcastPreset) missingFields.push("페르소나 프리셋");
+  const triggerWordsError = getTriggerWordsValidationError(config.callWords);
 
-  const canSave = missingFields.length === 0 && !isSaving;
+  const canSave = missingFields.length === 0 && !triggerWordsError && !isSaving;
 
   return (
     <div className="space-y-6">
@@ -80,6 +82,12 @@ export function CharacterSettings({
       {missingFields.length > 0 && (
         <div className="rounded-xl border border-discord-blurple/30 bg-discord-blurple/10 p-4 text-sm text-discord-blurple">
           다음 항목을 입력/선택해주세요: <span className="font-medium">{missingFields.join(", ")}</span>
+        </div>
+      )}
+
+      {triggerWordsError && (
+        <div className="rounded-xl border border-discord-warning/30 bg-discord-warning/10 p-4 text-sm text-discord-warning">
+          호출어 설정 확인: <span className="font-medium">{triggerWordsError}</span>
         </div>
       )}
 

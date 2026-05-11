@@ -65,6 +65,7 @@ export const useCharacterStore = create<CharacterStore>()(
       partialize: (state) => ({
         characters: state.characters,
         selectedCharacterId: state.selectedCharacterId,
+        selectedCharacter: state.selectedCharacter,
       }),
     }
   )

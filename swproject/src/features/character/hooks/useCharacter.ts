@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getCharacter } from '@/features/character/api/characterApi';
+import { useCharacterStore } from '@/shared/stores/characterStore';
 import type { CharacterDetailResDto } from '@/shared/types/character';
 
 /**
@@ -33,6 +34,7 @@ export function useCharacter(characterId: number | null): UseCharacterReturn {
   const [character, setCharacter] = useState<CharacterDetailResDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const setSelectedCharacter = useCharacterStore((s) => s.setSelectedCharacter);
 
   const fetchCharacter = useCallback(async () => {
     if (characterId === null) return;
@@ -41,13 +43,16 @@ export function useCharacter(characterId: number | null): UseCharacterReturn {
     try {
       const data = await getCharacter(characterId);
       setCharacter(data);
+      if (data.isSelected) {
+        setSelectedCharacter(data);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '캐릭터 정보를 불러오지 못했습니다.';
       setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [characterId]);
+  }, [characterId, setSelectedCharacter]);
 
   // characterId 변경 시 자동 조회
   useEffect(() => {

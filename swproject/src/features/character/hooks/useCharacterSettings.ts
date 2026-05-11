@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getCharacterSettings } from '@/features/character/api/characterApi';
+import { useCharacterSettingsStore } from '@/shared/stores/characterSettingsStore';
 import type { CharacterSettingsResDto } from '@/shared/types/character';
 
 /**
@@ -35,6 +36,7 @@ export function useCharacterSettings(enabled = true): UseCharacterSettingsReturn
   const [settings, setSettings] = useState<CharacterSettingsResDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const setCachedSettings = useCharacterSettingsStore((s) => s.setSettings);
 
   const fetchSettings = useCallback(async () => {
     setIsLoading(true);
@@ -42,13 +44,14 @@ export function useCharacterSettings(enabled = true): UseCharacterSettingsReturn
     try {
       const data = await getCharacterSettings();
       setSettings(data);
+      setCachedSettings(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '설정 정보를 불러오지 못했습니다.';
       setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setCachedSettings]);
 
   // enabled가 true일 때만 자동 조회
   useEffect(() => {

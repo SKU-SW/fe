@@ -1,5 +1,8 @@
 # SKU-SW UI 설계 문서
 
+> 최신 문서 진입점: [`README.md`](./README.md)
+> 이 문서는 과거 설계 기준이 일부 남아 있습니다. 실제 UI 상태는 각 페이지 코드와 `docs/features/*.md`를 우선 참고하세요.
+
 > Figma 기반 UI 설계 및 구현 가이드
 > 마지막 업데이트: 2025-04-13
 
@@ -562,4 +565,3 @@ Box Shadow: 0 2px 8px rgba(0,0,0,0.3)
 - **Figma 파일**: Main Dashboard UI Draft.make
 - **기술 스택**: React 19, Tailwind CSS 4, Lucide Icons
 - **브라우저**: Electron (Chromium 기반)
-

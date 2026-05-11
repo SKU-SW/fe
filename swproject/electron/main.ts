@@ -17,13 +17,61 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import { existsSync, promises as fs } from 'fs';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import http from 'http';
 import os from 'os';
 import path from 'path';
 
 const isDev = process.env.NODE_ENV === 'development';
+const OVERLAY_SERVER_PORT = 5174;
 
 let mainWindow: BrowserWindow | null = null;
 let sttListening = false;
+let overlayServer: http.Server | null = null;
+
+type OverlayPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+type StreamEmotion = 'happy' | 'sad' | 'angry' | 'crying' | 'default';
+
+interface OverlaySettings {
+  enabled: boolean;
+  position: OverlayPosition;
+  scale: number;
+  showBubble: boolean;
+}
+
+interface OverlayRuntimeState {
+  isBroadcasting: boolean;
+  broadcastStreamId: string | null;
+  characterName: string;
+  characterImageUrl: string;
+  transcript: string;
+  emotion: StreamEmotion;
+  updatedAt: number;
+}
+
+interface OverlayBridgeState {
+  settings: OverlaySettings;
+  runtime: OverlayRuntimeState;
+}
+
+const DEFAULT_OVERLAY_STATE: OverlayBridgeState = {
+  settings: {
+    enabled: true,
+    position: 'bottom-right',
+    scale: 1,
+    showBubble: true,
+  },
+  runtime: {
+    isBroadcasting: false,
+    broadcastStreamId: null,
+    characterName: 'AI',
+    characterImageUrl: '',
+    transcript: '',
+    emotion: 'default',
+    updatedAt: 0,
+  },
+};
+
+let overlayState: OverlayBridgeState = DEFAULT_OVERLAY_STATE;
 
 function resolveSttScriptPath(): string {
   const candidates = [
@@ -37,6 +85,110 @@ function resolveSttScriptPath(): string {
 
 function sendSttResult(payload: { text: string; isFinal: boolean }) {
   mainWindow?.webContents.send('stt:result', payload);
+}
+
+function isOverlayPosition(value: unknown): value is OverlayPosition {
+  return value === 'bottom-right' || value === 'bottom-left' || value === 'top-right' || value === 'top-left';
+}
+
+function isStreamEmotion(value: unknown): value is StreamEmotion {
+  return value === 'happy' || value === 'sad' || value === 'angry' || value === 'crying' || value === 'default';
+}
+
+function sanitizeOverlayState(value: unknown): OverlayBridgeState {
+  const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const settingsCandidate = candidate.settings && typeof candidate.settings === 'object'
+    ? candidate.settings as Record<string, unknown>
+    : {};
+  const runtimeCandidate = candidate.runtime && typeof candidate.runtime === 'object'
+    ? candidate.runtime as Record<string, unknown>
+    : {};
+
+  const scale = typeof settingsCandidate.scale === 'number' && Number.isFinite(settingsCandidate.scale)
+    ? Math.min(1.5, Math.max(0.5, settingsCandidate.scale))
+    : DEFAULT_OVERLAY_STATE.settings.scale;
+
+  return {
+    settings: {
+      enabled: typeof settingsCandidate.enabled === 'boolean'
+        ? settingsCandidate.enabled
+        : DEFAULT_OVERLAY_STATE.settings.enabled,
+      position: isOverlayPosition(settingsCandidate.position)
+        ? settingsCandidate.position
+        : DEFAULT_OVERLAY_STATE.settings.position,
+      scale,
+      showBubble: typeof settingsCandidate.showBubble === 'boolean'
+        ? settingsCandidate.showBubble
+        : DEFAULT_OVERLAY_STATE.settings.showBubble,
+    },
+    runtime: {
+      isBroadcasting: typeof runtimeCandidate.isBroadcasting === 'boolean'
+        ? runtimeCandidate.isBroadcasting
+        : DEFAULT_OVERLAY_STATE.runtime.isBroadcasting,
+      broadcastStreamId: typeof runtimeCandidate.broadcastStreamId === 'string'
+        ? runtimeCandidate.broadcastStreamId
+        : null,
+      characterName: typeof runtimeCandidate.characterName === 'string'
+        ? runtimeCandidate.characterName
+        : DEFAULT_OVERLAY_STATE.runtime.characterName,
+      characterImageUrl: typeof runtimeCandidate.characterImageUrl === 'string'
+        ? runtimeCandidate.characterImageUrl
+        : DEFAULT_OVERLAY_STATE.runtime.characterImageUrl,
+      transcript: typeof runtimeCandidate.transcript === 'string'
+        ? runtimeCandidate.transcript
+        : DEFAULT_OVERLAY_STATE.runtime.transcript,
+      emotion: isStreamEmotion(runtimeCandidate.emotion)
+        ? runtimeCandidate.emotion
+        : DEFAULT_OVERLAY_STATE.runtime.emotion,
+      updatedAt: typeof runtimeCandidate.updatedAt === 'number' && Number.isFinite(runtimeCandidate.updatedAt)
+        ? runtimeCandidate.updatedAt
+        : Date.now(),
+    },
+  };
+}
+
+function sendOverlayJson(res: http.ServerResponse, statusCode: number, payload: unknown) {
+  const body = JSON.stringify(payload);
+  res.writeHead(statusCode, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/json; charset=utf-8',
+  });
+  res.end(body);
+}
+
+function startOverlayStateServer() {
+  if (overlayServer) return;
+
+  overlayServer = http.createServer((req, res) => {
+    if (req.method === 'OPTIONS') {
+      sendOverlayJson(res, 204, null);
+      return;
+    }
+
+    const url = new URL(req.url ?? '/', `http://127.0.0.1:${OVERLAY_SERVER_PORT}`);
+    if (req.method === 'GET' && url.pathname === '/overlay-state') {
+      sendOverlayJson(res, 200, overlayState);
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/health') {
+      sendOverlayJson(res, 200, { ok: true });
+      return;
+    }
+
+    sendOverlayJson(res, 404, { message: 'Not found' });
+  });
+
+  overlayServer.on('error', (err) => {
+    console.warn('[overlay-state-server] failed:', err.message);
+    overlayServer = null;
+  });
+
+  overlayServer.listen(OVERLAY_SERVER_PORT, '127.0.0.1', () => {
+    console.info(`[overlay-state-server] listening on http://127.0.0.1:${OVERLAY_SERVER_PORT}`);
+  });
 }
 
 function getAudioExtension(mimeType: string): string {
@@ -305,10 +457,16 @@ app.whenReady().then(async () => {
 
   // STT 데몬 사전 부팅 — 사용자 첫 발화 전 모델 로딩 끝내두기
   sttManager.start();
+  startOverlayStateServer();
 
   // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
+  ipcMain.handle('overlay:get-state', () => overlayState);
+  ipcMain.handle('overlay:set-state', (_event, state: unknown) => {
+    overlayState = sanitizeOverlayState(state);
+    return { ok: true, state: overlayState };
+  });
   ipcMain.handle('stt:start', () => {
     sttListening = true;
     sendSttResult({ text: '음성인식 대기 중...', isFinal: false });
@@ -345,6 +503,8 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   sttManager.shutdown();
+  overlayServer?.close();
+  overlayServer = null;
 });
 
 app.on('window-all-closed', () => {

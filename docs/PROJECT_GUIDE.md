@@ -1,5 +1,8 @@
 # SKU-SW 프로젝트 가이드
 
+> 최신 문서 진입점: [`README.md`](./README.md)
+> 이 문서는 대형 종합 가이드 성격의 기존 문서이며, 실제 구현 확인은 `swproject/` 소스와 `docs/features/*.md`를 우선 참고하세요.
+
 ## 1. 프로젝트 개요
 
 **SKU-SW**는 방송 채팅 분석 및 AI 캐릭터 관리 Electron 데스크톱 애플리케이션입니다.

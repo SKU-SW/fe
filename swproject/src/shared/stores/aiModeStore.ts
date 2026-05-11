@@ -124,6 +124,7 @@ interface AIModeStore {
   clearChatMessages: () => void;
   addActivityLog: (log: ActivityLog) => void;
   clearActivityLogs: () => void;
+  setDialogues: (items: StreamDialogue[], cursorId: number | null) => void;
   upsertDialogues: (items: StreamDialogue[], cursorId: number | null) => void;
   clearDialogues: () => void;
   setEmotion: (emotion: StreamEmotion) => void;
@@ -135,6 +136,23 @@ interface AIModeStore {
 
 const MAX_CHAT_MESSAGES = 100;
 const MAX_ACTIVITY_LOGS = 50;
+const MAX_DIALOGUES = 100;
+
+function sortAndLimitDialogues(items: StreamDialogue[]): StreamDialogue[] {
+  return [...items]
+    .sort((a, b) => {
+      const ta = new Date(a.timestamp).getTime();
+      const tb = new Date(b.timestamp).getTime();
+      if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+
+      // timestamp 가 같거나 파싱 불가하면 서버 cursorId 로 안정 정렬한다.
+      if (a.cursorId == null && b.cursorId == null) return a.id.localeCompare(b.id);
+      if (a.cursorId == null) return 1;
+      if (b.cursorId == null) return -1;
+      return a.cursorId - b.cursorId;
+    })
+    .slice(-MAX_DIALOGUES);
+}
 
 const DEFAULT_SENSITIVITY: SensitivitySettings = {
   reactionSpeed: 50,
@@ -281,25 +299,17 @@ export const useAIModeStore = create<AIModeStore>()(
       clearActivityLogs: () => set({ activityLogs: [] }),
 
       // === 방송 대화 / 오버레이 ===
+      setDialogues: (items, cursorId) =>
+        set({
+          dialogues: sortAndLimitDialogues(items),
+          dialogueCursorId: cursorId,
+        }),
       upsertDialogues: (items, cursorId) =>
         set((state) => {
           const map = new Map(state.dialogues.map((item) => [item.id, item]));
           items.forEach((item) => map.set(item.id, item));
-          const dialogues = [...map.values()].sort((a, b) => {
-            // cursorId 가 null 인 항목은 FE 에서 optimistic 으로 추가한 로컬 발화 (예: STREAMER STT 결과).
-            // BE 응답을 못 받은 가장 최신 항목이므로 목록의 마지막(아래쪽)에 배치.
-            // 둘 다 null 이면 timestamp 비교로 안정 정렬.
-            if (a.cursorId == null && b.cursorId == null) {
-              const ta = new Date(a.timestamp).getTime();
-              const tb = new Date(b.timestamp).getTime();
-              return ta - tb;
-            }
-            if (a.cursorId == null) return 1;
-            if (b.cursorId == null) return -1;
-            return a.cursorId - b.cursorId;
-          });
           return {
-            dialogues,
+            dialogues: sortAndLimitDialogues([...map.values()]),
             dialogueCursorId: cursorId ?? state.dialogueCursorId,
           };
         }),

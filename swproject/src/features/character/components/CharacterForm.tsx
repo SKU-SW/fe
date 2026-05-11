@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { CharacterConfig, CharacterPreset, CharacterSettingsResDto } from "@/shared/types/character";
+import { normalizeTriggerWords } from "@/features/character/lib/triggerWords";
 import { CharacterSettings } from "./CharacterSettings";
 
 const DEFAULT_CONFIG: CharacterConfig = {
@@ -53,15 +54,7 @@ function toConfig(data?: CharacterPreset | null): CharacterConfig {
   // - 이전 구현: callWords = [callSign]  → callSign 이 콤마 합본 문자열이라 1원소(콤마 포함) 배열로 망가짐
   //   → 수정 후 저장 시 BE 에 "강희야, 야, 친구야" 통문자열이 1원소 배열로 전송 → 호출어 매칭 영구 실패
   // - 현재: triggerWords 배열을 그대로 복사. 빈 배열이거나 누락이면 callSign split 으로 fallback.
-  const callWords =
-    data.info.triggerWords && data.info.triggerWords.length > 0
-      ? [...data.info.triggerWords]
-      : data.info.callSign
-        ? data.info.callSign
-            .split(",")
-            .map((w) => w.trim())
-            .filter(Boolean)
-        : [];
+  const callWords = normalizeTriggerWords(data.info.triggerWords, data.info.callSign);
 
   return {
     ...DEFAULT_CONFIG,

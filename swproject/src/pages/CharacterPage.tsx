@@ -24,10 +24,13 @@ import {
 } from "@/features/character/hooks";
 import { BroadcastConfirmModal, CharacterDashboard, CharacterForm } from "@/features/character/components";
 import { useStartBroadcast, useTerminateBroadcast } from "@/features/broadcast/hooks";
+import { getTriggerWordsValidationError, normalizeTriggerWords } from "@/features/character/lib/triggerWords";
 import { useBroadcastNoticeStore } from "@/shared/stores/broadcastNoticeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
+import { useOverlayStore } from "@/shared/stores/overlayStore";
 import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
+import { resolveAssetUrl } from "@/shared/lib/utils";
 import type {
   CharacterConfig,
   CharacterFormSpeechStyle,
@@ -98,9 +101,10 @@ function toPositiveIntOrFallback(value: string | undefined | null, fallback: num
 
 /** CharacterConfig → CharacterCreateReqDto */
 function toBackendCreatePayload(config: CharacterConfig): CharacterCreateReqDto {
+  const triggerWords = normalizeTriggerWords(config.callWords);
   return {
     characterName: config.name.trim() || "새 AI 캐릭터",
-    triggerWords: config.callWords.length > 0 ? [...config.callWords] : [config.name.trim() || "AI"],
+    triggerWords,
     gender: mapUiGenderToBackend(config.gender),
     voiceTypeId: toPositiveIntOrFallback(config.voiceId, 1),
     characterImageId: toPositiveIntOrFallback(config.model2D.presetId, 1),
@@ -114,9 +118,10 @@ function toBackendCreatePayload(config: CharacterConfig): CharacterCreateReqDto 
 
 /** CharacterConfig → CharacterUpdateReqDto */
 function toBackendUpdatePayload(config: CharacterConfig): CharacterUpdateReqDto {
+  const triggerWords = normalizeTriggerWords(config.callWords);
   return {
     characterName: config.name.trim() || "새 AI 캐릭터",
-    triggerWords: config.callWords.length > 0 ? [...config.callWords] : [config.name.trim() || "AI"],
+    triggerWords,
     gender: mapUiGenderToBackend(config.gender),
     voiceTypeId: toPositiveIntOrFallback(config.voiceId, 1),
     characterImageId: toPositiveIntOrFallback(config.model2D.presetId, 1),
@@ -169,7 +174,7 @@ function safeIdToString(value: number | null | undefined): string {
 /** UI CharacterPreset으로 변환 (목록 표시용) */
 function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
   // 원본 배열 — triggerWords 로 보존하여 수정/저장 시 손실 방지
-  const triggerWords = item.triggerWords ?? [];
+  const triggerWords = normalizeTriggerWords(item.triggerWords);
   return {
     id: String(item.characterId),
     name: item.characterName,
@@ -197,10 +202,15 @@ function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
 }
 
 /** UI CharacterPreset으로 변환 (상세 표시용) */
-function detailToPreset(detail: CharacterDetailResDto): CharacterPreset {
+function detailToPreset(detail: CharacterDetailResDto, settings: CharacterSettingsResDto | null): CharacterPreset {
   const persona = detail.characterPersona;
   // 상세 API 도 triggerWords 가 배열로 옴 — 첫 원소만 쓰지 말고 전체 보존
-  const triggerWords = detail.triggerWords ?? [];
+  const triggerWords = normalizeTriggerWords(detail.triggerWords);
+  const detailImageUrl = resolveAssetUrl(detail.characterImageUrl);
+  const matchedImage = settings?.characterImages.find((image) => {
+    const imageUrl = resolveAssetUrl(image.imageUrl1 ?? image.imageUrl);
+    return imageUrl === detailImageUrl;
+  });
   return {
     id: String(detail.characterId),
     name: detail.characterName,
@@ -209,7 +219,7 @@ function detailToPreset(detail: CharacterDetailResDto): CharacterPreset {
       name: detail.characterName,
       callSign: triggerWords.join(", ") || "AI",
       triggerWords,
-      appearancePresetId: "",
+      appearancePresetId: matchedImage ? String(matchedImage.imageId) : "",
       imageUrl: detail.characterImageUrl,
       voicePresetId: safeIdToString(detail.voiceTypeId),
       speechStyle: mapBackendSpeechStyleToUi(persona.speechStyle),
@@ -238,6 +248,8 @@ export default function CharacterPage() {
   const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
   const skipNoticeForCharacter = useBroadcastNoticeStore((s) => s.skipNoticeForCharacter);
   const aiMode = useAIModeStore((s) => s.mode);
+  const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
+  const clearOverlayRuntime = useOverlayStore((s) => s.clearRuntime);
 
   // 방송 중 캐릭터 ID는 별도 저장하지 않고 aiModeStore.mode + 선택된 캐릭터로 도출
   // - 단일 진실 원천(single source of truth)으로 두 store 동기화 비용 제거
@@ -248,7 +260,7 @@ export default function CharacterPage() {
 
   const { characters: apiCharacters, refetch, isLoading: isLoadingCharacters, error: charactersError } = useCharacters();
   const { character: apiCharacter } = useCharacter(view === "edit" && selectedCharacterId ? selectedCharacterId : null);
-  const { settings } = useCharacterSettings(view === "create" || view === "edit");
+  const { settings } = useCharacterSettings(true);
   const { create, isPending: isCreating, error: createError } = useCreateCharacter();
   const { update, isPending: isUpdating, error: updateError } = useUpdateCharacter();
   const { remove, isPending: isDeleting } = useDeleteCharacter();
@@ -275,13 +287,13 @@ export default function CharacterPage() {
 
   const selectedCharacter = useMemo<CharacterPreset | null>(() => {
     if (apiCharacter) {
-      return detailToPreset(apiCharacter);
+      return detailToPreset(apiCharacter, settings as CharacterSettingsResDto | null);
     }
     if (!selectedCharacterId) {
       return null;
     }
     return characters.find((item) => item.id === String(selectedCharacterId)) ?? null;
-  }, [apiCharacter, characters, selectedCharacterId]);
+  }, [apiCharacter, characters, selectedCharacterId, settings]);
 
   // 첫 캐릭터 자동 선택: selectedCharacterId가 비어있고 목록이 존재할 때만 한 번 수행
   // (characters 참조가 매 렌더마다 바뀌므로, 의존성에서 제외해 루프 방지)
@@ -293,6 +305,11 @@ export default function CharacterPage() {
 
   const handleCreate = useCallback(
     async (config: CharacterConfig) => {
+      const triggerWordsError = getTriggerWordsValidationError(normalizeTriggerWords(config.callWords));
+      if (triggerWordsError) {
+        setPageNotice({ tone: "error", message: triggerWordsError });
+        return;
+      }
       // 방어 체크: 대시보드 버튼이 비활성화되어 있어도, 직접 view 전환 등으로 우회될 수 있어 한 번 더 검증
       if (apiCharacters.length >= MAX_CHARACTERS_PER_USER) {
         setPageNotice({
@@ -315,6 +332,11 @@ export default function CharacterPage() {
 
   const handleUpdate = useCallback(
     async (config: CharacterConfig) => {
+      const triggerWordsError = getTriggerWordsValidationError(normalizeTriggerWords(config.callWords));
+      if (triggerWordsError) {
+        setPageNotice({ tone: "error", message: triggerWordsError });
+        return;
+      }
       if (!selectedCharacterId) {
         return;
       }
@@ -352,9 +374,20 @@ export default function CharacterPage() {
   const performStart = useCallback(
     async (cid: number) => {
       await select(cid, true);
-      await startBroadcastApi(cid);
+      const started = await startBroadcastApi(cid);
+      if (!started) return;
+
+      const broadcastCharacter = apiCharacters.find((item) => item.characterId === cid);
+      updateOverlayRuntime({
+        isBroadcasting: true,
+        broadcastStreamId: started.broadcastStreamId,
+        characterName: broadcastCharacter?.characterName ?? "AI",
+        characterImageUrl: resolveAssetUrl(broadcastCharacter?.characterImageUrl),
+        transcript: "",
+        emotion: "default",
+      });
     },
-    [select, startBroadcastApi]
+    [apiCharacters, select, startBroadcastApi, updateOverlayRuntime]
   );
 
   /**
@@ -408,7 +441,8 @@ export default function CharacterPage() {
   const handleBroadcastStop = useCallback(async () => {
     if (isTerminatingBroadcast) return;
     await terminateBroadcastApi();
-  }, [isTerminatingBroadcast, terminateBroadcastApi]);
+    clearOverlayRuntime();
+  }, [clearOverlayRuntime, isTerminatingBroadcast, terminateBroadcastApi]);
 
   // 모달에 표시할 캐릭터 이름 (pendingBroadcastId 기준)
   const pendingCharacterName = useMemo(() => {

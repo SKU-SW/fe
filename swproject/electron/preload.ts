@@ -13,6 +13,27 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+type OverlayPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+type StreamEmotion = 'happy' | 'sad' | 'angry' | 'crying' | 'default';
+
+interface OverlayBridgeState {
+  settings: {
+    enabled: boolean;
+    position: OverlayPosition;
+    scale: number;
+    showBubble: boolean;
+  };
+  runtime: {
+    isBroadcasting: boolean;
+    broadcastStreamId: string | null;
+    characterName: string;
+    characterImageUrl: string;
+    transcript: string;
+    emotion: StreamEmotion;
+    updatedAt: number;
+  };
+}
+
 type STTResult = {
   text: string;
   isFinal: boolean;
@@ -27,6 +48,10 @@ type STTResult = {
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:version'),
   getPlatform: () => ipcRenderer.invoke('app:platform'),
+  overlay: {
+    getState: () => ipcRenderer.invoke('overlay:get-state'),
+    setState: (state: OverlayBridgeState) => ipcRenderer.invoke('overlay:set-state', state),
+  },
   stt: {
     start: () => ipcRenderer.invoke('stt:start'),
     stop: () => ipcRenderer.invoke('stt:stop'),

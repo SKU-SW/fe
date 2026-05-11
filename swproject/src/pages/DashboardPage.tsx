@@ -20,9 +20,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, Mic, MicOff, Users, MessageSquare, Sparkles } from "lucide-react";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
+import { useOverlayStore } from "@/shared/stores/overlayStore";
 import { useCharacter } from "@/features/character/hooks";
-import { useStreamInfo, useStreamWS, useTTSPlayer } from "@/features/broadcast/hooks";
+import { useStreamInfo, useStreamWS, useTTSPlayer, useViewerChatPolling } from "@/features/broadcast/hooks";
 import { useSTT } from "@/features/stt/hooks";
+import { resolveAssetUrl } from "@/shared/lib/utils";
 import {
   ActivityLogPanel,
   BroadcastControls,
@@ -93,13 +95,20 @@ export default function DashboardPage() {
   const dialogues = useAIModeStore((s) => s.dialogues);
   const activityLogs = useAIModeStore((s) => s.activityLogs);
   const upsertDialogues = useAIModeStore((s) => s.upsertDialogues);
+  const setCurrentTranscript = useAIModeStore((s) => s.setCurrentTranscript);
 
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const { character } = useCharacter(selectedCharacterId);
+  const overlayCharacterName = character?.characterName ?? "AI";
+  const overlayCharacterImageUrl = resolveAssetUrl(character?.characterImageUrl);
+  const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
 
-  // 방송 진입 시 1회 GET /stream/info → store.dialogues 채움
-  // (이후 새 dialogue 는 useStreamWS 의 voice 응답으로 push 됨)
-  const { error: streamInfoError, refetch: refetchStreamInfo } = useStreamInfo({ size: 30 });
+  // 대시보드 진입 시 채팅 화면은 비우고, 현재 방송 정보만 확인한다.
+  // 이후 새 dialogue 는 STT/WebSocket 응답과 viewer polling 으로 아래부터 쌓인다.
+  const { error: streamInfoError, refetch: refetchStreamInfo } = useStreamInfo({ size: 1 });
+
+  // 대시보드에 머무는 동안 SOOP/RDS에서 서버로 적재된 VIEWER 채팅을 주기적으로 반영
+  useViewerChatPolling({ size: 100, intervalMs: 3000 });
 
   // TTS 오디오 재생 큐 (TTS 토글 ON 일 때만)
   const { enqueue: enqueueTTS } = useTTSPlayer(toggles.ttsEnabled);
@@ -122,9 +131,18 @@ export default function DashboardPage() {
         ],
         cursorId
       );
+      setCurrentTranscript(voiceText);
+      updateOverlayRuntime({
+        isBroadcasting: true,
+        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
+        characterName: overlayCharacterName,
+        characterImageUrl: overlayCharacterImageUrl,
+        transcript: voiceText,
+        emotion: "default",
+      });
       enqueueTTS(audio);
     },
-    [upsertDialogues, enqueueTTS]
+    [enqueueTTS, overlayCharacterImageUrl, overlayCharacterName, setCurrentTranscript, updateOverlayRuntime, upsertDialogues]
   );
 
   // 방송 WebSocket — broadcastStreamId + accessToken 둘 다 있을 때만 연결
@@ -226,6 +244,17 @@ export default function DashboardPage() {
    * - 입력 필드 포커스 중에는 무시 (사용자 타이핑 방해 방지)
    */
   const isBroadcasting = mode === "broadcasting";
+  useEffect(() => {
+    updateOverlayRuntime({
+      isBroadcasting,
+      broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
+      characterName: overlayCharacterName,
+      characterImageUrl: overlayCharacterImageUrl,
+      transcript: isBroadcasting ? useAIModeStore.getState().currentTranscript : "",
+      emotion: isBroadcasting ? useAIModeStore.getState().currentEmotion : "default",
+    });
+  }, [isBroadcasting, overlayCharacterImageUrl, overlayCharacterName, updateOverlayRuntime]);
+
   useEffect(() => {
     if (!isBroadcasting || !toggles.sttEnabled || !isSupported) return;
 
@@ -368,8 +397,8 @@ export default function DashboardPage() {
       {/* 메인: 좌(초상) / 우(대화 스트림) — 2 컬럼 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(280px,360px)_1fr]">
         <CharacterPortrait
-          imageUrl={character?.characterImageUrl}
-          name={character?.characterName ?? "AI"}
+          imageUrl={overlayCharacterImageUrl}
+          name={overlayCharacterName}
           speakingState={isListening ? "listening" : "idle"}
         />
 

@@ -68,6 +68,7 @@ function readyStateLabel(state: number): string {
 export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn {
   const accessToken = useAuthStore((s) => s.accessToken);
   const broadcastStreamId = useAIModeStore((s) => s.broadcastStreamId);
+  const clearBroadcast = useAIModeStore((s) => s.clearBroadcast);
 
   const wsRef = useRef<WebSocket | null>(null);
   /** binary 프레임 임시 보관 — metadata 도착 시 FIFO 로 페어링 */
@@ -129,6 +130,17 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
       const msg = obj.message;
       setError(msg);
       onErrorRef.current?.(msg);
+
+      const lowerMsg = msg.toLowerCase();
+      if (
+        lowerMsg.includes("broadcast") ||
+        lowerMsg.includes("stream") ||
+        lowerMsg.includes("방송")
+      ) {
+        // 서버가 진행 중 방송 없음/세션 불일치류 에러를 보낸 경우 stale local 상태를 정리한다.
+        shouldReconnectRef.current = false;
+        clearBroadcast();
+      }
       return;
     }
 
@@ -161,7 +173,7 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     }
 
     console.warn("[stream-ws] unrecognized text frame:", obj);
-  }, [clearResponseTimer]);
+  }, [clearBroadcast, clearResponseTimer]);
 
   /** WebSocket 연결 (close 후 재시도 시에도 동일 함수 호출) */
   const connect = useCallback(() => {
@@ -177,12 +189,14 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "blob";
     wsRef.current = ws;
+    let opened = false;
 
     ws.onopen = () => {
       if (wsRef.current !== ws) {
         console.debug("[stream-ws] stale onopen ignored");
         return;
       }
+      opened = true;
       console.info("[stream-ws] connected");
       setIsConnected(true);
       setDiagnostic(`연결 성공: ${wsUrl}`);
@@ -251,14 +265,27 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
       if (!shouldReconnectRef.current) return;
 
       // 1000=normal, 1008=policy violation (인증/세션 교체/정책 등) → 재연결 안 함
-      if (event.code === 1000 || event.code === 1008) return;
+      if (event.code === 1000 || event.code === 1008) {
+        shouldReconnectRef.current = false;
+        return;
+      }
+
+      // 브라우저는 WS handshake 401/403/404 를 code=1006 으로만 노출할 수 있다.
+      // OPEN 되기 전 실패한 경우는 인증/방송 세션 불일치로 보고 재연결 루프를 중지한다.
+      if (event.code === 1006 && !event.wasClean && !opened) {
+        shouldReconnectRef.current = false;
+        setError("방송 채널 연결에 실패했습니다. 진행 중 방송이 없거나 인증이 만료되었을 수 있습니다.");
+        setDiagnostic("연결 중단: WebSocket handshake 실패로 재연결을 중지했습니다.");
+        clearBroadcast();
+        return;
+      }
 
       // 그 외 (1006 등 비정상 단절) → 3초 후 재연결
       reconnectTimerRef.current = setTimeout(() => {
         if (shouldReconnectRef.current) connect();
       }, RECONNECT_DELAY_MS);
     };
-  }, [clearResponseTimer, wsUrl, handleTextFrame]);
+  }, [clearBroadcast, clearResponseTimer, wsUrl, handleTextFrame]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
@@ -342,7 +369,7 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
       setDiagnostic(`송신 예외: ${reason}`);
       return { ok: false, reason };
     }
-  }, []);
+  }, [clearResponseTimer]);
 
   return { isConnected, error, diagnostic, sendChat };
 }

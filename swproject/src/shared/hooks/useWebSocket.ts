@@ -62,7 +62,7 @@ export function useWebSocket<T>({
       try {
         const data: T = JSON.parse(event.data as string);
         onMessageRef.current(data);
-      } catch (parseError) {
+      } catch {
         // JSON 파싱 실패 시 에러 콜백 호출
         onErrorRef.current?.(new Event('message-parse-error'));
       }

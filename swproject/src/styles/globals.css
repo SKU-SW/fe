@@ -27,6 +27,13 @@ body {
   font-family: 'Inter', sans-serif;
 }
 
+html.overlay-route,
+body.overlay-route,
+html.overlay-route #root,
+body.overlay-route #root {
+  background: transparent !important;
+}
+
 /* ===== 슬라이더 커스텀 스타일 ===== */
 input[type="range"] {
   -webkit-appearance: none;

@@ -75,13 +75,15 @@ export function ConversationStream({ messages, filter, onFilterChange, chatLogOn
       </div>
 
       {/* 메시지 영역 (카카오톡 말풍선 스타일) */}
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <p className="py-12 text-center text-sm font-medium text-[#949ba4]">아직 대화가 없습니다.</p>
         ) : (
-          messages.map((m) => (
-            <MessageRow key={m.id} message={m} hidden={!filter[m.speaker]} />
-          ))
+          <div className="flex min-h-full flex-col justify-end gap-4">
+            {messages.map((m) => (
+              <MessageRow key={m.id} message={m} hidden={!filter[m.speaker]} />
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -91,7 +93,7 @@ export function ConversationStream({ messages, filter, onFilterChange, chatLogOn
 const SPEAKER_LABEL: Record<ConversationSpeaker, string> = {
   streamer: "스트리머",
   ai: "AI",
-  chat: "채팅",
+  chat: "시청자",
 };
 
 function formatTime(date: Date) {

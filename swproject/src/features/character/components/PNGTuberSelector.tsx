@@ -47,13 +47,6 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
     return resolveAssetUrl(rawUrl);
   };
 
-  /**
-   * VoiceTypeResDto에서 실제 음성 URL 추출
-   */
-  const getVoiceUrl = (voice: (typeof voiceTypes)[0]): string => {
-    return resolveAssetUrl(voice.testUrl);
-  };
-
   // 목소리 샘플 재생 상태 관리: 한 번에 하나만 재생되도록 ref로 audio 인스턴스 추적
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<number | null>(null);

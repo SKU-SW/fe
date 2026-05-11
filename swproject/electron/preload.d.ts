@@ -18,6 +18,13 @@ interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   /** 실행 플랫폼 조회 (main: process.platform) */
   getPlatform: () => Promise<string>;
+  overlay: {
+    getState: () => Promise<import('../src/shared/types/overlay').OverlayBridgeState>;
+    setState: (state: import('../src/shared/types/overlay').OverlayBridgeState) => Promise<{
+      ok: boolean;
+      state: import('../src/shared/types/overlay').OverlayBridgeState;
+    }>;
+  };
   stt: {
     start: () => Promise<{ ok: boolean }>;
     stop: () => Promise<{ ok: boolean }>;

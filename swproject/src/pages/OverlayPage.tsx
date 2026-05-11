@@ -1,12 +1,23 @@
 /**
- * @file OBS 오버레이 페이지
- * @migrated Next.js App Router → React Router
- * @dependsOn src/shared/stores/aiModeStore.ts
+ * @file OBS Browser Source용 AI 캐릭터 오버레이 페이지
+ * @dependsOn src/shared/stores/overlayStore.ts
+ * @dependsOn src/shared/lib/overlayBridge.ts
  */
 
-import { useMemo } from "react";
-import { Copy, Radio } from "lucide-react";
-import { useAIModeStore } from "@/shared/stores/aiModeStore";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, Eye, EyeOff, Minus, Plus } from "lucide-react";
+import { useOverlayStore } from "@/shared/stores/overlayStore";
+import {
+  readOverlayStateServer,
+  readOverlayBridgeState,
+  subscribeOverlayBridgeState,
+} from "@/shared/lib/overlayBridge";
+import type {
+  OverlayBridgeState,
+  OverlayPosition,
+  OverlayRuntimeState,
+  OverlaySettings,
+} from "@/shared/types/overlay";
 import type { StreamEmotion } from "@/shared/types/stream";
 
 const EMOTION_LABELS: Record<StreamEmotion, string> = {
@@ -17,18 +28,101 @@ const EMOTION_LABELS: Record<StreamEmotion, string> = {
   default: "기본",
 };
 
-const EMOTION_CLASSES: Record<StreamEmotion, string> = {
-  happy: "bg-yellow-500 border-yellow-600",
-  sad: "bg-blue-500 border-blue-600",
-  angry: "bg-red-500 border-red-600",
-  crying: "bg-cyan-500 border-cyan-600",
-  default: "bg-slate-600 border-discord-dark",
+const EMOTION_RING_CLASS: Record<StreamEmotion, string> = {
+  happy: "drop-shadow-[0_0_22px_rgba(250,204,21,0.55)]",
+  sad: "drop-shadow-[0_0_22px_rgba(59,130,246,0.5)] grayscale-[15%]",
+  angry: "drop-shadow-[0_0_24px_rgba(239,68,68,0.6)] saturate-125",
+  crying: "drop-shadow-[0_0_22px_rgba(34,211,238,0.5)]",
+  default: "drop-shadow-[0_0_18px_rgba(15,23,42,0.45)]",
 };
 
+const POSITION_CLASS: Record<OverlayPosition, string> = {
+  "bottom-right": "items-end justify-end",
+  "bottom-left": "items-end justify-start",
+  "top-right": "items-start justify-end",
+  "top-left": "items-start justify-start",
+};
+
+const POSITION_LABEL: Record<OverlayPosition, string> = {
+  "bottom-right": "오른쪽 아래",
+  "bottom-left": "왼쪽 아래",
+  "top-right": "오른쪽 위",
+  "top-left": "왼쪽 위",
+};
+
+const POSITIONS: OverlayPosition[] = ["bottom-right", "bottom-left", "top-right", "top-left"];
+
+function createDefaultBridgeState(settings: OverlaySettings): OverlayBridgeState {
+  return {
+    settings,
+    runtime: {
+      isBroadcasting: false,
+      broadcastStreamId: null,
+      characterName: "AI",
+      characterImageUrl: "",
+      transcript: "",
+      emotion: "default",
+      updatedAt: 0,
+    },
+  };
+}
+
+function getHashSearchParams(): URLSearchParams {
+  if (typeof window === "undefined") return new URLSearchParams();
+  const hash = window.location.hash;
+  const queryIndex = hash.indexOf("?");
+  if (queryIndex < 0) return new URLSearchParams(window.location.search);
+  return new URLSearchParams(hash.slice(queryIndex + 1));
+}
+
 export default function OverlayPage() {
-  const currentEmotion = useAIModeStore((s) => s.currentEmotion);
-  const currentTranscript = useAIModeStore((s) => s.currentTranscript);
-  const broadcastStreamId = useAIModeStore((s) => s.broadcastStreamId);
+  const settings = useOverlayStore((s) => s.settings);
+  const runtime = useOverlayStore((s) => s.runtime);
+  const setEnabled = useOverlayStore((s) => s.setEnabled);
+  const setPosition = useOverlayStore((s) => s.setPosition);
+  const setScale = useOverlayStore((s) => s.setScale);
+  const setShowBubble = useOverlayStore((s) => s.setShowBubble);
+  const hashParams = getHashSearchParams();
+  const isSettingsMode = hashParams.get("settings") === "1";
+  const isPreviewMode = hashParams.get("preview") === "1";
+
+  useEffect(() => {
+    document.documentElement.classList.add("overlay-route");
+    document.body.classList.add("overlay-route");
+    return () => {
+      document.documentElement.classList.remove("overlay-route");
+      document.body.classList.remove("overlay-route");
+    };
+  }, []);
+
+  const [bridgeState, setBridgeState] = useState<OverlayBridgeState>(() =>
+    readOverlayBridgeState() ?? createDefaultBridgeState(settings)
+  );
+
+  useEffect(() => {
+    const current = readOverlayBridgeState();
+    if (current) setBridgeState(current);
+    void readOverlayStateServer().then((serverState) => {
+      if (serverState) setBridgeState(serverState);
+    });
+    return subscribeOverlayBridgeState(setBridgeState);
+  }, []);
+
+  useEffect(() => {
+    if (isSettingsMode) {
+      const bridgeRuntime = readOverlayBridgeState()?.runtime ?? runtime;
+      setBridgeState({
+        settings,
+        runtime: {
+          ...bridgeRuntime,
+        },
+      });
+    }
+  }, [
+    isSettingsMode,
+    runtime,
+    settings,
+  ]);
 
   const overlayUrl = useMemo(() => {
     if (typeof window === "undefined") return "http://localhost:5173/#/overlay";
@@ -43,46 +137,216 @@ export default function OverlayPage() {
     }
   };
 
+  if (isSettingsMode) {
+    return (
+      <OverlaySettingsPanel
+        overlayUrl={overlayUrl}
+        settings={settings}
+        onCopy={copyOverlayUrl}
+        onEnabledChange={setEnabled}
+        onPositionChange={setPosition}
+        onScaleChange={setScale}
+        onShowBubbleChange={setShowBubble}
+      />
+    );
+  }
+
+  return <OverlayCanvas state={bridgeState} preview={isPreviewMode} />;
+}
+
+function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview: boolean }) {
+  const { settings, runtime } = state;
+  const previewRuntime: OverlayRuntimeState = preview
+    ? {
+        ...runtime,
+        isBroadcasting: true,
+        characterName: runtime.characterName || "AI 캐릭터",
+        transcript: runtime.transcript || "오버레이 미리보기입니다. 방송 시작 후 AI 응답이 여기에 표시됩니다.",
+        emotion: runtime.emotion || "default",
+      }
+    : runtime;
+  const shouldShow = settings.enabled && previewRuntime.isBroadcasting;
+  const hasCharacterImage = previewRuntime.characterImageUrl.length > 0;
+
   return (
-    <div className="flex h-screen w-screen items-end justify-between bg-transparent p-6">
-      <div className="pointer-events-none flex items-end gap-4">
-        <div
-          className={`flex h-72 w-72 items-end justify-center overflow-hidden rounded-[28px] border p-6 text-white shadow-2xl ${EMOTION_CLASSES[currentEmotion]}`}
-        >
-          <div className="w-full rounded-2xl bg-black/25 px-4 py-3 text-center backdrop-blur-sm">
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/70">OBS Overlay</p>
-            <p className="mt-2 text-2xl font-bold">{EMOTION_LABELS[currentEmotion]}</p>
-            <p className="mt-1 text-sm text-white/80">감정 이미지 placeholder</p>
+    <main className="h-screen w-screen overflow-hidden bg-transparent">
+      {shouldShow && (
+        <div className={`flex h-full w-full p-8 ${POSITION_CLASS[settings.position]}`}>
+          <div
+            className="pointer-events-none flex items-end gap-4 transition-transform duration-300"
+            style={{ transform: `scale(${settings.scale})`, transformOrigin: transformOriginFor(settings.position) }}
+          >
+            {settings.showBubble && previewRuntime.transcript && (
+              <div className="mb-20 max-w-[520px] rounded-3xl border border-white/25 bg-black/55 px-5 py-4 text-white shadow-2xl backdrop-blur-md">
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/60">
+                  {previewRuntime.characterName} · {EMOTION_LABELS[previewRuntime.emotion]}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-xl font-extrabold leading-relaxed">
+                  {previewRuntime.transcript}
+                </p>
+              </div>
+            )}
+
+            <div className="relative flex h-[420px] w-[320px] items-end justify-center">
+              {hasCharacterImage ? (
+                <img
+                  src={previewRuntime.characterImageUrl}
+                  alt={previewRuntime.characterName}
+                  className={`max-h-full max-w-full object-contain transition-all duration-300 ${EMOTION_RING_CLASS[previewRuntime.emotion]}`}
+                  draggable={false}
+                />
+              ) : preview ? (
+                <div className="flex h-72 w-72 items-center justify-center rounded-[32px] border border-white/20 bg-slate-800/70 text-center text-white shadow-2xl backdrop-blur-md">
+                  <div>
+                    <p className="text-sm font-bold text-white/60">AI Character</p>
+                    <p className="mt-2 text-3xl font-black">{previewRuntime.characterName}</p>
+                    <p className="mt-2 text-sm text-white/60">캐릭터 이미지 대기 중</p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
+      )}
+    </main>
+  );
+}
 
-        <div className="max-w-md rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-white shadow-xl backdrop-blur-md">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-emerald-300">
-            <Radio className="h-3.5 w-3.5" />
-            실시간 상태
-          </div>
-          <p className="mt-2 text-sm font-semibold">현재 감정: {EMOTION_LABELS[currentEmotion]}</p>
-          <p className="mt-2 text-sm text-white/80">
-            {currentTranscript || "아직 표시할 스트리머 음성 텍스트가 없습니다."}
+function transformOriginFor(position: OverlayPosition): string {
+  switch (position) {
+    case "bottom-left":
+      return "bottom left";
+    case "top-right":
+      return "top right";
+    case "top-left":
+      return "top left";
+    case "bottom-right":
+    default:
+      return "bottom right";
+  }
+}
+
+function OverlaySettingsPanel({
+  overlayUrl,
+  settings,
+  onCopy,
+  onEnabledChange,
+  onPositionChange,
+  onScaleChange,
+  onShowBubbleChange,
+}: {
+  overlayUrl: string;
+  settings: OverlaySettings;
+  onCopy: () => void;
+  onEnabledChange: (enabled: boolean) => void;
+  onPositionChange: (position: OverlayPosition) => void;
+  onScaleChange: (scale: number) => void;
+  onShowBubbleChange: (showBubble: boolean) => void;
+}) {
+  return (
+    <main className="min-h-screen bg-[#313338] px-6 py-6 text-[#dbdee1]">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <header className="rounded-2xl border border-[#1e1f22] bg-[#2b2d31] p-5">
+          <p className="text-xs font-black uppercase tracking-[0.24em] text-[#949ba4]">OBS Overlay Settings</p>
+          <h1 className="mt-2 text-2xl font-black text-[#f2f3f5]">AI 캐릭터 오버레이 설정</h1>
+          <p className="mt-2 text-sm text-[#949ba4]">
+            OBS Browser Source에는 아래 URL을 등록하세요. 방송 시작 시 캐릭터가 표시되고, 방송 종료 시 숨겨집니다.
           </p>
-          {broadcastStreamId && (
-            <p className="mt-3 text-xs text-white/60">streamId: {broadcastStreamId}</p>
-          )}
-        </div>
-      </div>
+        </header>
 
-      <div className="rounded-2xl border border-white/10 bg-black/45 p-4 text-white shadow-xl backdrop-blur-md">
-        <p className="text-xs uppercase tracking-[0.2em] text-white/60">OBS Browser Source</p>
-        <p className="mt-2 max-w-sm break-all text-sm text-white/85">{overlayUrl}</p>
-        <button
-          type="button"
-          onClick={copyOverlayUrl}
-          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
-        >
-          <Copy className="h-4 w-4" />
-          URL 복사
-        </button>
+        <section className="rounded-2xl border border-[#1e1f22] bg-[#2b2d31] p-5">
+          <h2 className="text-sm font-black text-[#f2f3f5]">OBS Browser Source URL</h2>
+          <div className="mt-3 flex flex-col gap-3 rounded-xl bg-[#1e1f22] p-3 sm:flex-row sm:items-center">
+            <code className="flex-1 break-all text-sm text-[#dbdee1]">{overlayUrl}</code>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-3 py-2 text-sm font-bold text-white hover:bg-[#4752C4]"
+            >
+              <Copy className="h-4 w-4" />
+              복사
+            </button>
+          </div>
+          <p className="mt-3 text-xs font-bold text-[#949ba4]">
+            테스트용 미리보기 URL: <code>{overlayUrl}?preview=1</code>
+          </p>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-[#1e1f22] bg-[#2b2d31] p-5">
+            <h2 className="text-sm font-black text-[#f2f3f5]">표시 상태</h2>
+            <button
+              type="button"
+              onClick={() => onEnabledChange(!settings.enabled)}
+              className={`mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-black ${
+                settings.enabled ? "bg-[#23a559] text-white" : "bg-[#4e5058] text-[#dbdee1]"
+              }`}
+            >
+              {settings.enabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              {settings.enabled ? "오버레이 ON" : "오버레이 OFF"}
+            </button>
+
+            <label className="mt-5 flex items-center gap-3 text-sm font-bold text-[#dbdee1]">
+              <input
+                type="checkbox"
+                checked={settings.showBubble}
+                onChange={(e) => onShowBubbleChange(e.target.checked)}
+                className="h-4 w-4 rounded border-[#4e5058] bg-[#1e1f22]"
+              />
+              AI 대사 말풍선 표시
+            </label>
+          </div>
+
+          <div className="rounded-2xl border border-[#1e1f22] bg-[#2b2d31] p-5">
+            <h2 className="text-sm font-black text-[#f2f3f5]">크기</h2>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onScaleChange(settings.scale - 0.1)}
+                className="rounded-lg bg-[#1e1f22] p-2 text-[#dbdee1] hover:bg-[#3f4147]"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.05"
+                value={settings.scale}
+                onChange={(e) => onScaleChange(Number(e.target.value))}
+              />
+              <button
+                type="button"
+                onClick={() => onScaleChange(settings.scale + 0.1)}
+                className="rounded-lg bg-[#1e1f22] p-2 text-[#dbdee1] hover:bg-[#3f4147]"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs font-bold text-[#949ba4]">현재 {Math.round(settings.scale * 100)}%</p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#1e1f22] bg-[#2b2d31] p-5">
+          <h2 className="text-sm font-black text-[#f2f3f5]">위치 프리셋</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {POSITIONS.map((position) => (
+              <button
+                key={position}
+                type="button"
+                onClick={() => onPositionChange(position)}
+                className={`rounded-xl border px-4 py-3 text-sm font-black transition ${
+                  settings.position === position
+                    ? "border-[#5865F2] bg-[#5865F2] text-white"
+                    : "border-[#1e1f22] bg-[#1e1f22] text-[#dbdee1] hover:bg-[#3f4147]"
+                }`}
+              >
+                {POSITION_LABEL[position]}
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

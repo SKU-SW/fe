@@ -33,8 +33,9 @@ const STREAM_BASE = "/api/v1/stream";
  * - 응답의 content 는 BE 가 정렬해 보내주지만 FE 측 정렬도 안전망으로 유지
  */
 export async function getStreamInfo(size = 30): Promise<CurrentStreamInfoResDto> {
+  const safeSize = Number.isFinite(size) ? Math.max(1, Math.floor(size)) : 1;
   const res = await apiClient.get<CurrentStreamInfoResDto>(`${STREAM_BASE}/info`, {
-    params: { size },
+    params: { size: safeSize },
   });
   return res.data;
 }

@@ -18,7 +18,6 @@ import {
   MicOff,
   Volume2,
   VolumeX,
-  Pause,
   LogOut
 } from 'lucide-react';
 import { useAuthStore } from '@/shared/stores/authStore';

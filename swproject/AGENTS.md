@@ -11,6 +11,13 @@
 - 데스크톱: Electron v33
 - 빌드: Vite v8
 
+## 우선 참고 문서
+
+- 문서 허브: `../docs/README.md`
+- 아키텍처: `../docs/ARCHITECTURE.md`
+- 페이지별 문서: `../docs/features/*.md`
+- 충돌 시 실제 진실 원천: `package.json`, `src/**/*`, `electron/**/*`
+
 ## 아키텍처 개요
 
 ### 디렉토리 구조
@@ -30,7 +37,7 @@ electron/              # Electron 메인 프로세스
 
 ### 주요 특징
 
-- **Feature-Based Architecture**: 각 기능(`auth`, `character`, `chat-analysis` 등)은 독립적인 디렉토리에 `api/`, `components/`, `hooks/` 포함
+- **Feature-Based Architecture**: 핵심 기능(`auth`, `character`, `dashboard`, `broadcast`, `stt`)은 독립 디렉토리로 분리되어 있으며, 일부 페이지는 아직 page-only 상태
 - **Zustand + Persist**: 상태 관리 (localStorage 자동 저장)
 - **React Hook Form + Zod**: 폼 처리 및 검증
 - **Axios + JWT 인터셉터**: API 호출 및 토큰 자동 갱신

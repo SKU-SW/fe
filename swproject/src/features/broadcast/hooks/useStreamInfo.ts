@@ -1,28 +1,28 @@
 /**
- * @file 대시보드 진입 시 현재 방송 정보 + 최신 대화 N개를 받아 store 에 채우는 훅
+ * @file 대시보드 진입 시 현재 방송 정보만 확인하고 채팅 화면은 비우는 훅
  * @dependsOn src/features/broadcast/api/streamApi.ts (getStreamInfo, adaptDialogue)
- * @dependsOn src/shared/stores/aiModeStore.ts (upsertDialogues)
+ * @dependsOn src/shared/stores/aiModeStore.ts (clearDialogues)
  * @usedBy src/pages/DashboardPage.tsx
  *
  * 동작:
- *   1) mode === 'broadcasting' 으로 전환되면 1회 GET /stream/info?size=30
- *   2) DTO 를 FE StreamDialogue 로 변환 후 store.upsertDialogues 로 적재
+ *   1) mode === 'broadcasting' 으로 전환되면 채팅 화면을 비움
+ *   2) GET /stream/info?size=1 로 현재 방송 정보만 확인
  *   3) 응답의 broadcastCharacterInfo 는 로컬 state 로 노출 (AI 캐릭터 사이드 정보 표시용)
  *   4) refetch 함수 제공 — 폴링 또는 사용자 수동 새로고침 가능
  *
  * 비고:
  *   - 새 dialogue 의 실시간 push 는 WebSocket 채널이 배포되면 그쪽 hook 에서 처리.
- *   - 404 (진행 중 방송 없음) 는 정상 케이스 — 에러 표시하지 않음.
+ *   - 404 (진행 중 방송 없음) 는 정상 케이스 — 로컬 방송 상태도 idle 로 정리.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import type { AxiosError } from "axios";
-import { adaptDialogue, getStreamInfo } from "@/features/broadcast/api/streamApi";
+import { getStreamInfo } from "@/features/broadcast/api/streamApi";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import type { BroadcastCharacterInfoResDto } from "@/shared/types/broadcast";
 
 interface UseStreamInfoOptions {
-  /** 한 번에 가져올 최신 대화 수 (default 30) */
+  /** 현재 방송 정보 확인용 조회 크기. API 안전성을 위해 default 1. 채팅 화면은 별도로 비워둔다. */
   size?: number;
 }
 
@@ -53,12 +53,17 @@ function deriveMessage(err: unknown): string | null {
   }
 }
 
+function statusOf(err: unknown): number | undefined {
+  return (err as AxiosError)?.response?.status;
+}
+
 export function useStreamInfo(options: UseStreamInfoOptions = {}): UseStreamInfoReturn {
-  const { size = 30 } = options;
+  const { size = 1 } = options;
   const isBroadcasting = useAIModeStore((s) => s.mode === "broadcasting");
   /** broadcastStreamId 도 watch — 캐릭터 전환으로 streamId 가 바뀌면 새 방송 정보를 다시 fetch */
   const broadcastStreamId = useAIModeStore((s) => s.broadcastStreamId);
-  const upsertDialogues = useAIModeStore((s) => s.upsertDialogues);
+  const clearDialogues = useAIModeStore((s) => s.clearDialogues);
+  const clearBroadcast = useAIModeStore((s) => s.clearBroadcast);
 
   const [characterInfo, setCharacterInfo] = useState<BroadcastCharacterInfoResDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,16 +74,19 @@ export function useStreamInfo(options: UseStreamInfoOptions = {}): UseStreamInfo
     setError(null);
     try {
       const res = await getStreamInfo(size);
-      const dialogues = res.content.map(adaptDialogue);
-      upsertDialogues(dialogues, res.nextCursor);
       setCharacterInfo(res.broadcastCharacterInfo);
     } catch (err: unknown) {
+      if (statusOf(err) === 404) {
+        // 서버 기준 진행 중 방송이 없으면 stale local broadcasting 상태를 정리한다.
+        setCharacterInfo(null);
+        clearBroadcast();
+      }
       const msg = deriveMessage(err);
       if (msg) setError(msg);
     } finally {
       setIsLoading(false);
     }
-  }, [size, upsertDialogues]);
+  }, [clearBroadcast, size]);
 
   useEffect(() => {
     if (!isBroadcasting || !broadcastStreamId) {
@@ -86,6 +94,7 @@ export function useStreamInfo(options: UseStreamInfoOptions = {}): UseStreamInfo
       setCharacterInfo(null);
       return;
     }
+    clearDialogues();
     let cancelled = false;
     void (async () => {
       try {
@@ -99,7 +108,7 @@ export function useStreamInfo(options: UseStreamInfoOptions = {}): UseStreamInfo
     return () => {
       cancelled = true;
     };
-  }, [isBroadcasting, broadcastStreamId, fetchOnce]);
+  }, [clearDialogues, isBroadcasting, broadcastStreamId, fetchOnce]);
 
   return { characterInfo, isLoading, error, refetch: fetchOnce };
 }
