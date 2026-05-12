@@ -14,12 +14,13 @@
  * - 보안: contextIsolation=true, nodeIntegration=false
  */
 
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 import { existsSync, promises as fs } from 'fs';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import http from 'http';
 import os from 'os';
 import path from 'path';
+import { OBSManager, type ObsSetupResult } from './obsManager';
 
 const isDev = process.env.NODE_ENV === 'development';
 const OVERLAY_SERVER_PORT = 5174;
@@ -27,6 +28,30 @@ const OVERLAY_SERVER_PORT = 5174;
 let mainWindow: BrowserWindow | null = null;
 let sttListening = false;
 let overlayServer: http.Server | null = null;
+const obsManager = new OBSManager();
+
+interface ObsDetectionResult {
+  found: boolean;
+  path: string | null;
+}
+
+interface ObsLaunchResult {
+  ok: boolean;
+  error?: string;
+}
+
+const STATIC_MIME: Record<string, string> = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'application/javascript; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
 
 type OverlayPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 type StreamEmotion = 'happy' | 'sad' | 'angry' | 'crying' | 'default';
@@ -159,10 +184,31 @@ function sendOverlayJson(res: http.ServerResponse, statusCode: number, payload: 
   res.end(body);
 }
 
+function getStaticContentType(filePath: string): string {
+  return STATIC_MIME[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
+}
+
+async function sendStaticFile(res: http.ServerResponse, filePath: string, statusCode = 200) {
+  const content = await fs.readFile(filePath);
+  const isHtml = path.extname(filePath).toLowerCase() === '.html';
+  const isHashedAsset = filePath.includes(`${path.sep}assets${path.sep}`);
+
+  res.writeHead(statusCode, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Cache-Control': isHashedAsset ? 'public, max-age=31536000, immutable' : 'no-store',
+    'Content-Type': getStaticContentType(filePath),
+  });
+  res.end(isHtml ? content.toString('utf-8') : content);
+}
+
 function startOverlayStateServer() {
   if (overlayServer) return;
 
-  overlayServer = http.createServer((req, res) => {
+  const distRoot = path.join(app.getAppPath(), 'dist');
+
+  overlayServer = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
       sendOverlayJson(res, 204, null);
       return;
@@ -178,6 +224,37 @@ function startOverlayStateServer() {
       return;
     }
 
+    if (req.method === 'GET') {
+      const normalizedPath = url.pathname === '/' ? '/index.html' : url.pathname;
+      const requestedFile = path.join(distRoot, normalizedPath.replace(/^\//, ''));
+      const safeRoot = `${distRoot}${path.sep}`;
+      const isSafePath = requestedFile === distRoot || requestedFile.startsWith(safeRoot);
+
+      if (!isSafePath) {
+        sendOverlayJson(res, 403, { message: 'Forbidden' });
+        return;
+      }
+
+      try {
+        await sendStaticFile(res, requestedFile);
+        return;
+      } catch (err: unknown) {
+        const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+        if (code !== 'ENOENT') {
+          sendOverlayJson(res, 500, { message: 'Static file read failed' });
+          return;
+        }
+      }
+
+      try {
+        await sendStaticFile(res, path.join(distRoot, 'index.html'), 200);
+        return;
+      } catch {
+        sendOverlayJson(res, 500, { message: 'Overlay app is not built' });
+        return;
+      }
+    }
+
     sendOverlayJson(res, 404, { message: 'Not found' });
   });
 
@@ -189,6 +266,46 @@ function startOverlayStateServer() {
   overlayServer.listen(OVERLAY_SERVER_PORT, '127.0.0.1', () => {
     console.info(`[overlay-state-server] listening on http://127.0.0.1:${OVERLAY_SERVER_PORT}`);
   });
+}
+
+function detectObs(): ObsDetectionResult {
+  const candidates = process.platform === 'darwin'
+    ? [
+        '/Applications/OBS.app/Contents/MacOS/OBS',
+        path.join(os.homedir(), 'Applications/OBS.app/Contents/MacOS/OBS'),
+      ]
+    : process.platform === 'win32'
+      ? [
+          'C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe',
+          'C:\\Program Files (x86)\\obs-studio\\bin\\64bit\\obs64.exe',
+          path.join(process.env['LOCALAPPDATA'] ?? '', 'Programs\\obs-studio\\bin\\64bit\\obs64.exe'),
+        ]
+      : [];
+
+  const resolvedPath = candidates.find((candidate) => candidate && existsSync(candidate)) ?? null;
+
+  return {
+    found: resolvedPath !== null,
+    path: resolvedPath,
+  };
+}
+
+function launchObs(obsPath: string): ObsLaunchResult {
+  try {
+    const proc = spawn(obsPath, [], {
+      cwd: path.dirname(obsPath),
+      detached: true,
+      stdio: 'ignore',
+    });
+    proc.unref();
+
+    return { ok: true };
+  } catch (err: unknown) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'OBS 실행에 실패했습니다.',
+    };
+  }
 }
 
 function getAudioExtension(mimeType: string): string {
@@ -462,6 +579,19 @@ app.whenReady().then(async () => {
   // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
+  ipcMain.handle('shell:open-external', (_event, url: string) => shell.openExternal(url));
+  ipcMain.handle('obs:detect', () => detectObs());
+  ipcMain.handle('obs:launch', (_event, obsPath: string) => launchObs(obsPath));
+  ipcMain.handle('obs:connect-and-setup', async (_event, overlayUrl: string): Promise<ObsSetupResult> => {
+    const detection = detectObs();
+
+    return obsManager.connectAndSetup(overlayUrl, () => {
+      if (!detection.found || !detection.path) {
+        return { ok: false, error: 'OBS not found' };
+      }
+      return launchObs(detection.path);
+    }, detection.path);
+  });
   ipcMain.handle('overlay:get-state', () => overlayState);
   ipcMain.handle('overlay:set-state', (_event, state: unknown) => {
     overlayState = sanitizeOverlayState(state);
@@ -502,6 +632,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
+  obsManager.disconnect();
   sttManager.shutdown();
   overlayServer?.close();
   overlayServer = null;

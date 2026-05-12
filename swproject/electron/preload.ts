@@ -48,6 +48,14 @@ type STTResult = {
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:version'),
   getPlatform: () => ipcRenderer.invoke('app:platform'),
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+  },
+  obs: {
+    detect: () => ipcRenderer.invoke('obs:detect'),
+    launch: (obsPath: string) => ipcRenderer.invoke('obs:launch', obsPath),
+    connectAndSetup: (overlayUrl: string) => ipcRenderer.invoke('obs:connect-and-setup', overlayUrl),
+  },
   overlay: {
     getState: () => ipcRenderer.invoke('overlay:get-state'),
     setState: (state: OverlayBridgeState) => ipcRenderer.invoke('overlay:set-state', state),

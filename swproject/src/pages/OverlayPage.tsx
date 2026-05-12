@@ -101,11 +101,21 @@ export default function OverlayPage() {
 
   useEffect(() => {
     const current = readOverlayBridgeState();
-    if (current) setBridgeState(current);
+    if (current) {
+      console.log("[OverlayPage] Initial bridge state from localStorage:", current);
+      setBridgeState(current);
+    }
     void readOverlayStateServer().then((serverState) => {
-      if (serverState) setBridgeState(serverState);
+      if (serverState) {
+        console.log("[OverlayPage] Initial bridge state from server:", serverState);
+        setBridgeState(serverState);
+      }
     });
-    return subscribeOverlayBridgeState(setBridgeState);
+    const unsubscribe = subscribeOverlayBridgeState((state) => {
+      console.log("[OverlayPage] Bridge state updated:", state);
+      setBridgeState(state);
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -125,8 +135,8 @@ export default function OverlayPage() {
   ]);
 
   const overlayUrl = useMemo(() => {
-    if (typeof window === "undefined") return "http://localhost:5173/#/overlay";
-    return `${window.location.origin}${window.location.pathname}#/overlay`;
+    if (import.meta.env.DEV) return "http://localhost:5173/#/overlay";
+    return "http://127.0.0.1:5174/#/overlay";
   }, []);
 
   const copyOverlayUrl = async () => {
@@ -169,7 +179,7 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
   const hasCharacterImage = previewRuntime.characterImageUrl.length > 0;
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-transparent">
+    <main className="fixed inset-0 overflow-hidden bg-transparent pointer-events-none z-50">
       {shouldShow && (
         <div className={`flex h-full w-full p-8 ${POSITION_CLASS[settings.position]}`}>
           <div

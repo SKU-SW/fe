@@ -4,9 +4,10 @@
  * @updated Backend Swagger spec alignment
  * @updated Sprint 4 - 방송 시작 동의 모달 + 방송 상태(aiMode) 연동, 캐릭터 10개 한도 가드
  * @updated 방송 시작/종료를 백엔드 API(/stream/start, /stream/terminate)와 연결
+ * @updated OBS 준비 체크리스트 패널 추가
  * @dependsOn src/features/character/hooks/index.ts
  * @dependsOn src/features/character/components/index.ts
- * @dependsOn src/features/broadcast/hooks (useStartBroadcast, useTerminateBroadcast)
+ * @dependsOn src/features/broadcast/hooks (useStartBroadcast, useTerminateBroadcast, useObsLaunch)
  * @dependsOn src/shared/stores/aiModeStore.ts (방송 mode 동기화)
  * @dependsOn src/shared/constants/character.ts (MAX_CHARACTERS_PER_USER)
  * @usedBy src/App.tsx
@@ -23,7 +24,8 @@ import {
   useSelectCharacter,
 } from "@/features/character/hooks";
 import { BroadcastConfirmModal, CharacterDashboard, CharacterForm } from "@/features/character/components";
-import { useStartBroadcast, useTerminateBroadcast } from "@/features/broadcast/hooks";
+import { ObsGateModal } from "@/features/broadcast/components";
+import { useObsLaunch, useStartBroadcast, useTerminateBroadcast } from "@/features/broadcast/hooks";
 import { getTriggerWordsValidationError, normalizeTriggerWords } from "@/features/character/lib/triggerWords";
 import { useBroadcastNoticeStore } from "@/shared/stores/broadcastNoticeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
@@ -243,6 +245,7 @@ function detailToPreset(detail: CharacterDetailResDto, settings: CharacterSettin
 export default function CharacterPage() {
   const [view, setView] = useState<CharacterView>("dashboard");
   const [pendingBroadcastId, setPendingBroadcastId] = useState<string | null>(null);
+  const [obsGatePending, setObsGatePending] = useState<number | null>(null);
   const [pageNotice, setPageNotice] = useState<{ tone: "error" | "info"; message: string } | null>(null);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
@@ -267,6 +270,11 @@ export default function CharacterPage() {
   const { select, isPending: isSelecting } = useSelectCharacter();
   const { start: startBroadcastApi, isPending: isStartingBroadcast, error: startBroadcastError } = useStartBroadcast();
   const { terminate: terminateBroadcastApi, isPending: isTerminatingBroadcast, error: terminateBroadcastError } = useTerminateBroadcast();
+  const { obsStatus, obsError, obsDiagnostics, launchObs, resetObsStatus } = useObsLaunch();
+  const overlayUrl = useMemo(() => {
+    if (import.meta.env.DEV) return "http://localhost:5173/#/overlay";
+    return "http://127.0.0.1:5174/#/overlay";
+  }, []);
 
   useEffect(() => {
     if (startBroadcastError) {
@@ -278,7 +286,6 @@ export default function CharacterPage() {
       setPageNotice({ tone: "error", message: terminateBroadcastError });
     }
   }, [terminateBroadcastError]);
-
   // API 응답을 UI CharacterPreset으로 변환
   const characters = useMemo(
     () => apiCharacters.map(toCharacterPreset),
@@ -371,52 +378,68 @@ export default function CharacterPage() {
    *   start 가 BROADCAST_CHARACTER_NOT_SELECTED 로 거부되는 문제가 발생.
    *   → 매번 select 를 호출해 BE 측 동기화를 강제 (추가 PATCH 1회 비용 < 정확성 이득).
    */
-  const performStart = useCallback(
-    async (cid: number) => {
-      await select(cid, true);
-      const started = await startBroadcastApi(cid);
-      if (!started) return;
+   const performStart = useCallback(
+     async (cid: number) => {
+       await select(cid, true);
+       const started = await startBroadcastApi(cid);
+       if (!started) return;
 
-      const broadcastCharacter = apiCharacters.find((item) => item.characterId === cid);
-      updateOverlayRuntime({
-        isBroadcasting: true,
-        broadcastStreamId: started.broadcastStreamId,
-        characterName: broadcastCharacter?.characterName ?? "AI",
-        characterImageUrl: resolveAssetUrl(broadcastCharacter?.characterImageUrl),
-        transcript: "",
-        emotion: "default",
-      });
-    },
-    [apiCharacters, select, startBroadcastApi, updateOverlayRuntime]
-  );
+       const broadcastCharacter = apiCharacters.find((item) => item.characterId === cid);
+       const overlayUpdate = {
+         isBroadcasting: true,
+         broadcastStreamId: started.broadcastStreamId,
+         characterName: broadcastCharacter?.characterName ?? "AI",
+         characterImageUrl: resolveAssetUrl(broadcastCharacter?.characterImageUrl),
+         transcript: "",
+         emotion: "default" as const,
+       };
+       console.log("[CharacterPage] Broadcasting started, updating overlay runtime:", overlayUpdate);
+       updateOverlayRuntime(overlayUpdate);
+     },
+     [apiCharacters, select, startBroadcastApi, updateOverlayRuntime]
+   );
+
+  const enterObsGate = useCallback((cid: number) => {
+    void select(cid, true);
+    setObsGatePending(cid);
+    void launchObs(overlayUrl);
+  }, [launchObs, overlayUrl, select]);
 
   /**
    * 방송 시작 버튼 클릭 핸들러
    * 동작 순서:
    *   1) 이미 방송 중이거나 시작 요청 진행 중이면 무시
-   *   2) "다시 받지 않기" 저장된 캐릭터면 모달 스킵하고 즉시 performStart 호출
+   *   2) "다시 받지 않기" 저장된 캐릭터면 OBS 준비 게이트로 이동
    *   3) 그렇지 않으면 동의 모달 표시 + 모달 떠 있는 동안 백엔드 선택 동기화 미리 시작
    */
   const handleBroadcastStart = useCallback(
     (characterId: string) => {
-      if (aiMode === "broadcasting" || isStartingBroadcast) return;
+      if (aiMode === "broadcasting" || isStartingBroadcast || obsGatePending !== null) return;
 
       const cid = Number(characterId);
       const skipNotice = shouldSkipBroadcastNotice(characterId);
 
       if (skipNotice) {
-        void performStart(cid);
+        enterObsGate(cid);
         return;
       }
 
-      // 모달 떠 있는 동안 백엔드 선택을 미리 동기화 (확인 클릭 시 race 최소화)
       if (selectedCharacterId !== cid) {
         void select(cid, true);
       }
       setPendingBroadcastId(characterId);
     },
-    [aiMode, isStartingBroadcast, performStart, select, selectedCharacterId]
+    [aiMode, enterObsGate, isStartingBroadcast, obsGatePending, select, selectedCharacterId, shouldSkipBroadcastNotice]
   );
+
+  useEffect(() => {
+    if (obsGatePending === null) return;
+    if (obsStatus !== "setup_ok") return;
+
+    const cid = obsGatePending;
+    setObsGatePending(null);
+    void performStart(cid);
+  }, [obsGatePending, obsStatus, performStart]);
 
   /** 모달에서 시작 버튼 확정 */
   const handleBroadcastConfirm = useCallback(
@@ -427,9 +450,9 @@ export default function CharacterPage() {
       }
       const cid = Number(pendingBroadcastId);
       setPendingBroadcastId(null);
-      await performStart(cid);
+      enterObsGate(cid);
     },
-    [pendingBroadcastId, performStart, skipNoticeForCharacter]
+    [enterObsGate, pendingBroadcastId, skipNoticeForCharacter]
   );
 
   /** 모달 취소 */
@@ -437,12 +460,36 @@ export default function CharacterPage() {
     setPendingBroadcastId(null);
   }, []);
 
+  const handleObsRetry = useCallback(() => {
+    void launchObs(overlayUrl);
+  }, [launchObs, overlayUrl]);
+
+  const handleObsGateCancel = useCallback(() => {
+    setObsGatePending(null);
+    resetObsStatus();
+  }, [resetObsStatus]);
+
+  const handleObsGateManualConfirm = useCallback(() => {
+    if (obsGatePending === null) return;
+    const cid = obsGatePending;
+    setObsGatePending(null);
+    void performStart(cid);
+  }, [obsGatePending, performStart]);
+
+  const handleObsGateForceStart = useCallback(() => {
+    if (obsGatePending === null) return;
+    const cid = obsGatePending;
+    setObsGatePending(null);
+    void performStart(cid);
+  }, [obsGatePending, performStart]);
+
   /** 방송 종료 — 백엔드 /stream/terminate 호출, 성공 시 hook 내부에서 clearBroadcast() 처리 */
   const handleBroadcastStop = useCallback(async () => {
     if (isTerminatingBroadcast) return;
     await terminateBroadcastApi();
     clearOverlayRuntime();
-  }, [clearOverlayRuntime, isTerminatingBroadcast, terminateBroadcastApi]);
+    resetObsStatus();
+  }, [clearOverlayRuntime, isTerminatingBroadcast, resetObsStatus, terminateBroadcastApi]);
 
   // 모달에 표시할 캐릭터 이름 (pendingBroadcastId 기준)
   const pendingCharacterName = useMemo(() => {
@@ -535,8 +582,21 @@ export default function CharacterPage() {
           onCancel={handleBroadcastCancel}
         />
       )}
-    </>
-  );
+
+      {obsGatePending !== null && (
+        <ObsGateModal
+          obsStatus={obsStatus}
+          obsError={obsError}
+          obsDiagnostics={obsDiagnostics}
+          overlayUrl={overlayUrl}
+          onRetry={handleObsRetry}
+          onConfirmManualReady={handleObsGateManualConfirm}
+          onForceStart={handleObsGateForceStart}
+          onCancel={handleObsGateCancel}
+        />
+      )}
+     </>
+   );
 }
 
 function InlineNotice({

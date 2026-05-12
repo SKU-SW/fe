@@ -84,16 +84,17 @@ export const useOverlayStore = create<OverlayStore>()(
           syncOverlayBridge(settings, getBridgeRuntime(state.runtime));
           return { settings };
         }),
-      updateRuntime: (runtime) =>
-        set((state) => {
-          const nextRuntime = {
-            ...state.runtime,
-            ...runtime,
-            updatedAt: Date.now(),
-          };
-          syncOverlayBridge(state.settings, nextRuntime);
-          return { runtime: nextRuntime };
-        }),
+       updateRuntime: (runtime) =>
+         set((state) => {
+           const nextRuntime = {
+             ...state.runtime,
+             ...runtime,
+             updatedAt: Date.now(),
+           };
+           console.log("[overlayStore] updateRuntime called with:", runtime, "-> merged:", nextRuntime);
+           syncOverlayBridge(state.settings, nextRuntime);
+           return { runtime: nextRuntime };
+         }),
       clearRuntime: () =>
         set((state) => {
           const runtime = {

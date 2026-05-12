@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SWproject</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <script>
+      if (location.hash.startsWith("#/overlay")) {
+        document.documentElement.classList.add("overlay-route");
+        document.addEventListener("DOMContentLoaded", function () {
+          document.body.classList.add("overlay-route");
+        });
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

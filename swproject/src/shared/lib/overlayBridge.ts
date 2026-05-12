@@ -9,7 +9,7 @@ import type { OverlayBridgeState } from "@/shared/types/overlay";
 const OVERLAY_STATE_KEY = "sku-sw-overlay-bridge-state";
 const OVERLAY_EVENT_NAME = "sku-sw-overlay-bridge-update";
 const OVERLAY_STATE_SERVER_URL = "http://127.0.0.1:5174/overlay-state";
-const OVERLAY_STATE_POLL_INTERVAL_MS = 500;
+const OVERLAY_STATE_POLL_INTERVAL_MS = 200;
 
 function getStorage(): Storage | null {
   if (typeof window === "undefined") return null;
@@ -24,11 +24,14 @@ export function writeOverlayBridgeState(state: OverlayBridgeState) {
   const storage = getStorage();
   if (!storage || typeof window === "undefined") return;
   const serialized = JSON.stringify(state);
+  console.log("[overlayBridge] Writing state to localStorage and IPC:", state);
   storage.setItem(OVERLAY_STATE_KEY, serialized);
   window.dispatchEvent(
     new CustomEvent<OverlayBridgeState>(OVERLAY_EVENT_NAME, { detail: state })
   );
-  void window.electronAPI?.overlay?.setState(state).catch(() => undefined);
+  void window.electronAPI?.overlay?.setState(state).catch((err) => {
+    console.warn("[overlayBridge] IPC setState failed:", err);
+  });
 }
 
 export function readOverlayBridgeState(): OverlayBridgeState | null {

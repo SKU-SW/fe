@@ -18,6 +18,29 @@ interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   /** 실행 플랫폼 조회 (main: process.platform) */
   getPlatform: () => Promise<string>;
+  shell: {
+    openExternal: (url: string) => Promise<void>;
+  };
+  obs: {
+    detect: () => Promise<{ found: boolean; path: string | null }>;
+    launch: (obsPath: string) => Promise<{ ok: boolean; error?: string }>;
+    connectAndSetup: (overlayUrl: string) => Promise<{
+      ok: boolean;
+      status: 'setup_ok' | 'not_found' | 'auth_required' | 'timeout' | 'setup_failed';
+      error?: string;
+      diagnostics?: {
+        host: string;
+        port: number;
+        configPath: string;
+        configSource: 'portable' | 'standard' | 'default';
+        configFound: boolean;
+        serverEnabled: boolean;
+        authRequired: boolean;
+        passwordConfigured: boolean;
+        obsExecutablePath: string | null;
+      };
+    }>;
+  };
   overlay: {
     getState: () => Promise<import('../src/shared/types/overlay').OverlayBridgeState>;
     setState: (state: import('../src/shared/types/overlay').OverlayBridgeState) => Promise<{
