@@ -17,8 +17,8 @@ interface PNGTuberSelectorProps {
 }
 
 export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelectorProps) {
-  const characterImages = settings?.characterImages ?? [];
-  const voiceTypes = settings?.voiceTypes ?? [];
+  const characterImages = useMemo(() => settings?.characterImages ?? [], [settings?.characterImages]);
+  const voiceTypes = useMemo(() => settings?.voiceTypes ?? [], [settings?.voiceTypes]);
 
   // 이미지 베이스 URL (환경변수에서 가져오기)
   const imageBaseUrl = import.meta.env.VITE_IMAGE_BASE_URL ?? '';

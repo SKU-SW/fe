@@ -1,7 +1,7 @@
 /**
  * @file 캐릭터 설정 섹션 조합 컨테이너
  * @created Sprint 3 - Character UI 이식
- * @updated 단순화: 페르소나 프리셋 + 기본정보만 노출, 외모/목소리/말투/성격은 "고급 조정"으로 접기
+ * @updated 단순화: 기본 정보/외모/목소리/페르소나를 기본 노출하고 말투/성격만 고급 설정으로 접기
  * @dependsOn BasicInfoSection, PNGTuberSelector, PersonaPresetSection, VoicePersonalitySection
  * @usedBy src/features/character/components/CharacterForm.tsx
  */
@@ -32,7 +32,7 @@ export function CharacterSettings({
   onSave,
   isSaving = false,
 }: CharacterSettingsProps) {
-  // 고급 조정 펼침 상태: 기본 접혀 있음
+  // 고급 설정 펼침 상태: 기본 접혀 있음
   // 페르소나 프리셋만 고르면 말투/성격이 자동 매핑되므로, 대다수 사용자는 펼칠 필요 없음
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -47,11 +47,12 @@ export function CharacterSettings({
 
   return (
     <div className="space-y-6">
-      {/* 필수: 기본 정보 + 페르소나 */}
+      {/* 기본 설정: 기본 정보 + 외모/목소리 + 페르소나 */}
       <BasicInfoSection config={config} onChange={onChange} />
+      <PNGTuberSelector config={config} settings={settings} onChange={onChange} />
       <PersonaPresetSection config={config} onChange={onChange} />
 
-      {/* 고급 조정 토글 */}
+      {/* 고급 설정 토글 */}
       <button
         type="button"
         onClick={() => setShowAdvanced((v) => !v)}
@@ -60,9 +61,9 @@ export function CharacterSettings({
         aria-controls="character-advanced-settings"
       >
         <div>
-          <p className="text-sm font-semibold text-white">고급 조정</p>
+          <p className="text-sm font-semibold text-white">고급 설정</p>
           <p className="mt-0.5 text-xs text-discord-textMuted">
-            외모 / 목소리 / 말투 / 성격을 직접 바꾸고 싶을 때만 펼치세요
+            페르소나 기본값 대신 말투와 성격을 직접 조정하고 싶을 때만 펼치세요
           </p>
         </div>
         <ChevronDown
@@ -74,7 +75,6 @@ export function CharacterSettings({
 
       {showAdvanced && (
         <div id="character-advanced-settings" className="space-y-6">
-          <PNGTuberSelector config={config} settings={settings} onChange={onChange} />
           <VoicePersonalitySection config={config} onChange={onChange} />
         </div>
       )}

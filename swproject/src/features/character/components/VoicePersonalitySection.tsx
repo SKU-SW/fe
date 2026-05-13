@@ -42,7 +42,7 @@ export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySe
             <button
               key={style.id}
               type="button"
-              onClick={() => onChange({ ...config, speechStyle: style.id })}
+              onClick={() => onChange({ ...config, speechStyle: style.id, broadcastPreset: "custom" })}
               className={`rounded-lg border p-4 text-left transition ${
                 config.speechStyle === style.id
                   ? "border-discord-blurple bg-discord-blurple/15"
@@ -65,7 +65,7 @@ export function VoicePersonalitySection({ config, onChange }: VoicePersonalitySe
             <button
               key={personality.id}
               type="button"
-              onClick={() => onChange({ ...config, personality: personality.id })}
+              onClick={() => onChange({ ...config, personality: personality.id, broadcastPreset: "custom" })}
               className={`rounded-lg border p-4 text-left transition ${
                 config.personality === personality.id
                   ? "border-discord-blurple bg-discord-blurple/15"

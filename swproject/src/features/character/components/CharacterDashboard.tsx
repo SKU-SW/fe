@@ -39,6 +39,7 @@ const PERSONA_LABEL: Record<string, string> = {
   teaser: "깐족 요정",
   manager: "전문 매니저",
   immersive: "과몰입 장인",
+  custom: "커스텀",
 };
 
 const PERSONA_COLOR: Record<string, string> = {
@@ -47,7 +48,17 @@ const PERSONA_COLOR: Record<string, string> = {
   teaser: "text-discord-blurple",
   manager: "text-discord-text",
   immersive: "text-discord-blurple",
+  custom: "text-discord-warning",
 };
+
+function getSafeCharacterName(name: string | undefined | null): string {
+  const trimmed = typeof name === "string" ? name.trim() : "";
+  return trimmed || "AI";
+}
+
+function getFallbackChar(name: string | undefined | null): string {
+  return getSafeCharacterName(name).charAt(0).toUpperCase();
+}
 
 function getPersonaLabel(persona?: string): string {
   return PERSONA_LABEL[persona ?? ""] ?? "지정 안 됨";
@@ -195,11 +206,11 @@ export function CharacterDashboard({
               <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
                 <FeaturedAvatar
                   imageUrl={selectedChar.info.imageUrl}
-                  fallbackChar={selectedChar.name.charAt(0).toUpperCase()}
+                  fallbackChar={getFallbackChar(selectedChar.name)}
                 />
 
                 <div className="flex-1 space-y-4">
-                  <h3 className="text-2xl font-bold text-discord-textHover">{selectedChar.name}</h3>
+                  <h3 className="text-2xl font-bold text-discord-textHover">{getSafeCharacterName(selectedChar.name)}</h3>
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-discord-text">
@@ -319,12 +330,12 @@ export function CharacterDashboard({
                     <div className="flex flex-1 items-center gap-4">
                       <ListAvatar
                         imageUrl={character.info.imageUrl}
-                        fallbackChar={character.name.charAt(0).toUpperCase()}
+                        fallbackChar={getFallbackChar(character.name)}
                       />
 
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-discord-textHover">
-                          {character.name}
+                          {getSafeCharacterName(character.name)}
                         </p>
                         <p className="mt-1 text-xs text-discord-textMuted">
                           <span className={`font-medium ${getPersonaColor(character.info.persona)}`}>

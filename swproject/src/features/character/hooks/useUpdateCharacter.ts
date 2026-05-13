@@ -34,6 +34,7 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const updateCharacterInStore = useCharacterStore((s) => s.updateCharacter);
+  const setSelectedCharacter = useCharacterStore((s) => s.setSelectedCharacter);
 
   const update = useCallback(
     async (characterId: number, data: CharacterUpdateReqDto) => {
@@ -48,9 +49,13 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
           gender: character.gender,
           voiceTypeId: character.voiceTypeId,
           characterImageUrl: character.characterImageUrl,
+          characterPersona: character.characterPersona,
           isSelected: character.isSelected,
         };
         updateCharacterInStore(characterId, listItem);
+        if (character.isSelected) {
+          setSelectedCharacter(character);
+        }
         return character;
       } catch (err: unknown) {
         const axiosErr = err as import('axios').AxiosError<{ message?: string }>;
@@ -64,7 +69,7 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
         setIsPending(false);
       }
     },
-    [updateCharacterInStore]
+    [setSelectedCharacter, updateCharacterInStore]
   );
 
   return { update, isPending, error };

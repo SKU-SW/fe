@@ -81,6 +81,7 @@ function mapBroadcastPresetToPresetType(preset: BroadcastPreset | null): PresetT
     case "teaser": return "PLAYFUL_TEASER";
     case "manager": return "PROFESSIONAL_MANAGER";
     case "immersive": return "ROLEPLAY_EXPERT";
+    case "custom": return "CUSTOM";
     default: return "CUSTOM";
   }
 }
@@ -146,7 +147,8 @@ function mapBackendPersonaToUi(presetType: string): Persona {
     case "PLAYFUL_TEASER": return "teaser";
     case "PROFESSIONAL_MANAGER": return "manager";
     case "ROLEPLAY_EXPERT": return "immersive";
-    default: return "neighbor";
+    case "CUSTOM": return "custom";
+    default: return "custom";
   }
 }
 
@@ -177,6 +179,7 @@ function safeIdToString(value: number | null | undefined): string {
 function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
   // 원본 배열 — triggerWords 로 보존하여 수정/저장 시 손실 방지
   const triggerWords = normalizeTriggerWords(item.triggerWords);
+  const persona = item.characterPersona;
   return {
     id: String(item.characterId),
     name: item.characterName,
@@ -189,9 +192,9 @@ function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
       appearancePresetId: "",
       imageUrl: item.characterImageUrl,
       voicePresetId: safeIdToString(item.voiceTypeId),
-      speechStyle: "friendly_informal",
-      personality: "energetic",
-      persona: "neighbor", // 목록 API는 persona 미포함, 기본값 사용
+      speechStyle: persona ? mapBackendSpeechStyleToUi(persona.speechStyle) : "friendly_informal",
+      personality: persona ? mapBackendPersonalityToUi(persona.personality) : "energetic",
+      persona: persona ? mapBackendPersonaToUi(persona.presetType) : "neighbor",
     },
     broadcastSettings: {
       chatSensitivity: "medium",
@@ -246,6 +249,7 @@ export default function CharacterPage() {
   const [view, setView] = useState<CharacterView>("dashboard");
   const [pendingBroadcastId, setPendingBroadcastId] = useState<string | null>(null);
   const [obsGatePending, setObsGatePending] = useState<number | null>(null);
+  const [recentlyUpdatedCharacter, setRecentlyUpdatedCharacter] = useState<CharacterDetailResDto | null>(null);
   const [pageNotice, setPageNotice] = useState<{ tone: "error" | "info"; message: string } | null>(null);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
@@ -253,6 +257,7 @@ export default function CharacterPage() {
   const aiMode = useAIModeStore((s) => s.mode);
   const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
   const clearOverlayRuntime = useOverlayStore((s) => s.clearRuntime);
+  const storedSelectedCharacter = useCharacterStore((s) => s.selectedCharacter);
 
   // 방송 중 캐릭터 ID는 별도 저장하지 않고 aiModeStore.mode + 선택된 캐릭터로 도출
   // - 단일 진실 원천(single source of truth)으로 두 store 동기화 비용 제거
@@ -288,11 +293,19 @@ export default function CharacterPage() {
   }, [terminateBroadcastError]);
   // API 응답을 UI CharacterPreset으로 변환
   const characters = useMemo(
-    () => apiCharacters.map(toCharacterPreset),
-    [apiCharacters]
+    () => apiCharacters.map((item) => {
+      if (storedSelectedCharacter && storedSelectedCharacter.characterId === item.characterId) {
+        return detailToPreset(storedSelectedCharacter, settings as CharacterSettingsResDto | null);
+      }
+      return toCharacterPreset(item);
+    }),
+    [apiCharacters, settings, storedSelectedCharacter]
   );
 
   const selectedCharacter = useMemo<CharacterPreset | null>(() => {
+    if (recentlyUpdatedCharacter && selectedCharacterId === recentlyUpdatedCharacter.characterId) {
+      return detailToPreset(recentlyUpdatedCharacter, settings as CharacterSettingsResDto | null);
+    }
     if (apiCharacter) {
       return detailToPreset(apiCharacter, settings as CharacterSettingsResDto | null);
     }
@@ -300,7 +313,34 @@ export default function CharacterPage() {
       return null;
     }
     return characters.find((item) => item.id === String(selectedCharacterId)) ?? null;
-  }, [apiCharacter, characters, selectedCharacterId, settings]);
+  }, [apiCharacter, characters, recentlyUpdatedCharacter, selectedCharacterId, settings]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log('[CharacterPage] selectedCharacter render source:', {
+      selectedCharacterId,
+      recentlyUpdatedCharacter: recentlyUpdatedCharacter
+        ? {
+            characterId: recentlyUpdatedCharacter.characterId,
+            characterPersona: recentlyUpdatedCharacter.characterPersona,
+          }
+        : null,
+      apiCharacter: apiCharacter
+        ? {
+            characterId: apiCharacter.characterId,
+            characterPersona: apiCharacter.characterPersona,
+          }
+        : null,
+      selectedCharacter: selectedCharacter
+        ? {
+            id: selectedCharacter.id,
+            persona: selectedCharacter.info.persona,
+            personality: selectedCharacter.info.personality,
+            speechStyle: selectedCharacter.info.speechStyle,
+          }
+        : null,
+    });
+  }, [apiCharacter, recentlyUpdatedCharacter, selectedCharacter, selectedCharacterId]);
 
   // 첫 캐릭터 자동 선택: selectedCharacterId가 비어있고 목록이 존재할 때만 한 번 수행
   // (characters 참조가 매 렌더마다 바뀌므로, 의존성에서 제외해 루프 방지)
@@ -350,6 +390,7 @@ export default function CharacterPage() {
       const payload = toBackendUpdatePayload(config);
       const updated = await update(selectedCharacterId, payload);
       if (updated) {
+        setRecentlyUpdatedCharacter(updated);
         await refetch(); // 수정 후 목록 새로고침
         setView("dashboard");
       }

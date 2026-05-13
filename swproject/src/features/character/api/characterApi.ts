@@ -20,6 +20,7 @@ import type {
 } from '@/shared/types/character';
 
 const CHAR_BASE = '/api/v1/characters';
+const IS_DEV = import.meta.env.DEV;
 
 /**
  * 캐릭터 생성
@@ -39,6 +40,13 @@ export async function createCharacter(data: CharacterCreateReqDto): Promise<Char
  */
 export async function getCharacters(): Promise<SliceResponse<CharacterListItemResDto>> {
   const res = await apiClient.get<SliceResponse<CharacterListItemResDto>>(CHAR_BASE);
+  if (IS_DEV) {
+    console.log('[characterApi] GET /characters response:', res.data.content.map((item) => ({
+      characterId: item.characterId,
+      characterName: item.characterName,
+      characterPersona: item.characterPersona ?? null,
+    })));
+  }
   return res.data;
 }
 
@@ -49,6 +57,13 @@ export async function getCharacters(): Promise<SliceResponse<CharacterListItemRe
  */
 export async function getCharacter(characterId: number): Promise<CharacterDetailResDto> {
   const res = await apiClient.get<CharacterDetailResDto>(`${CHAR_BASE}/${characterId}`);
+  if (IS_DEV) {
+    console.log('[characterApi] GET /characters/:id response:', {
+      characterId: res.data.characterId,
+      characterName: res.data.characterName,
+      characterPersona: res.data.characterPersona,
+    });
+  }
   return res.data;
 }
 
@@ -62,7 +77,22 @@ export async function updateCharacter(
   characterId: number,
   data: CharacterUpdateReqDto
 ): Promise<CharacterDetailResDto> {
+  if (IS_DEV) {
+    console.log('[characterApi] PUT /characters/:id payload:', {
+      characterId,
+      characterName: data.characterName,
+      triggerWords: data.triggerWords,
+      characterPersona: data.characterPersona,
+    });
+  }
   const res = await apiClient.put<CharacterDetailResDto>(`${CHAR_BASE}/${characterId}`, data);
+  if (IS_DEV) {
+    console.log('[characterApi] PUT /characters/:id response:', {
+      characterId: res.data.characterId,
+      characterName: res.data.characterName,
+      characterPersona: res.data.characterPersona,
+    });
+  }
   return res.data;
 }
 

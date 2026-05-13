@@ -73,6 +73,7 @@ const PRESETS = [
 
 export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionProps) {
   const selectedPreset = PRESETS.find((preset) => preset.id === config.broadcastPreset);
+  const isCustom = config.broadcastPreset === "custom";
 
   return (
     <section className="space-y-5 rounded-lg border border-discord-dark bg-discord-sidebar p-6">
@@ -111,7 +112,27 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
         })}
       </div>
 
-      {selectedPreset ? (
+      {isCustom && (
+        <div className="rounded-md border border-discord-warning/30 bg-discord-warning/10 p-5">
+          <div className="flex items-start gap-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-discord-warning" />
+            <div className="flex-1 space-y-3">
+              <div>
+                <p className="text-base font-semibold text-discord-warning">커스텀</p>
+                <p className="mt-0.5 text-xs font-medium text-discord-warning/80">
+                  고급 설정에서 말투 또는 성격을 직접 조정한 상태입니다.
+                </p>
+              </div>
+
+              <p className="text-sm leading-relaxed text-discord-text">
+                현재 캐릭터는 프리셋 기본값 대신 직접 조합한 말투와 성격을 사용합니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isCustom && selectedPreset ? (
         <div className="rounded-md border border-discord-blurple/30 bg-discord-blurple/10 p-5">
           <div className="flex items-start gap-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-discord-blurple" />
@@ -136,11 +157,11 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
             </div>
           </div>
         </div>
-      ) : (
+      ) : !isCustom ? (
         <p className="rounded-md border border-dashed border-discord-dark bg-discord-main px-4 py-3 text-center text-xs text-discord-textMuted">
           위에서 프리셋을 선택하면 상세 설명이 표시됩니다.
         </p>
-      )}
+      ) : null}
     </section>
   );
 }

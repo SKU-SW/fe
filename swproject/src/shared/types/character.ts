@@ -97,6 +97,7 @@ export interface CharacterListItemResDto {
   gender: Gender;
   voiceTypeId: number;
   characterImageUrl: string;
+  characterPersona?: CharacterPersonaResDto;
   isSelected: boolean;
 }
 
@@ -232,7 +233,8 @@ export type Persona =
   | "high_tension"
   | "teaser"
   | "manager"
-  | "immersive";
+  | "immersive"
+  | "custom";
 
 /**
  * 채팅 민감도 레벨 (UI 전용)
@@ -318,7 +320,7 @@ export interface CharacterSettingsResponse {
  * - manager: 전문 매니저 → PROFESSIONAL_MANAGER
  * - immersive: 과몰입 장인 → ROLEPLAY_EXPERT
  */
-export type BroadcastPreset = "neighbor" | "high_tension" | "teaser" | "manager" | "immersive";
+export type BroadcastPreset = "neighbor" | "high_tension" | "teaser" | "manager" | "immersive" | "custom";
 
 /**
  * 캐릭터 폼 말투 스타일 (UI 전용)

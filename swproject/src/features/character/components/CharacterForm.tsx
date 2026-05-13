@@ -5,7 +5,7 @@
  * @usedBy src/pages/CharacterPage.tsx
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { CharacterConfig, CharacterPreset, CharacterSettingsResDto } from "@/shared/types/character";
 import { normalizeTriggerWords } from "@/features/character/lib/triggerWords";
@@ -80,6 +80,10 @@ function toConfig(data?: CharacterPreset | null): CharacterConfig {
 export function CharacterForm({ mode, initialData, settings, isSaving, error, onBack, onSave }: CharacterFormProps) {
   const initialConfig = useMemo(() => toConfig(initialData), [initialData]);
   const [config, setConfig] = useState<CharacterConfig>(initialConfig);
+
+  useEffect(() => {
+    setConfig(initialConfig);
+  }, [initialConfig]);
 
   return (
     <div className="flex h-full min-h-[640px] flex-col overflow-hidden bg-discord-main">
