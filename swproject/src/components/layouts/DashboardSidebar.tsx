@@ -3,7 +3,7 @@
  * @updated 슬라이드(Collapse) 기능 부활 및 아이콘 추가, 마이크/스피커 축소 모드 UI 개선
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -70,7 +70,7 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
     setShowUserMenu(false);
   };
 
-  const isActive = (href: string) => location.pathname.startsWith(href);
+  const isActive = useCallback((href: string) => location.pathname.startsWith(href), [location.pathname]);
 
   // Mac 스타일 슬라이딩 인디케이터 상태 및 참조
   const navRef = useRef<HTMLDivElement>(null);
@@ -92,7 +92,7 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
     } else {
       setIndicator((prev) => ({ ...prev, opacity: 0 }));
     }
-  }, [location.pathname, isCollapsed]);
+  }, [isActive, isCollapsed, location.pathname]);
 
   const mainItems = NAV_ITEMS.filter((item) => item.group === 'main');
   const settingsItems = NAV_ITEMS.filter((item) => item.group === 'settings');

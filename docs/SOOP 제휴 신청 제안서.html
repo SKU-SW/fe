@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>SOOP API 제휴 신청 기획안 - AI Streamer Partner</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #172033;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+      line-height: 1.58;
+      background: #fff;
+    }
+    .cover {
+      min-height: 210mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border: 1px solid #d9e2f2;
+      border-radius: 20px;
+      padding: 44px;
+      background: linear-gradient(135deg, #f4f8ff 0%, #ffffff 54%, #eef5ff 100%);
+      page-break-after: always;
+    }
+    .badge {
+      display: inline-block;
+      width: fit-content;
+      border-radius: 999px;
+      background: #e7f0ff;
+      color: #2457c5;
+      font-weight: 800;
+      font-size: 13px;
+      padding: 7px 12px;
+      letter-spacing: .02em;
+    }
+    h1 {
+      margin: 22px 0 8px;
+      font-size: 38px;
+      line-height: 1.18;
+      color: #0f172a;
+      letter-spacing: -0.04em;
+    }
+    .subtitle {
+      margin: 0 0 34px;
+      font-size: 18px;
+      color: #475569;
+      font-weight: 600;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 10px 18px;
+      margin-top: 36px;
+      font-size: 14px;
+    }
+    .meta dt { color: #64748b; font-weight: 800; }
+    .meta dd { margin: 0; color: #1e293b; font-weight: 700; }
+    h2 {
+      margin: 0 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #2563eb;
+      color: #0f172a;
+      font-size: 22px;
+      letter-spacing: -0.025em;
+    }
+    h3 {
+      margin: 20px 0 8px;
+      color: #1e3a8a;
+      font-size: 16px;
+    }
+    section { margin: 0 0 26px; page-break-inside: avoid; }
+    p { margin: 8px 0; }
+    ul { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 5px 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid #dbe4f0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      background: #fbfdff;
+    }
+    .card strong { color: #0f172a; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #dbe4f0;
+      padding: 9px 10px;
+      vertical-align: top;
+    }
+    th {
+      background: #eff6ff;
+      color: #1e3a8a;
+      text-align: left;
+      font-weight: 800;
+    }
+    .flow {
+      padding: 14px;
+      border-radius: 14px;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      white-space: pre-wrap;
+    }
+    .note {
+      border-left: 4px solid #2563eb;
+      background: #eff6ff;
+      padding: 12px 14px;
+      border-radius: 10px;
+      color: #1e3a8a;
+      font-weight: 700;
+    }
+    .screen {
+      border: 1px solid #cbd5e1;
+      border-radius: 14px;
+      padding: 12px;
+      background: #f8fafc;
+      page-break-inside: avoid;
+    }
+    .mock {
+      border-radius: 12px;
+      background: #2b2d31;
+      color: #f2f3f5;
+      padding: 14px;
+      min-height: 140px;
+      font-size: 12px;
+    }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab { background: #404249; border-radius: 7px; padding: 6px 10px; font-weight: 800; }
+    .bubble-ai, .bubble-streamer, .bubble-viewer {
+      max-width: 72%;
+      margin: 8px 0;
+      border-radius: 18px;
+      padding: 9px 12px;
+      font-weight: 700;
+    }
+    .bubble-ai { background: #4e5058; margin-right: auto; }
+    .bubble-streamer { background: #0ea5e9; margin-left: auto; }
+    .bubble-viewer { background: #4752c4; margin-left: auto; }
+    .footer {
+      margin-top: 30px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      color: #64748b;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <span class="badge">SOOP Open API / Chat SDK 제휴 신청 자료</span>
+    <h1>AI Streamer Partner<br />SOOP API 연동 기획안</h1>
+    <p class="subtitle">스트리머 본인 방송 채팅을 AI 캐릭터 방송 보조 기능과 연결하는 데스크톱 애플리케이션</p>
+    <dl class="meta">
+      <dt>프로젝트명</dt><dd>AI Streamer Partner</dd>
+      <dt>팀명</dt><dd>SKU-SW 프로젝트팀</dd>
+      <dt>플랫폼</dt><dd>React + Electron 데스크톱 애플리케이션</dd>
+      <dt>신청 목적</dt><dd>SOOP OAuth 계정 연동 및 본인 방송 실시간 채팅 수집/표시</dd>
+      <dt>작성일</dt><dd>2026년 5월</dd>
+    </dl>
+  </div>
+
+  <section>
+    <h2>1. 프로젝트명</h2>
+    <div class="card">
+      <p><strong>AI Streamer Partner</strong></p>
+      <p>AI 캐릭터가 스트리머의 방송 진행을 보조하고, 시청자 채팅 흐름을 함께 읽으며 반응하는 방송 관리 데스크톱 앱입니다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 팀명</h2>
+    <div class="card">
+      <p><strong>SKU-SW 프로젝트팀</strong></p>
+      <p>소프트웨어 개발 학습 및 프로젝트 목적으로 AI 캐릭터 방송 보조 시스템을 개발하는 팀입니다. 회사 법인 서비스가 아닌 프로젝트 팀 단위로 신청합니다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. 서비스 목적</h2>
+    <p>AI Streamer Partner는 SOOP 스트리머가 외부 송출 환경에서도 AI 캐릭터와 함께 방송을 진행할 수 있도록 돕는 데스크톱 애플리케이션입니다. 스트리머의 음성 입력과 시청자 채팅을 바탕으로 AI 캐릭터가 대화하거나 반응하고, 방송 중 필요한 채팅 흐름과 통계를 대시보드에서 확인할 수 있도록 합니다.</p>
+    <div class="grid">
+      <div class="card"><strong>스트리머 친화적 제어</strong><br />방송 중 빠른 토글, Push-to-Talk, AI 응답 제어를 제공합니다.</div>
+      <div class="card"><strong>AI 캐릭터 방송 보조</strong><br />캐릭터 페르소나, 말투, 음성, 외형을 설정해 방송 컨셉에 맞게 활용합니다.</div>
+      <div class="card"><strong>실시간 채팅 흐름 확인</strong><br />AI 캐릭터, 스트리머, 시청자 채팅을 하나의 대화창에서 시간순으로 표시합니다.</div>
+      <div class="card"><strong>채팅 분석 확장</strong><br />향후 채팅 속도, 여론, 키워드, 안전 필터링과 연결합니다.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. SOOP API 사용 목적</h2>
+    <p>SOOP 공식 OAuth 및 Chat SDK를 사용하여 스트리머 본인의 SOOP 계정을 연동하고, 본인 방송의 실시간 채팅을 수집·표시하는 것이 핵심 목적입니다.</p>
+    <table>
+      <thead><tr><th>사용 항목</th><th>활용 목적</th></tr></thead>
+      <tbody>
+        <tr><td>SOOP OAuth</td><td>스트리머 본인 계정 인증 및 본인 방송 채팅 접근 권한 확인</td></tr>
+        <tr><td>Chat SDK</td><td>본인 방송의 실시간 채팅 메시지 수신</td></tr>
+        <tr><td>채팅 메타데이터</td><td>닉네임, 메시지 타입, 수신 시각 등을 대시보드와 분석 기능에 활용</td></tr>
+        <tr><td>방송 상태 데이터</td><td>시청자 수, 채팅 속도 등 방송 지표 표시 기능으로 확장</td></tr>
+      </tbody>
+    </table>
+    <h3>연동 흐름</h3>
+    <div class="flow">1. 스트리머가 앱에서 SOOP 계정 연동 선택
+2. SOOP OAuth 인증 후 백엔드가 토큰을 안전하게 저장
+3. 방송 시작 시 SOOP Chat SDK로 본인 방송 채팅 연결
+4. 수신한 채팅을 대시보드 채팅창에 실시간 표시
+5. 필요한 범위의 채팅 로그를 방송 대화 기록으로 저장</div>
+  </section>
+
+  <section>
+    <h2>5. 화면 예시</h2>
+    <div class="screen">
+      <h3>대시보드 채팅 화면</h3>
+      <div class="mock">
+        <div class="tabs"><span class="tab">● AI 캐릭터</span><span class="tab">● 스트리머</span><span class="tab">● 시청자 채팅</span></div>
+        <div class="bubble-streamer">스트리머: 테스트야, 안녕!</div>
+        <div class="bubble-ai">AI: 안녕! 오늘 방송도 같이 재미있게 해보자!</div>
+        <div class="bubble-viewer">시청자: ㅋㅋㅋㅋ AI 반응 좋다</div>
+      </div>
+      <p>대시보드에서는 AI 캐릭터, 스트리머 발화, 시청자 채팅을 구분된 말풍선으로 표시합니다. SOOP 채팅 연동 후 시청자 메시지는 ‘시청자’ 또는 실제 닉네임으로 표시될 예정입니다.</p>
+    </div>
+    <table>
+      <thead><tr><th>화면</th><th>주요 기능</th></tr></thead>
+      <tbody>
+        <tr><td>로그인/회원가입</td><td>서비스 계정 인증, 향후 SOOP 계정 연동 진입</td></tr>
+        <tr><td>AI 캐릭터 관리</td><td>캐릭터 생성, 외형/음성/페르소나 설정, 방송 시작/종료</td></tr>
+        <tr><td>대시보드</td><td>AI/스트리머/시청자 대화 스트림, 방송 제어, KPI 카드, 활동 로그</td></tr>
+        <tr><td>채팅 분석</td><td>채팅 여론, 속도, 키워드 분석 기능 확장 예정</td></tr>
+        <tr><td>안전 관리</td><td>금지어 및 유해 표현 관리</td></tr>
+        <tr><td>오버레이</td><td>방송 화면 위에 AI 캐릭터 상태 표시</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. 개인정보/채팅 데이터 처리 방식</h2>
+    <ul>
+      <li><strong>수집 범위 제한:</strong> SOOP 연동 스트리머 본인의 방송 채팅만 수집합니다.</li>
+      <li><strong>사용 목적 제한:</strong> 수집된 채팅은 대시보드 표시, AI 캐릭터 반응, 방송 대화 로그, 채팅 분석 기능에 한해 사용합니다.</li>
+      <li><strong>토큰 보관:</strong> SOOP Client Secret과 refresh token은 프론트/Electron에 저장하지 않고 백엔드 서버에서 암호화하여 관리합니다.</li>
+      <li><strong>화면 데이터 최소화:</strong> 프론트 채팅창은 최신 메시지만 임시 보관하며, 대시보드 재진입 시 기존 화면 채팅을 비웁니다.</li>
+      <li><strong>저장 데이터:</strong> 방송 식별자, 메시지 내용, 발화 주체, 수신 시각, 필요한 경우 시청자 닉네임 및 플랫폼 정보를 저장합니다.</li>
+      <li><strong>보안 처리:</strong> 서비스 API는 JWT 기반 인증을 사용하며, 401 발생 시 토큰 갱신 후 재시도하는 구조를 사용합니다.</li>
+      <li><strong>관리 기능:</strong> 스트리머가 방송 종료 또는 연동 해제를 수행할 수 있도록 하고, 불필요한 데이터 저장을 최소화합니다.</li>
+    </ul>
+    <p class="note">본 프로젝트는 SOOP 공식 API/SDK 정책을 준수하여, 스트리머 본인이 인증한 방송 채팅에 한정해 기능을 제공합니다.</p>
+  </section>
+
+  <section>
+    <h2>7. 기대 효과</h2>
+    <ul>
+      <li>스트리머가 외부 송출 환경에서도 SOOP 채팅을 AI 캐릭터와 자연스럽게 연동할 수 있습니다.</li>
+      <li>시청자 채팅을 AI 반응과 방송 대화 흐름에 반영하여 방송 상호작용성을 높일 수 있습니다.</li>
+      <li>채팅 속도, 여론, 키워드 분석 등 향후 방송 분석 기능의 정확도를 개선할 수 있습니다.</li>
+      <li>SOOP 생태계 안에서 AI 기반 방송 보조 도구 활용 사례를 만들 수 있습니다.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. 기술 구성</h2>
+    <table>
+      <tbody>
+        <tr><th>프론트엔드</th><td>React 19, React Router, Tailwind CSS, Zustand</td></tr>
+        <tr><th>데스크톱</th><td>Electron 33, Chromium 기반 렌더러</td></tr>
+        <tr><th>백엔드</th><td>Spring Boot REST API 및 WebSocket</td></tr>
+        <tr><th>음성 처리</th><td>MediaRecorder, Electron IPC, Python Faster Whisper STT</td></tr>
+        <tr><th>통신</th><td>Axios, WebSocket, JWT 인증</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="footer">AI Streamer Partner / SKU-SW 프로젝트팀 / SOOP API 제휴 신청 자료</div>
+</body>
+</html>
