@@ -249,7 +249,6 @@ export default function CharacterPage() {
   const [view, setView] = useState<CharacterView>("dashboard");
   const [pendingBroadcastId, setPendingBroadcastId] = useState<string | null>(null);
   const [obsGatePending, setObsGatePending] = useState<number | null>(null);
-  const [recentlyUpdatedCharacter, setRecentlyUpdatedCharacter] = useState<CharacterDetailResDto | null>(null);
   const [pageNotice, setPageNotice] = useState<{ tone: "error" | "info"; message: string } | null>(null);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
@@ -303,9 +302,6 @@ export default function CharacterPage() {
   );
 
   const selectedCharacter = useMemo<CharacterPreset | null>(() => {
-    if (recentlyUpdatedCharacter && selectedCharacterId === recentlyUpdatedCharacter.characterId) {
-      return detailToPreset(recentlyUpdatedCharacter, settings as CharacterSettingsResDto | null);
-    }
     if (apiCharacter) {
       return detailToPreset(apiCharacter, settings as CharacterSettingsResDto | null);
     }
@@ -313,18 +309,12 @@ export default function CharacterPage() {
       return null;
     }
     return characters.find((item) => item.id === String(selectedCharacterId)) ?? null;
-  }, [apiCharacter, characters, recentlyUpdatedCharacter, selectedCharacterId, settings]);
+  }, [apiCharacter, characters, selectedCharacterId, settings]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     console.log('[CharacterPage] selectedCharacter render source:', {
       selectedCharacterId,
-      recentlyUpdatedCharacter: recentlyUpdatedCharacter
-        ? {
-            characterId: recentlyUpdatedCharacter.characterId,
-            characterPersona: recentlyUpdatedCharacter.characterPersona,
-          }
-        : null,
       apiCharacter: apiCharacter
         ? {
             characterId: apiCharacter.characterId,
@@ -340,7 +330,7 @@ export default function CharacterPage() {
           }
         : null,
     });
-  }, [apiCharacter, recentlyUpdatedCharacter, selectedCharacter, selectedCharacterId]);
+  }, [apiCharacter, selectedCharacter, selectedCharacterId]);
 
   // 첫 캐릭터 자동 선택: selectedCharacterId가 비어있고 목록이 존재할 때만 한 번 수행
   // (characters 참조가 매 렌더마다 바뀌므로, 의존성에서 제외해 루프 방지)
@@ -367,14 +357,16 @@ export default function CharacterPage() {
         return;
       }
       const payload = toBackendCreatePayload(config);
-      const created = await create(payload);
-      if (created) {
+      try {
+        await create(payload);
         await refetch(); // 목록 새로고침: 생성된 캐릭터 포함 전체 목록 재조회
-        await select(created.characterId, true);
         setView("dashboard");
+      } catch {
+        // Error is already handled by useCreateCharacter hook and displayed via createError
+        // No additional error handling needed here
       }
     },
-    [apiCharacters.length, create, select, refetch]
+    [apiCharacters.length, create, refetch]
   );
 
   const handleUpdate = useCallback(
@@ -388,11 +380,13 @@ export default function CharacterPage() {
         return;
       }
       const payload = toBackendUpdatePayload(config);
-      const updated = await update(selectedCharacterId, payload);
-      if (updated) {
-        setRecentlyUpdatedCharacter(updated);
+      try {
+        await update(selectedCharacterId, payload);
         await refetch(); // 수정 후 목록 새로고침
         setView("dashboard");
+      } catch {
+        // Error is already handled by useUpdateCharacter hook and displayed via updateError
+        // No additional error handling needed here
       }
     },
     [selectedCharacterId, update, refetch]
@@ -653,8 +647,8 @@ function InlineNotice({
     <div
       className={`mb-4 flex items-start justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
         tone === "error"
-          ? "border-discord-danger/30 bg-discord-danger/10 text-discord-danger"
-          : "border-discord-blurple/30 bg-discord-blurple/10 text-discord-blurple"
+          ? "border-status-danger/30 bg-status-danger/10 text-status-danger"
+          : "border-brand/30 bg-brand/10 text-brand"
       }`}
       role="alert"
     >
@@ -662,7 +656,7 @@ function InlineNotice({
       <button
         type="button"
         onClick={onClose}
-        className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-current transition-colors hover:bg-white/10"
+        className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-current transition-colors hover:bg-current/10"
       >
         닫기
       </button>
