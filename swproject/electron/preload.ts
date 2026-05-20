@@ -73,5 +73,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('stt:result', listener);
       return () => ipcRenderer.removeListener('stt:result', listener);
     },
+    // 전역 단축키(Cmd/Ctrl+M) 트리거 이벤트 구독
+    // main.ts의 globalShortcut이 발사 → 렌더러 훅에서 STT 토글 처리
+    onGlobalToggle: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('stt:global-toggle', listener);
+      return () => ipcRenderer.removeListener('stt:global-toggle', listener);
+    },
   },
 });

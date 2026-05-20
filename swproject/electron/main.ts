@@ -14,7 +14,7 @@
  * - 보안: contextIsolation=true, nodeIntegration=false
  */
 
-import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, session, shell } from 'electron';
 import { existsSync, promises as fs } from 'fs';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import http from 'http';
@@ -599,6 +599,13 @@ app.whenReady().then(async () => {
   sttManager.start();
   startOverlayStateServer();
 
+  // 전역 단축키 등록 — 앱이 백그라운드(게임 중 등)여도 동작
+  // CommandOrControl = macOS: Cmd, Windows/Linux: Ctrl
+  globalShortcut.register('CommandOrControl+M', () => {
+    // 렌더러(useSTT 훅)에 STT 토글 이벤트 전달
+    mainWindow?.webContents.send('stt:global-toggle');
+  });
+
   // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
@@ -655,6 +662,8 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
+  // 전역 단축키 해제 — 앱 종료 후에도 단축키가 시스템에 남는 것 방지
+  globalShortcut.unregisterAll();
   obsManager.disconnect();
   sttManager.shutdown();
   overlayServer?.close();

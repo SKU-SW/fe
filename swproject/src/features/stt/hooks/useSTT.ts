@@ -261,6 +261,25 @@ export function useSTT(options: UseSTTOptions = {}): UseSTTReturn {
     [setCurrentTranscript]
   );
 
+  // 전역 단축키(Cmd/Ctrl+M) 이벤트 구독
+  // 앱이 백그라운드(게임 중)여도 main.ts globalShortcut이 이 이벤트를 발사함
+  useEffect(() => {
+    const onGlobalToggle = window.electronAPI?.stt?.onGlobalToggle;
+    if (typeof onGlobalToggle !== 'function') return;
+
+    const unsubscribe = onGlobalToggle(() => {
+      if (isListening) {
+        // 녹음 중이면 → 중지하고 STT 변환 시작
+        void stopListening();
+      } else {
+        // 대기 중이면 → 녹음 시작
+        void startListening();
+      }
+    });
+
+    return unsubscribe;
+  }, [isListening, startListening, stopListening]);
+
   // 언마운트 시 진행 중이던 녹음 정리
   useEffect(() => {
     return () => {

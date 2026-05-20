@@ -54,6 +54,8 @@ interface ElectronAPI {
     transcribe: (audioBuffer: ArrayBuffer, mimeType: string) => Promise<{ ok: boolean; text?: string; error?: string }>;
     debugPush: (text: string) => Promise<{ ok: boolean }>;
     onResult: (callback: (payload: { text: string; isFinal: boolean }) => void) => () => void;
+    /** 전역 단축키(Cmd/Ctrl+M) 트리거 구독. 반환값은 cleanup 함수. */
+    onGlobalToggle: (callback: () => void) => () => void;
   };
 }
 
