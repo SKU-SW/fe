@@ -1,6 +1,6 @@
 /**
  * @file 캐릭터 목록/관리 대시보드 화면
- * @updated 디스코드 테마 (discord-* 토큰) 일관화 — 그라데이션/glow 제거, 단색 토큰 통일
+ * @updated 시맨틱 테마 토큰 기반으로 스타일 정리
  * @dependsOn lucide-react, src/shared/types/character.ts (CharacterPreset)
  * @dependsOn src/shared/constants/character.ts (MAX_CHARACTERS_PER_USER)
  * @usedBy src/pages/CharacterPage.tsx
@@ -43,12 +43,12 @@ const PERSONA_LABEL: Record<string, string> = {
 };
 
 const PERSONA_COLOR: Record<string, string> = {
-  neighbor: "text-discord-success",
-  high_tension: "text-discord-warning",
-  teaser: "text-discord-blurple",
-  manager: "text-discord-text",
-  immersive: "text-discord-blurple",
-  custom: "text-discord-warning",
+  neighbor: "text-status-success",
+  high_tension: "text-status-warning",
+  teaser: "text-brand",
+  manager: "text-content-secondary",
+  immersive: "text-brand",
+  custom: "text-status-warning",
 };
 
 function getSafeCharacterName(name: string | undefined | null): string {
@@ -65,7 +65,7 @@ function getPersonaLabel(persona?: string): string {
 }
 
 function getPersonaColor(persona?: string): string {
-  return PERSONA_COLOR[persona ?? ""] ?? "text-discord-textMuted";
+  return PERSONA_COLOR[persona ?? ""] ?? "text-content-muted";
 }
 
 // ============================================================
@@ -79,7 +79,7 @@ function CallWordBadges({ callWords }: { callWords: string[] }) {
       {callWords.map((word) => (
         <span
           key={word}
-          className="inline-flex items-center rounded-full border border-discord-blurple/30 bg-discord-blurple/15 px-3 py-1 text-xs font-medium text-discord-blurple"
+          className="inline-flex items-center rounded-full border border-brand/30 bg-brand/15 px-3 py-1 text-xs font-medium text-brand"
         >
           "{word}"
         </span>
@@ -90,11 +90,11 @@ function CallWordBadges({ callWords }: { callWords: string[] }) {
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-4 animate-pulse">
-      <div className="h-40 rounded-lg border border-discord-dark bg-discord-sidebar" />
+    <div className="animate-pulse space-y-4">
+      <div className="h-40 rounded-lg border border-border-default bg-surface-panel" />
       <div className="space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-20 rounded-lg border border-discord-dark bg-discord-sidebar" />
+          <div key={i} className="h-20 rounded-lg border border-border-default bg-surface-panel" />
         ))}
       </div>
     </div>
@@ -103,28 +103,28 @@ function LoadingSkeleton() {
 
 function ErrorState({ error }: { error: string }) {
   return (
-    <div className="rounded-lg border border-discord-danger/30 bg-discord-danger/10 p-6 text-center">
-      <p className="text-sm text-discord-danger">{error}</p>
+    <div className="rounded-lg border border-status-danger/30 bg-status-danger/10 p-6 text-center">
+      <p className="text-sm text-status-danger">{error}</p>
     </div>
   );
 }
 
 function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
-    <div className="rounded-lg border border-discord-dark bg-discord-sidebar p-12 text-center">
+    <div className="rounded-lg border border-border-strong bg-surface-panel p-12 text-center transition-colors">
       <div className="mb-4 flex justify-center">
-        <div className="rounded-full border border-discord-blurple/30 bg-discord-blurple/10 p-4">
-          <Sparkles className="h-8 w-8 text-discord-blurple" />
+        <div className="rounded-full border border-brand/30 bg-brand/10 p-4">
+          <Sparkles className="h-8 w-8 text-brand" />
         </div>
       </div>
-      <h3 className="mb-2 text-lg font-semibold text-discord-textHover">아직 생성된 캐릭터가 없습니다</h3>
-      <p className="mb-6 text-sm text-discord-textMuted">
+      <h3 className="mb-2 text-lg font-semibold text-content-primary">아직 생성된 캐릭터가 없습니다</h3>
+      <p className="mb-6 text-sm text-content-muted">
         방송을 함께할 AI 동료를 만들어보세요. 외모, 목소리, 페르소나를 조합해 캐릭터를 구성할 수 있습니다.
       </p>
       <button
         type="button"
         onClick={onCreateClick}
-        className="inline-flex items-center gap-2 rounded-md bg-discord-blurple px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-blurpleHover"
+        className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-content-inverse transition-colors hover:bg-brand-hover"
       >
         <Plus className="h-4 w-4" />
         첫 캐릭터 생성하기
@@ -135,8 +135,8 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
 
 function LiveBadge() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-discord-danger/40 bg-discord-danger/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-discord-danger">
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-discord-danger" />
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-status-danger/40 bg-status-danger/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-status-danger">
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-danger" />
       LIVE
     </span>
   );
@@ -171,8 +171,8 @@ export function CharacterDashboard({
     <div className="space-y-8">
       {/* 페이지 헤더 */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-discord-textHover">내 AI 캐릭터</h1>
-        <p className="text-sm text-discord-textMuted">보유한 AI 동료를 확인하고 관리하세요</p>
+        <h1 className="text-2xl font-bold text-content-primary">내 AI 캐릭터</h1>
+        <p className="text-sm text-content-muted">보유한 AI 동료를 확인하고 관리하세요</p>
       </div>
 
       {error && <ErrorState error={error} />}
@@ -181,7 +181,7 @@ export function CharacterDashboard({
       {/* Featured 카드 */}
       {!isLoading && hasCharacters && selectedChar && (
         <section className="space-y-4">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-discord-textHover">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-content-primary">
             {isFeaturedBroadcasting ? (
               <>
                 <LiveBadge />
@@ -189,17 +189,17 @@ export function CharacterDashboard({
               </>
             ) : (
               <>
-                <CheckCircle2 className="h-4 w-4 text-discord-blurple" />
+                <CheckCircle2 className="h-4 w-4 text-brand" />
                 현재 선택된 AI 캐릭터
               </>
             )}
           </h2>
 
           <div
-            className={`rounded-lg border p-6 transition-colors ${
+            className={`rounded-lg border bg-surface-panel p-6 transition-colors ${
               isFeaturedBroadcasting
-                ? "border-discord-danger/40 bg-discord-sidebar"
-                : "border-discord-dark bg-discord-sidebar"
+                ? "border-status-danger/40"
+                : "border-border-strong"
             }`}
           >
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -210,10 +210,10 @@ export function CharacterDashboard({
                 />
 
                 <div className="flex-1 space-y-4">
-                  <h3 className="text-2xl font-bold text-discord-textHover">{getSafeCharacterName(selectedChar.name)}</h3>
+                  <h3 className="text-2xl font-bold text-content-primary">{getSafeCharacterName(selectedChar.name)}</h3>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-discord-text">
+                    <span className="text-sm text-content-secondary">
                       페르소나:{" "}
                       <span className={`font-medium ${getPersonaColor(selectedChar.info.persona)}`}>
                         {getPersonaLabel(selectedChar.info.persona)}
@@ -222,7 +222,7 @@ export function CharacterDashboard({
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-discord-textMuted">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-content-muted">
                       호출어
                     </p>
                     <CallWordBadges
@@ -242,7 +242,7 @@ export function CharacterDashboard({
                     <button
                       type="button"
                       onClick={() => onStopBroadcastClick(selectedChar.id)}
-                      className="inline-flex items-center gap-2 rounded-md bg-discord-danger px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-discord-dangerHover active:scale-95"
+                      className="inline-flex items-center gap-2 rounded-md bg-status-danger px-5 py-2.5 text-sm font-semibold text-content-inverse transition-colors hover:bg-status-danger-hover active:scale-95"
                     >
                       <Square className="h-4 w-4 fill-current" />
                       이 캐릭터의 방송 종료
@@ -253,7 +253,7 @@ export function CharacterDashboard({
                         type="button"
                         onClick={() => onBroadcastClick(selectedChar.id)}
                         disabled={!!broadcastingId}
-                        className="inline-flex items-center gap-2 rounded-md bg-discord-blurple px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-discord-blurpleHover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-content-inverse transition-colors hover:bg-brand-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                         title={broadcastingId ? "다른 캐릭터가 방송 중입니다" : undefined}
                       >
                         <Radio className="h-4 w-4" />
@@ -271,9 +271,9 @@ export function CharacterDashboard({
       {/* 캐릭터 목록 */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-discord-textHover">
+          <h2 className="text-base font-semibold text-content-primary">
             생성한 AI 캐릭터{" "}
-            <span className={isAtMaxCharacters ? "text-discord-warning" : "text-discord-textMuted"}>
+            <span className={isAtMaxCharacters ? "text-status-warning" : "text-content-muted"}>
               ({characters.length} / {MAX_CHARACTERS_PER_USER})
             </span>
           </h2>
@@ -282,7 +282,7 @@ export function CharacterDashboard({
             onClick={onCreateClick}
             disabled={isAtMaxCharacters}
             title={isAtMaxCharacters ? `최대 ${MAX_CHARACTERS_PER_USER}개까지 생성 가능합니다` : undefined}
-            className="inline-flex items-center gap-2 rounded-md bg-discord-blurple px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-blurpleHover disabled:cursor-not-allowed disabled:bg-discord-hover disabled:text-discord-textMuted"
+            className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-content-inverse transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-surface-hover disabled:text-content-muted"
           >
             <Plus className="h-4 w-4" />
             AI 캐릭터 생성하기
@@ -290,7 +290,7 @@ export function CharacterDashboard({
         </div>
 
         {isAtMaxCharacters && (
-          <div className="flex items-start gap-2 rounded-md border border-discord-warning/30 bg-discord-warning/10 px-3 py-2 text-xs text-discord-warning">
+          <div className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               한 계정당 AI 캐릭터는 최대 <strong>{MAX_CHARACTERS_PER_USER}개</strong>까지 생성할 수 있습니다.
@@ -317,12 +317,12 @@ export function CharacterDashboard({
               return (
                 <div
                   key={character.id}
-                  className={`rounded-lg border bg-discord-sidebar transition-colors ${
+                  className={`rounded-lg border bg-surface-panel transition-colors ${
                     isBroadcastingThis
-                      ? "border-discord-danger/40"
+                      ? "border-status-danger/40"
                       : isSelected
-                        ? "border-discord-blurple/50"
-                        : "border-discord-dark hover:border-discord-active"
+                        ? "border-brand/50"
+                        : "border-border-default hover:border-border-strong"
                   }`}
                 >
                   <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
@@ -334,10 +334,10 @@ export function CharacterDashboard({
                       />
 
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-discord-textHover">
+                        <p className="truncate text-sm font-semibold text-content-primary">
                           {getSafeCharacterName(character.name)}
                         </p>
-                        <p className="mt-1 text-xs text-discord-textMuted">
+                        <p className="mt-1 text-xs text-content-muted">
                           <span className={`font-medium ${getPersonaColor(character.info.persona)}`}>
                             [{getPersonaLabel(character.info.persona)}]
                           </span>
@@ -355,8 +355,8 @@ export function CharacterDashboard({
                     {/* 우: 액션 */}
                     <div className="flex items-center gap-1.5">
                       {isBroadcastingThis ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-md border border-discord-danger/40 bg-discord-danger/15 px-3 py-1.5 text-xs font-semibold text-discord-danger">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-discord-danger" />
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-status-danger/40 bg-status-danger/15 px-3 py-1.5 text-xs font-semibold text-status-danger">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-danger" />
                           방송 중
                         </span>
                       ) : (
@@ -366,8 +366,8 @@ export function CharacterDashboard({
                           onClick={() => onSelectClick(character.id)}
                           className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
                             isSelected
-                              ? "border-discord-blurple/50 bg-discord-blurple/15 text-discord-blurple"
-                              : "border-discord-dark bg-discord-hover text-discord-text hover:bg-discord-active"
+                              ? "border-brand/50 bg-brand/15 text-brand"
+                              : "border-border-default bg-surface-raised text-content-secondary hover:bg-surface-hover hover:text-content-primary"
                           } disabled:cursor-not-allowed disabled:opacity-50`}
                           title={broadcastingId ? "방송 중에는 다른 캐릭터를 선택할 수 없습니다" : undefined}
                         >
@@ -384,7 +384,7 @@ export function CharacterDashboard({
                         type="button"
                         disabled={isBroadcastingThis}
                         onClick={() => onEditClick(character.id)}
-                        className="rounded-md border border-discord-dark bg-discord-hover p-1.5 text-discord-text transition-colors hover:bg-discord-active disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-md border border-border-default bg-surface-raised p-1.5 text-content-secondary transition-colors hover:bg-surface-hover hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
                         title={isBroadcastingThis ? "방송 중에는 수정할 수 없습니다" : "수정"}
                       >
                         <Edit2 className="h-4 w-4" />
@@ -399,7 +399,7 @@ export function CharacterDashboard({
                               onDeleteClick(character.id);
                               setPendingDeleteId(null);
                             }}
-                            className="rounded-md border border-discord-danger/40 bg-discord-danger/15 px-2 py-1 text-[11px] font-semibold text-discord-danger transition-colors hover:bg-discord-danger/25 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-md border border-status-danger/40 bg-status-danger/15 px-2 py-1 text-[11px] font-semibold text-status-danger transition-colors hover:bg-status-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             삭제 확인
                           </button>
@@ -407,7 +407,7 @@ export function CharacterDashboard({
                             type="button"
                             disabled={isDeleting}
                             onClick={() => setPendingDeleteId(null)}
-                            className="rounded-md border border-discord-dark bg-discord-hover px-2 py-1 text-[11px] font-medium text-discord-text transition-colors hover:bg-discord-active disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-md border border-border-default bg-surface-raised px-2 py-1 text-[11px] font-medium text-content-secondary transition-colors hover:bg-surface-hover hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             취소
                           </button>
@@ -417,7 +417,7 @@ export function CharacterDashboard({
                           type="button"
                           disabled={isDeleting || isBroadcastingThis}
                           onClick={() => setPendingDeleteId(character.id)}
-                          className="rounded-md border border-discord-danger/30 bg-discord-danger/10 p-1.5 text-discord-danger transition-colors hover:bg-discord-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="rounded-md border border-status-danger/30 bg-status-danger/10 p-1.5 text-status-danger transition-colors hover:bg-status-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
                           title={isBroadcastingThis ? "방송 중에는 삭제할 수 없습니다" : "삭제"}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -443,7 +443,7 @@ function FeaturedAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbac
   const resolved = resolveAssetUrl(imageUrl);
   if (resolved) {
     return (
-      <div className="h-32 w-32 overflow-hidden rounded-lg border border-discord-dark bg-discord-main">
+      <div className="h-32 w-32 overflow-hidden rounded-lg border border-border-default bg-surface-base">
         <img
           src={resolved}
           alt="character"
@@ -457,7 +457,7 @@ function FeaturedAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbac
               "justify-center",
               "text-4xl",
               "font-bold",
-              "text-discord-textHover"
+              "text-content-primary"
             );
             const fallback = document.createElement("span");
             fallback.textContent = fallbackChar;
@@ -468,7 +468,7 @@ function FeaturedAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbac
     );
   }
   return (
-    <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-discord-dark bg-discord-main text-4xl font-bold text-discord-textHover">
+    <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-border-default bg-surface-base text-4xl font-bold text-content-primary">
       {fallbackChar}
     </div>
   );
@@ -478,7 +478,7 @@ function ListAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbackCha
   const resolved = resolveAssetUrl(imageUrl);
   if (resolved) {
     return (
-      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-discord-dark bg-discord-main">
+      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border-default bg-surface-base">
         <img
           src={resolved}
           alt="character"
@@ -492,7 +492,7 @@ function ListAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbackCha
               "justify-center",
               "text-sm",
               "font-bold",
-              "text-discord-textHover"
+              "text-content-primary"
             );
             const fallback = document.createElement("span");
             fallback.textContent = fallbackChar;
@@ -503,7 +503,7 @@ function ListAvatar({ imageUrl, fallbackChar }: { imageUrl?: string; fallbackCha
     );
   }
   return (
-    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-discord-dark bg-discord-main text-sm font-bold text-discord-textHover">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border-default bg-surface-base text-sm font-bold text-content-primary">
       {fallbackChar}
     </div>
   );

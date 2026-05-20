@@ -1,6 +1,12 @@
+/**
+ * @file 대시보드 상단 헤더 및 테마 토글
+ * @usedBy src/components/layouts/DashboardLayout.tsx
+ */
+
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, MessageSquareText, Gamepad2, ShieldAlert, BarChart3, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquareText, Gamepad2, ShieldAlert, BarChart3, Settings, Moon, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { isDarkTheme, useThemeStore } from '@/shared/stores/themeStore';
 
 interface PageInfo {
   icon: LucideIcon;
@@ -31,31 +37,46 @@ function resolvePageInfo(pathname: string): PageInfo {
 export default function DashboardHeader() {
   const { pathname } = useLocation();
   const { icon: Icon, title, description } = resolvePageInfo(pathname);
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const isDark = isDarkTheme(theme);
+  const ThemeIcon = isDark ? Sun : Moon;
+  const nextThemeLabel = isDark ? '라이트 모드로 전환' : '다크 모드로 전환';
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#1e1f22] bg-[#313338] px-4">
+    <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-border-strong bg-surface-raised px-4 shadow-sm transition-colors">
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 text-[#f2f3f5]">
-          <Icon className="h-5 w-5 text-[#949ba4]" />
-          <h2 className="text-base font-bold">{title}</h2>
+        <div className="flex items-center gap-2 text-content-primary">
+          <Icon className="h-5 w-5 text-content-muted" />
+          <h2 className="text-lg font-bold">{title}</h2>
         </div>
-        <div className="h-4 w-[1px] bg-[#3f4147]" />
-        <p className="text-sm font-medium text-[#949ba4]">{description}</p>
+        <div className="h-4 w-[1px] bg-border-subtle" />
+        <p className="text-base font-medium text-content-muted">{description}</p>
       </div>
 
-      <div className="flex items-center gap-4 text-sm font-medium text-[#949ba4]">
+      <div className="flex items-center gap-3 text-base font-medium text-content-muted">
         <button
           type="button"
-          className="relative hover:text-[#dbdee1] transition-colors"
-          aria-label="알림"
+          onClick={toggleTheme}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border-strong bg-surface-panel text-content-muted transition-colors hover:bg-surface-hover hover:text-content-primary"
+          aria-label={nextThemeLabel}
+          title={nextThemeLabel}
         >
-          알림
-          <span className="absolute -top-1 -right-2.5 h-2 w-2 bg-[#f23f42] rounded-full" />
+          <ThemeIcon className="h-4 w-4" />
         </button>
 
         <button
           type="button"
-          className="hover:text-[#dbdee1] transition-colors"
+          className="relative transition-colors hover:text-content-primary"
+          aria-label="알림"
+        >
+          알림
+          <span className="absolute -top-1 -right-2.5 h-2 w-2 rounded-full bg-status-danger" />
+        </button>
+
+        <button
+          type="button"
+          className="transition-colors hover:text-content-primary"
           aria-label="설정"
         >
           설정

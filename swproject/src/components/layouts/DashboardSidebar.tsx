@@ -12,6 +12,7 @@ import {
   BarChart3, 
   ShieldAlert, 
   Gamepad2,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Mic,
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/stats', label: '방송 통계', group: 'main', icon: BarChart3 },
   { href: '/safety', label: '안전 관리', group: 'settings', icon: ShieldAlert },
   { href: '/game', label: '게임 연동', group: 'settings', icon: Gamepad2 },
+  { href: '/settings', label: '설정', group: 'settings', icon: Settings },
 ];
 
 const MODE_LABEL: Record<AIMode, string> = {
@@ -47,9 +49,9 @@ const MODE_LABEL: Record<AIMode, string> = {
 };
 
 const MODE_DOT_CLASS: Record<AIMode, string> = {
-  broadcasting: 'bg-red-500',
-  gaming: 'bg-purple-500',
-  idle: 'bg-discord-textMuted',
+  broadcasting: 'bg-status-danger',
+  gaming: 'bg-brand',
+  idle: 'bg-content-muted',
 };
 
 export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { isCollapsed: boolean; onToggleCollapse: () => void }) {
@@ -94,19 +96,25 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
     }
   }, [isActive, isCollapsed, location.pathname]);
 
+  useEffect(() => {
+    if (isCollapsed && showUserMenu) {
+      setShowUserMenu(false);
+    }
+  }, [isCollapsed, showUserMenu]);
+
   const mainItems = NAV_ITEMS.filter((item) => item.group === 'main');
   const settingsItems = NAV_ITEMS.filter((item) => item.group === 'settings');
 
   return (
     <aside 
-      className={`h-full ${isCollapsed ? 'w-20' : 'w-64'} shrink-0 flex flex-col bg-discord-sidebar border-r border-[#1e1f22] transition-all duration-300 z-10 relative`}
+      className={`relative z-20 flex h-full shrink-0 flex-col border-r border-border-strong bg-surface-sidebar shadow-2xl transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}
     >
       {/* 1. 상단 로고 및 타이틀 영역 */}
-      <div className="h-16 flex items-center shrink-0 border-b border-[#1e1f22] relative">
+      <div className="relative flex h-16 shrink-0 items-center border-b border-border-strong bg-surface-sidebar">
         <Link 
           to="/dashboard" 
           className={`flex items-center gap-3 transition-colors group overflow-hidden ${
-            isCollapsed ? 'mx-auto p-2 rounded-lg hover:bg-white/5' : 'pl-5 pr-4 py-2 w-full hover:bg-white/5 mx-2 rounded-lg'
+            isCollapsed ? 'mx-auto rounded-lg p-2 hover:bg-surface-hover/70' : 'mx-2 w-full rounded-lg py-2 pl-5 pr-4 hover:bg-surface-hover/70'
           }`}
           title={isCollapsed ? '대시보드로 이동' : undefined}
         >
@@ -116,7 +124,7 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
             className="w-7 h-7 rounded-md object-cover shadow-sm group-hover:scale-105 transition-transform shrink-0" 
           />
           {!isCollapsed && (
-            <span className="text-[14.5px] font-extrabold text-[#f2f3f5] tracking-tight whitespace-nowrap">
+            <span className="whitespace-nowrap text-[15.5px] font-extrabold tracking-tight text-content-primary">
               AI streamer partner
             </span>
           )}
@@ -125,7 +133,7 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
         {/* 접기/펼치기 토글 버튼 (플로팅) */}
         <button 
           onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-discord-sidebar border border-[#1e1f22] rounded-full flex items-center justify-center text-discord-textMuted hover:text-discord-textHover z-20 shadow-md transition-colors"
+          className="absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-border-strong bg-surface-sidebar text-content-muted shadow-lg transition-colors hover:bg-surface-hover hover:text-content-primary"
           aria-label={isCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
         >
           {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
@@ -137,7 +145,7 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
         <div ref={navRef} className="relative flex flex-col px-3 py-2">
           {/* 슬라이딩 백그라운드 인디케이터 */}
           <div
-            className="absolute bg-[#404249]/80 rounded-md pointer-events-none z-0"
+            className="pointer-events-none absolute z-0 rounded-md border border-border-default bg-surface-active/90"
             style={{
               top: `${indicator.top}px`,
               left: '12px', // px-3
@@ -149,7 +157,7 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
           />
 
           {!isCollapsed && (
-            <p className="relative z-10 px-3 pt-3 pb-2 text-[11px] font-bold text-discord-textMuted/70 uppercase tracking-wider select-none whitespace-nowrap">
+            <p className="relative z-10 select-none whitespace-nowrap px-3 pb-2 pt-3 text-[11px] font-bold uppercase tracking-wider text-content-muted/70">
               메인 메뉴
             </p>
           )}
@@ -166,22 +174,22 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
                 title={isCollapsed ? item.label : undefined}
                 className={`relative z-10 flex items-center ${isCollapsed ? 'justify-center py-3' : 'px-3 py-2.5'} mb-0.5 rounded-md transition-colors ${
                   active
-                    ? 'text-[#f2f3f5] font-semibold'
-                    : 'text-[#b5bac1] font-medium hover:text-[#dbdee1] hover:bg-white/5'
+                    ? 'font-semibold text-content-primary'
+                    : 'font-medium text-content-secondary hover:bg-surface-hover/70 hover:text-content-primary'
                 }`}
               >
-                <Icon className={`w-[18px] h-[18px] shrink-0 ${active ? 'text-[#f2f3f5]' : 'text-[#80848e]'}`} />
-                {!isCollapsed && <span className="ml-3 text-[14.5px] tracking-wide whitespace-nowrap">{item.label}</span>}
+                <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-content-primary' : 'text-content-muted'}`} />
+                {!isCollapsed && <span className="ml-3 text-[15.5px] tracking-wide whitespace-nowrap">{item.label}</span>}
               </Link>
             );
           })}
 
           {!isCollapsed && (
-            <p className="relative z-10 px-3 pt-6 pb-2 text-[11px] font-bold text-discord-textMuted/70 uppercase tracking-wider select-none whitespace-nowrap">
+            <p className="relative z-10 select-none whitespace-nowrap px-3 pb-2 pt-6 text-[11px] font-bold uppercase tracking-wider text-content-muted/70">
               설정 및 도구
             </p>
           )}
-          {isCollapsed && <div className="h-6 border-t border-[#1e1f22] my-2 mx-2" />}
+          {isCollapsed && <div className="mx-2 my-2 h-6 border-t border-border-strong" />}
 
           {settingsItems.map((item) => {
             const Icon = item.icon;
@@ -194,12 +202,12 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
                 title={isCollapsed ? item.label : undefined}
                 className={`relative z-10 flex items-center ${isCollapsed ? 'justify-center py-3' : 'px-3 py-2.5'} mb-0.5 rounded-md transition-colors ${
                   active
-                    ? 'text-[#f2f3f5] font-semibold'
-                    : 'text-[#b5bac1] font-medium hover:text-[#dbdee1] hover:bg-white/5'
+                    ? 'font-semibold text-content-primary'
+                    : 'font-medium text-content-secondary hover:bg-surface-hover/70 hover:text-content-primary'
                 }`}
               >
-                <Icon className={`w-[18px] h-[18px] shrink-0 ${active ? 'text-[#f2f3f5]' : 'text-[#80848e]'}`} />
-                {!isCollapsed && <span className="ml-3 text-[14.5px] tracking-wide whitespace-nowrap">{item.label}</span>}
+                <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-content-primary' : 'text-content-muted'}`} />
+                {!isCollapsed && <span className="ml-3 text-[15.5px] tracking-wide whitespace-nowrap">{item.label}</span>}
               </Link>
             );
           })}
@@ -207,25 +215,25 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
       </nav>
 
       {/* 3. AI 모드 상태 */}
-      <div className={`px-5 py-3.5 bg-[#232428] flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-t border-[#1e1f22]`}>
+      <div className={`flex items-center border-t border-border-strong bg-surface-sidebar px-5 py-3.5 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
         <div className="flex items-center gap-2.5 min-w-0" title={isCollapsed ? MODE_LABEL[mode] : undefined}>
           <span className={`block h-2.5 w-2.5 rounded-full shrink-0 ${MODE_DOT_CLASS[mode]} shadow-sm`} />
-          {!isCollapsed && <span className="text-sm font-semibold text-[#f2f3f5] tracking-wide truncate">{MODE_LABEL[mode]}</span>}
+          {!isCollapsed && <span className="truncate text-base font-semibold tracking-wide text-content-primary">{MODE_LABEL[mode]}</span>}
         </div>
         {!isCollapsed && (
           <div className="flex items-center gap-1.5 shrink-0">
             {isPaused && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-discord-blurple uppercase">정지</span>
+              <span className="rounded bg-status-warning/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-status-warning">정지</span>
             )}
             {isPTTActive && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-discord-success uppercase">PTT</span>
+              <span className="rounded bg-status-success/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-status-success">PTT</span>
             )}
           </div>
         )}
       </div>
 
       {/* 4. 장치 토글 */}
-      <div className={`flex items-center justify-center p-3 bg-[#232428] ${isCollapsed ? 'flex-col gap-2' : 'gap-3 w-full'}`}>
+      <div className={`flex items-center justify-center bg-surface-sidebar p-2 ${isCollapsed ? 'flex-col gap-2' : 'w-full gap-2 px-4'}`}>
         <DeviceToggleButton
           label="MIC"
           active={sttEnabled}
@@ -245,31 +253,30 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
       </div>
 
       {/* 5. 사용자 프로필 메뉴 */}
-      <div className="relative p-3 bg-[#232428]">
+      <div className="relative border-t border-border-strong bg-surface-sidebar p-2">
         <button
           type="button"
           onClick={() => setShowUserMenu((v) => !v)}
-          className={`w-full flex items-center gap-3 rounded-md py-1.5 hover:bg-white/5 transition-colors ${isCollapsed ? 'justify-center px-0' : 'px-2'}`}
+          className={`flex w-full items-center gap-2.5 rounded-md py-1.5 transition-colors hover:bg-surface-hover/70 ${isCollapsed ? 'justify-center px-0' : 'px-2'}`}
           title={isCollapsed ? user?.name || 'User' : undefined}
         >
-          <div className="h-8 w-8 rounded-full bg-[#5865F2] flex items-center justify-center text-sm font-bold text-white shadow-sm shrink-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-active text-content-primary shadow-sm transition-colors">
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-[13px] font-bold text-[#f2f3f5] truncate">{user?.name || 'User'}</p>
-              <p className="text-[11px] text-[#949ba4] truncate">{user?.email || 'user@example.com'}</p>
+              <p className="truncate text-sm font-bold text-content-primary">{user?.name || 'User'}</p>
             </div>
           )}
         </button>
 
         {showUserMenu && (
-          <div className={`absolute z-50 bottom-full mb-2 rounded-lg bg-[#111214] border border-[#1e1f22] p-1.5 shadow-xl ${isCollapsed ? 'left-full ml-2 w-40' : 'left-3 right-3'}`}>
+          <div className={`absolute bottom-full z-50 mb-2 rounded-lg border border-border-strong bg-surface-panel p-1.5 shadow-xl ${isCollapsed ? 'left-full ml-2 w-40' : 'left-3 right-3'}`}>
             <button
               type="button"
               onClick={() => void handleLogout()}
               disabled={isPending}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-[13px] font-medium text-[#f23f42] hover:bg-[#f23f42] hover:text-white disabled:opacity-50 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded px-3 py-2 text-sm font-medium text-status-danger transition-colors hover:bg-status-danger hover:text-content-inverse disabled:opacity-50"
             >
               {!isCollapsed && <LogOut className="w-4 h-4" />}
               {isPending ? '로그아웃 중...' : '로그아웃'}
@@ -296,7 +303,7 @@ function DeviceToggleButton({ label, active, isCollapsed, iconOn, iconOff, onCli
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       title={`${label} ${active ? '켜짐' : '꺼짐'}`}
-      className={`flex items-center justify-center rounded-md transition-colors ${isCollapsed ? 'py-2.5 w-full' : 'w-10 h-10'} ${active ? 'bg-[#313338] text-[#23a559] hover:bg-[#3f4147]' : 'bg-[#313338] text-[#f23f42] hover:bg-[#3f4147]'}`}
+      className={`flex items-center justify-center rounded-md transition-colors ${isCollapsed ? 'w-full py-2.5' : 'h-9 w-9'} ${active ? 'bg-transparent text-content-primary hover:bg-surface-hover/70' : 'bg-transparent text-content-muted hover:bg-surface-hover/70'}`}
     >
       {active ? iconOn : iconOff}
     </button>

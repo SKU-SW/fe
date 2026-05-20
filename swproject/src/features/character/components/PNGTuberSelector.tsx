@@ -8,7 +8,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, PlayCircle, PauseCircle, ImageOff } from "lucide-react";
-import type { CharacterConfig, CharacterSettingsResDto, UiGender } from "@/shared/types/character";
+import type {
+  CharacterConfig,
+  CharacterImageResDto,
+  CharacterSettingsResDto,
+  UiGender,
+} from "@/shared/types/character";
+
+function pickDefaultCharacterImage(
+  images: CharacterImageResDto[],
+): CharacterImageResDto | null {
+  if (images.length === 0) return null;
+  return images.find((img) => img.name?.toLowerCase() === "default") ?? images[0];
+}
 
 interface PNGTuberSelectorProps {
   config: CharacterConfig;
@@ -116,7 +128,9 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
     const needsVoice = !config.voiceId && groupedVoices[currentVoiceGender].length > 0;
     if (!needsImage && !needsVoice) return;
 
-    const firstImage = needsImage ? groupedImages[currentAppearanceGender][0] : null;
+    const firstImage = needsImage
+      ? pickDefaultCharacterImage(groupedImages[currentAppearanceGender])
+      : null;
     const firstVoice = needsVoice ? groupedVoices[currentVoiceGender][0] : null;
 
     onChange({
@@ -127,7 +141,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
   }, [config, groupedImages, groupedVoices, currentAppearanceGender, currentVoiceGender, onChange]);
 
   const selectAppearanceGender = (gender: UiGender) => {
-    const firstImage = groupedImages[gender][0];
+    const firstImage = pickDefaultCharacterImage(groupedImages[gender]);
     onChange({
       ...config,
       gender,
@@ -144,18 +158,18 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
   };
 
   return (
-    <section className="space-y-6 rounded-xl border border-discord-dark bg-discord-sidebar p-6">
+    <section className="space-y-6 rounded-xl border border-border-strong bg-surface-panel p-6 transition-colors">
       <div className="flex items-center gap-2">
-        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-discord-blurple/20 text-xs font-bold text-discord-blurple">
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brand/15 text-xs font-bold text-brand">
           1
         </div>
-        <h3 className="text-lg font-semibold text-white">외모 및 목소리</h3>
+        <h3 className="text-lg font-semibold text-content-primary">외모 및 목소리</h3>
       </div>
 
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <label className="text-sm font-medium text-discord-text">외모</label>
-          <div className="rounded-lg bg-discord-sidebar p-1">
+          <label className="text-sm font-medium text-content-secondary">외모</label>
+          <div className="rounded-lg bg-surface-raised p-1 transition-colors">
             {(["female", "male"] as UiGender[]).map((gender) => (
               <button
                 key={gender}
@@ -163,8 +177,8 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                 onClick={() => selectAppearanceGender(gender)}
                 className={`rounded-lg px-4 py-1.5 text-sm ${
                   currentAppearanceGender === gender
-                    ? "bg-discord-hover text-white"
-                    : "text-discord-textMuted hover:text-discord-textHover"
+                    ? "bg-surface-active text-content-primary"
+                    : "text-content-muted hover:text-content-primary"
                 }`}
               >
                 {gender === "female" ? "여성" : "남성"}
@@ -182,11 +196,11 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                 onClick={() => onChange({ ...config, model2D: { presetId: String(image.imageId) } })}
                 className={`rounded-xl border p-3 text-left transition ${
                   config.model2D.presetId === String(image.imageId)
-                    ? "border-discord-blurple bg-discord-blurple/15"
-                    : "border-discord-dark bg-discord-sidebar hover:border-discord-active"
+                    ? "border-brand bg-brand/10"
+                    : "border-border-default bg-surface-panel hover:border-border-strong"
                 }`}
               >
-                <div className="mb-2 h-24 w-full overflow-hidden rounded-lg border border-discord-dark bg-discord-sidebar">
+                <div className="mb-2 h-24 w-full overflow-hidden rounded-lg border border-border-default bg-surface-raised transition-colors">
                   {(() => {
                     const imgUrl = getImageUrl(image);
                     return imgUrl ? (
@@ -202,16 +216,16 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                       />
                     ) : null;
                   })()}
-                  <div className="hidden flex h-full items-center justify-center text-discord-textMuted">
+                  <div className="hidden h-full items-center justify-center text-content-muted">
                     <ImageOff className="h-6 w-6" />
                   </div>
                 </div>
-                <p className="truncate text-sm font-medium text-discord-textHover">{image.name}</p>
+                <p className="truncate text-sm font-medium text-content-primary">{image.name}</p>
               </button>
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-discord-dark bg-discord-main p-6 text-center text-sm text-discord-textMuted">
+          <div className="rounded-xl border border-dashed border-border-default bg-surface-base p-6 text-center text-sm text-content-muted transition-colors">
             외모 프리셋이 아직 준비되지 않았습니다. 기본값으로 저장됩니다.
           </div>
         )}
@@ -219,8 +233,8 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
 
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <label className="text-sm font-medium text-discord-text">목소리</label>
-          <div className="rounded-lg bg-discord-sidebar p-1">
+          <label className="text-sm font-medium text-content-secondary">목소리</label>
+          <div className="rounded-lg bg-surface-raised p-1 transition-colors">
             {(["female", "male"] as UiGender[]).map((gender) => (
               <button
                 key={gender}
@@ -228,8 +242,8 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                 onClick={() => selectVoiceGender(gender)}
                 className={`rounded-lg px-4 py-1.5 text-sm ${
                   currentVoiceGender === gender
-                    ? "bg-discord-hover text-white"
-                    : "text-discord-textMuted hover:text-discord-textHover"
+                    ? "bg-surface-active text-content-primary"
+                    : "text-content-muted hover:text-content-primary"
                 }`}
               >
                 {gender === "female" ? "여성" : "남성"}
@@ -247,9 +261,9 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                   key={voice.voiceTypeId}
                   className={`rounded-xl border p-3 transition ${
                     config.voiceId === String(voice.voiceTypeId)
-                      ? "border-discord-blurple bg-discord-blurple/15"
-                      : "border-discord-dark bg-discord-sidebar hover:border-discord-active"
-                  }`}
+                      ? "border-brand bg-brand/10"
+                      : "border-border-default bg-surface-panel hover:border-border-strong"
+                   }`}
                 >
                   <button
                     type="button"
@@ -257,7 +271,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                     className="w-full text-left"
                   >
                     <div className="mb-2 flex items-center justify-between">
-                      <Mic className="h-4 w-4 text-discord-text" />
+                      <Mic className="h-4 w-4 text-content-secondary" />
                       {voice.testUrl && (
                         <span
                           role="button"
@@ -273,14 +287,14 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
                               toggleVoiceSample(voice.voiceTypeId, voice.testUrl);
                             }
                           }}
-                          className="cursor-pointer text-discord-textMuted hover:text-discord-blurple transition-colors"
+                          className="cursor-pointer text-content-muted transition-colors hover:text-brand"
                           title={isPlaying ? "정지" : "샘플 듣기"}
                         >
                           {isPlaying ? <PauseCircle className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
                         </span>
                       )}
                     </div>
-                    <p className="truncate text-sm font-medium text-discord-textHover">
+                    <p className="truncate text-sm font-medium text-content-primary">
                       {voice.label ?? `Voice ${voice.voiceTypeId}`}
                     </p>
                   </button>
@@ -289,7 +303,7 @@ export function PNGTuberSelector({ config, settings, onChange }: PNGTuberSelecto
             })}
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-discord-dark bg-discord-main p-6 text-center text-sm text-discord-textMuted">
+          <div className="rounded-xl border border-dashed border-border-default bg-surface-base p-6 text-center text-sm text-content-muted transition-colors">
             목소리 샘플이 아직 준비되지 않았습니다. 기본값으로 저장됩니다.
           </div>
         )}

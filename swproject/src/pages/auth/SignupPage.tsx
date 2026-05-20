@@ -40,11 +40,11 @@ export default function SignupPage() {
   };
 
   return (
-    <main className="min-h-screen bg-discord-main flex items-center justify-center p-4">
+    <main className="flex min-h-screen items-center justify-center bg-surface-base p-4 transition-colors">
       <AuthCard title="회원가입" subtitle="AI 스트리머 파트너 플랫폼에 오신 것을 환영합니다">
         {apiError && (
           <div
-            className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm"
+            className="mb-4 rounded-xl border border-status-danger/20 bg-status-danger/10 p-3 text-base text-status-danger"
             role="alert"
           >
             {apiError}
@@ -54,9 +54,9 @@ export default function SignupPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* 협업 메모: 로그인 페이지와 동일한 인풋 스타일/간격을 유지합니다. */}
           <div className="space-y-1.5">
-            <label htmlFor="name" className="text-sm font-medium text-discord-text">이름</label>
+            <label htmlFor="name" className="text-base font-medium text-content-secondary">이름</label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-discord-textMuted pointer-events-none" />
+              <User className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-content-muted" />
               <input
                 {...register('name')}
                 id="name"
@@ -65,18 +65,18 @@ export default function SignupPage() {
                 placeholder="홍길동"
                 aria-invalid={errors.name ? 'true' : 'false'}
                 aria-describedby={errors.name ? 'name-error' : undefined}
-                className="w-full pl-10 pr-3 py-2.5 bg-discord-main border border-discord-dark rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full rounded-xl border border-border-default bg-surface-base py-2.5 pl-10 pr-3 text-base text-content-primary placeholder:text-content-muted transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
               />
             </div>
             {errors.name && (
-              <p id="name-error" className="text-red-400 text-sm">{errors.name.message}</p>
+              <p id="name-error" className="text-base text-status-danger">{errors.name.message}</p>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-discord-text">이메일</label>
+            <label htmlFor="email" className="text-base font-medium text-content-secondary">이메일</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-discord-textMuted pointer-events-none" />
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-content-muted" />
               <input
                 {...register('email')}
                 id="email"
@@ -85,18 +85,18 @@ export default function SignupPage() {
                 placeholder="name@example.com"
                 aria-invalid={errors.email ? 'true' : 'false'}
                 aria-describedby={errors.email ? 'email-error' : undefined}
-                className="w-full pl-10 pr-3 py-2.5 bg-discord-main border border-discord-dark rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full rounded-xl border border-border-default bg-surface-base py-2.5 pl-10 pr-3 text-base text-content-primary placeholder:text-content-muted transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
               />
             </div>
             {errors.email && (
-              <p id="email-error" className="text-red-400 text-sm">{errors.email.message}</p>
+              <p id="email-error" className="text-base text-status-danger">{errors.email.message}</p>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-discord-text">비밀번호</label>
+            <label htmlFor="password" className="text-base font-medium text-content-secondary">비밀번호</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-discord-textMuted pointer-events-none" />
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-content-muted" />
               <input
                 {...register('password')}
                 id="password"
@@ -105,27 +105,27 @@ export default function SignupPage() {
                 placeholder="••••••••"
                 aria-invalid={errors.password ? 'true' : 'false'}
                 aria-describedby={errors.password ? 'password-error' : undefined}
-                className="w-full pl-10 pr-10 py-2.5 bg-discord-main border border-discord-dark rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full rounded-xl border border-border-default bg-surface-base py-2.5 pl-10 pr-10 text-base text-content-primary placeholder:text-content-muted transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
                 aria-pressed={showPassword}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-discord-textMuted hover:text-discord-text hover:bg-discord-sidebar transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-content-muted transition-colors hover:bg-surface-hover hover:text-content-primary"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {errors.password && (
-              <p id="password-error" className="text-red-400 text-sm">{errors.password.message}</p>
+              <p id="password-error" className="text-base text-status-danger">{errors.password.message}</p>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="confirmPassword" className="text-sm font-medium text-discord-text">비밀번호 확인</label>
+            <label htmlFor="confirmPassword" className="text-base font-medium text-content-secondary">비밀번호 확인</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-discord-textMuted pointer-events-none" />
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-content-muted" />
               <input
                 {...register('confirmPassword')}
                 id="confirmPassword"
@@ -134,27 +134,27 @@ export default function SignupPage() {
                 placeholder="••••••••"
                 aria-invalid={errors.confirmPassword ? 'true' : 'false'}
                 aria-describedby={errors.confirmPassword ? 'confirm-error' : undefined}
-                className="w-full pl-10 pr-10 py-2.5 bg-discord-main border border-discord-dark rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full rounded-xl border border-border-default bg-surface-base py-2.5 pl-10 pr-10 text-base text-content-primary placeholder:text-content-muted transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirm((v) => !v)}
                 aria-label={showConfirm ? '비밀번호 숨기기' : '비밀번호 보기'}
                 aria-pressed={showConfirm}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-discord-textMuted hover:text-discord-text hover:bg-discord-sidebar transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-content-muted transition-colors hover:bg-surface-hover hover:text-content-primary"
               >
                 {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {errors.confirmPassword && (
-              <p id="confirm-error" className="text-red-400 text-sm">{errors.confirmPassword.message}</p>
+              <p id="confirm-error" className="text-base text-status-danger">{errors.confirmPassword.message}</p>
             )}
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || isPending}
-            className="w-full mt-6 py-2.5 px-4 bg-discord-blurple hover:bg-discord-blurpleHover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
+            className="mt-6 w-full rounded-xl bg-brand px-4 py-2.5 text-base font-medium text-content-inverse transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting || isPending ? '가입 중...' : '가입하기'}
           </button>
@@ -162,19 +162,19 @@ export default function SignupPage() {
 
         <div className="mt-8 mb-6 relative">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-discord-dark" />
+            <div className="w-full border-t border-border-default" />
           </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-discord-sidebar text-discord-textMuted">또는 소셜 계정으로 간편 가입</span>
+          <div className="relative flex justify-center text-base">
+            <span className="bg-surface-panel px-2 text-content-muted">또는 소셜 계정으로 간편 가입</span>
           </div>
         </div>
 
         <GoogleButton label="Google로 회원가입" />
 
         <div className="mt-8 text-center">
-          <p className="text-sm text-discord-textMuted">
+          <p className="text-base text-content-muted">
             이미 계정이 있으신가요?{' '}
-            <Link to="/login" className="text-discord-blurple hover:text-discord-blurple transition-colors">
+            <Link to="/login" className="text-brand transition-colors hover:text-brand-hover">
               로그인
             </Link>
           </p>

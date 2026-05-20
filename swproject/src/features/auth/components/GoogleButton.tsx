@@ -31,7 +31,7 @@ export default function GoogleButton({ label }: GoogleButtonProps) {
     <button
       type="button"
       disabled
-      className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-gray-700 text-gray-400 cursor-not-allowed rounded-xl text-sm font-medium"
+      className="flex w-full cursor-not-allowed items-center justify-center gap-3 rounded-xl border border-border-default bg-surface-raised px-4 py-2.5 text-base font-medium text-content-muted transition-colors"
       title="백엔드 Google OAuth 구현 후 활성화"
     >
       <GoogleIcon />

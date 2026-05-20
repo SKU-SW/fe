@@ -15,9 +15,9 @@ interface BroadcastHeaderProps {
 
 export function BroadcastHeader({ logOpen, onToggleLog }: BroadcastHeaderProps) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2 border-b border-discord-dark pb-3 mb-2">
-      <div className="flex items-center gap-2 text-sm font-medium text-discord-textMuted">
-        <Activity className="h-4 w-4 animate-pulse text-discord-success" />
+    <div className="mb-2 flex items-center justify-between gap-4 border-b border-border-subtle py-2 pb-3">
+      <div className="flex items-center gap-2 text-base font-medium text-content-muted">
+        <Activity className="h-4 w-4 animate-pulse text-status-success" />
         <span>AI가 방송 상황을 모니터링하고 있어요</span>
       </div>
 
@@ -25,10 +25,10 @@ export function BroadcastHeader({ logOpen, onToggleLog }: BroadcastHeaderProps) 
       <button
         type="button"
         onClick={onToggleLog}
-        className={`inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-bold transition ${
+        className={`inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm font-bold transition ${
           logOpen
-            ? "bg-discord-active text-discord-textHover"
-            : "bg-discord-dark text-discord-textMuted hover:bg-[#3f4147] hover:text-discord-textHover"
+            ? "bg-surface-active text-content-primary"
+            : "bg-surface-raised text-content-muted hover:bg-surface-hover hover:text-content-primary"
         }`}
         aria-pressed={logOpen}
       >

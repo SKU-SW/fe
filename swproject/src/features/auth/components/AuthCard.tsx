@@ -14,15 +14,15 @@ interface AuthCardProps {
 
 export default function AuthCard({ title, subtitle, children }: AuthCardProps) {
   return (
-    <div className="w-full max-w-md bg-discord-sidebar border border-discord-dark rounded-xl shadow-xl overflow-hidden">
+    <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border-strong bg-surface-panel shadow-xl transition-colors">
       <div className="p-8 pb-6 text-center">
         <img
           src="/logo.png"
           alt="AI streamer"
           className="mx-auto mb-4 h-12 w-12 rounded-xl shadow-md"
         />
-        <h1 className="text-2xl font-bold text-white mb-2">{title}</h1>
-        <p className="text-discord-textMuted text-sm">{subtitle}</p>
+        <h1 className="mb-2 text-[28px] font-bold text-content-primary">{title}</h1>
+        <p className="text-base text-content-muted">{subtitle}</p>
       </div>
       <div className="px-8 pb-8">{children}</div>
     </div>

@@ -10,21 +10,107 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-surface-base: 250 251 252;
+  --color-surface-sidebar: 238 242 246;
+  --color-surface-panel: 240 244 248;
+  --color-surface-raised: 232 237 242;
+  --color-surface-hover: 223 229 235;
+  --color-surface-active: 212 219 227;
+  --color-content-primary: 17 24 39;
+  --color-content-secondary: 31 41 55;
+  --color-content-muted: 75 85 99;
+  --color-content-inverse: 255 255 255;
+  --color-border-default: 192 200 209;
+  --color-border-strong: 163 173 184;
+  --color-border-subtle: 206 214 223;
+  --color-brand: 79 70 229;
+  --color-brand-hover: 67 56 202;
+  --color-status-success: 5 150 105;
+  --color-status-success-hover: 4 120 87;
+  --color-status-danger: 220 38 38;
+  --color-status-danger-hover: 185 28 28;
+  --color-status-warning: 217 119 6;
+  --color-status-info: 2 132 199;
+  --color-chat-ai: 100 116 139;
+  --color-chat-streamer: 14 116 144;
+  --color-chat-viewer: 79 70 229;
+  --background: rgb(var(--color-surface-base));
+  --foreground: rgb(var(--color-content-primary));
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+[data-theme="dark"] {
+  --color-surface-base: 17 18 20;
+  --color-surface-sidebar: 17 18 20;
+  --color-surface-panel: 35 36 40;
+  --color-surface-raised: 30 31 34;
+  --color-surface-hover: 63 65 71;
+  --color-surface-active: 64 66 73;
+  --color-content-primary: 242 243 245;
+  --color-content-secondary: 219 222 225;
+  --color-content-muted: 148 155 164;
+  --color-content-inverse: 255 255 255;
+  --color-border-default: 43 45 49;
+  --color-border-strong: 30 31 34;
+  --color-border-subtle: 63 65 71;
+  --color-brand: 88 101 242;
+  --color-brand-hover: 71 82 196;
+  --color-status-success: 35 165 89;
+  --color-status-success-hover: 26 124 67;
+  --color-status-danger: 242 63 66;
+  --color-status-danger-hover: 218 55 60;
+  --color-status-warning: 240 178 50;
+  --color-status-info: 14 165 233;
+  --color-chat-ai: 78 80 88;
+  --color-chat-streamer: 14 165 233;
+  --color-chat-viewer: 71 82 196;
+  --background: rgb(var(--color-surface-base));
+  --foreground: rgb(var(--color-content-primary));
+}
+
+[data-theme="spring"] {
+  --color-surface-base: 255 249 244;
+  --color-surface-sidebar: 248 238 232;
+  --color-surface-panel: 250 241 236;
+  --color-surface-raised: 243 230 223;
+  --color-surface-hover: 236 221 213;
+  --color-surface-active: 227 208 198;
+  --color-content-primary: 74 39 35;
+  --color-content-secondary: 106 59 53;
+  --color-content-muted: 138 95 87;
+  --color-content-inverse: 255 255 255;
+  --color-border-default: 217 190 179;
+  --color-border-strong: 191 157 145;
+  --color-border-subtle: 228 205 196;
+  --color-brand: 216 98 125;
+  --color-brand-hover: 194 79 107;
+  --color-status-success: 93 147 124;
+  --color-status-success-hover: 73 123 101;
+  --color-status-danger: 214 92 92;
+  --color-status-danger-hover: 190 72 72;
+  --color-status-warning: 198 132 65;
+  --color-status-info: 97 139 176;
+  --color-chat-ai: 168 143 133;
+  --color-chat-streamer: 205 123 142;
+  --color-chat-viewer: 184 107 129;
+  --background: rgb(var(--color-surface-base));
+  --foreground: rgb(var(--color-content-primary));
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  background: var(--background);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Inter', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 html.overlay-route,
@@ -41,14 +127,14 @@ input[type="range"] {
   width: 100%;
   height: 6px;
   border-radius: 9999px;
-  background: rgb(71, 85, 105);
+  background: rgb(var(--color-surface-active));
   outline: none;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 input[type="range"]:hover {
-  background: rgb(100, 116, 139);
+  background: rgb(var(--color-surface-hover));
 }
 
 /* Webkit 브라우저 (Chrome, Safari, Edge) */
@@ -58,14 +144,14 @@ input[type="range"]::-webkit-slider-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: rgb(59, 130, 246);
+  background: rgb(var(--color-brand));
   cursor: pointer;
   
   transition: background 0.2s, box-shadow 0.2s;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  background: rgb(96, 165, 250);
+  background: rgb(var(--color-brand-hover));
   
 }
 
@@ -74,7 +160,7 @@ input[type="range"]::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: rgb(59, 130, 246);
+  background: rgb(var(--color-brand));
   cursor: pointer;
   border: none;
   
@@ -82,6 +168,6 @@ input[type="range"]::-moz-range-thumb {
 }
 
 input[type="range"]::-moz-range-thumb:hover {
-  background: rgb(96, 165, 250);
+  background: rgb(var(--color-brand-hover));
   
 }

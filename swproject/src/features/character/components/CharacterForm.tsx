@@ -86,12 +86,12 @@ export function CharacterForm({ mode, initialData, settings, isSaving, error, on
   }, [initialConfig]);
 
   return (
-    <div className="flex h-full min-h-[640px] flex-col overflow-hidden bg-discord-main">
-      <div className="border-b border-discord-dark px-8 py-4">
+    <div className="flex h-full min-h-[640px] flex-col overflow-hidden bg-surface-base transition-colors">
+      <div className="border-b border-border-strong px-8 py-4">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-discord-textMuted transition-colors hover:text-discord-textHover"
+          className="inline-flex items-center gap-2 text-content-muted transition-colors hover:text-content-primary"
         >
           <ArrowLeft className="h-5 w-5" />
           목록으로 돌아가기
@@ -101,13 +101,13 @@ export function CharacterForm({ mode, initialData, settings, isSaving, error, on
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto p-8">
           <div className="mx-auto max-w-5xl">
-            <h2 className="mb-2 text-2xl font-bold text-discord-textHover">
+            <h2 className="mb-2 text-2xl font-bold text-content-primary">
               {mode === "create" ? "AI 캐릭터 생성" : "AI 캐릭터 수정"}
             </h2>
-            <p className="mb-6 text-sm text-discord-textMuted">방송 스타일에 맞는 AI 동료의 정체성을 설정하세요.</p>
+            <p className="mb-6 text-sm text-content-muted">방송 스타일에 맞는 AI 동료의 정체성을 설정하세요.</p>
 
             {error && (
-              <div className="mb-4 rounded-md border border-discord-danger/30 bg-discord-danger/10 p-4 text-sm text-discord-danger">
+              <div className="mb-4 rounded-md border border-status-danger/30 bg-status-danger/10 p-4 text-sm text-status-danger">
                 <p className="font-medium">저장 실패</p>
                 <p className="mt-1 opacity-80">{error}</p>
               </div>

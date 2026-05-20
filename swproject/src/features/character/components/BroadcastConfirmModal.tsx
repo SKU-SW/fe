@@ -35,21 +35,21 @@ export function BroadcastConfirmModal({
       onClick={onCancel}
     >
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-xl border border-discord-dark bg-discord-sidebar shadow-2xl"
+        className="relative w-full max-w-md overflow-hidden rounded-xl border border-border-default bg-surface-panel shadow-2xl transition-colors"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between border-b border-discord-dark px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border-default px-6 py-4">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-discord-blurple" />
-            <h2 id="broadcast-confirm-title" className="text-base font-semibold text-white">
+            <AlertTriangle className="h-5 w-5 text-brand" />
+            <h2 id="broadcast-confirm-title" className="text-base font-semibold text-content-primary">
               주의사항
             </h2>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg p-1 text-discord-textMuted transition hover:bg-discord-sidebar hover:text-discord-textHover"
+            className="rounded-lg p-1 text-content-muted transition-colors hover:bg-surface-hover hover:text-content-primary"
             aria-label="닫기"
           >
             <X className="h-4 w-4" />
@@ -58,47 +58,47 @@ export function BroadcastConfirmModal({
 
         {/* 본문 */}
         <div className="space-y-4 px-6 py-5">
-          <p className="text-sm leading-relaxed text-discord-text">
+          <p className="text-sm leading-relaxed text-content-secondary">
             방송을 진행하는 동안에는 AI 캐릭터가 방송 흐름을 따라가기 위해
-            <span className="font-semibold text-white"> 항상 스트리머의 목소리를 듣고 있습니다!</span>
+            <span className="font-semibold text-content-primary"> 항상 스트리머의 목소리를 듣고 있습니다!</span>
           </p>
 
-          <div className="rounded-lg border border-discord-dark bg-discord-sidebar p-3">
-            <p className="text-xs leading-relaxed text-discord-textMuted">
-              <span className="font-medium text-discord-text">Ctrl + M</span> 단축키를 눌러 마이크를 끄면
+          <div className="rounded-lg border border-border-default bg-surface-base p-3 transition-colors">
+            <p className="text-xs leading-relaxed text-content-muted">
+              <span className="font-medium text-content-secondary">Ctrl + M</span> 단축키를 눌러 마이크를 끄면
               AI 캐릭터는 당신의 목소리를 들을 수 없습니다.
             </p>
           </div>
 
-          <p className="pt-1 text-sm font-medium text-white">
-            <span className="text-discord-blurple">{characterName}</span> 캐릭터로 방송을 시작할까요?
+          <p className="pt-1 text-sm font-medium text-content-primary">
+            <span className="text-brand">{characterName}</span> 캐릭터로 방송을 시작할까요?
           </p>
 
           {/* 다시 받지 않기 체크박스 */}
-          <label className="flex cursor-pointer items-center gap-2 pt-1 text-xs text-discord-textMuted select-none">
+          <label className="flex cursor-pointer select-none items-center gap-2 pt-1 text-xs text-content-muted">
             <input
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              className="h-4 w-4 rounded border-discord-dark bg-discord-sidebar text-discord-blurple focus:ring-1 focus:ring-discord-blurple focus:ring-offset-0"
+              className="h-4 w-4 rounded border-border-default bg-surface-base text-brand focus:ring-1 focus:ring-brand focus:ring-offset-0"
             />
             이 캐릭터에 대해 다시 받지 않기
           </label>
         </div>
 
         {/* 액션 */}
-        <div className="flex items-center justify-end gap-2 border-t border-discord-dark bg-discord-main px-6 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-border-default bg-surface-base px-6 py-4 transition-colors">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-discord-dark bg-discord-sidebar px-4 py-2 text-sm font-medium text-discord-textHover transition-colors hover:bg-discord-hover"
+            className="rounded-md border border-border-default bg-surface-panel px-4 py-2 text-sm font-medium text-content-primary transition-colors hover:bg-surface-hover"
           >
             취소
           </button>
           <button
             type="button"
             onClick={() => onConfirm(dontShowAgain)}
-            className="rounded-md bg-discord-blurple px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-blurpleHover active:scale-95"
+            className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-content-inverse transition-colors hover:bg-brand-hover active:scale-95"
           >
             시작
           </button>

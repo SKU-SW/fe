@@ -31,8 +31,8 @@ export function BroadcastControls({
   onEmotionAction,
 }: BroadcastControlsProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded bg-[#2b2d31] px-4 py-3 border border-[#1e1f22]">
-      <div className="flex flex-wrap items-center gap-6">
+    <div className="mx-auto flex w-max flex-wrap items-center justify-center gap-8 rounded-lg border border-border-strong bg-surface-panel px-8 py-3 shadow-sm transition-colors">
+      <div className="flex flex-wrap items-center gap-8">
         <ToggleSwitch label="마이크" on={sttOn} onClick={onToggleStt} />
         <ToggleSwitch label="스피커" on={ttsOn} onClick={onToggleTts} />
         <ToggleSwitch label="선제 반응" on={proactiveOn} onClick={onToggleProactive} />
@@ -43,7 +43,7 @@ export function BroadcastControls({
         <button
           type="button"
           onClick={onEmotionAction}
-          className="rounded bg-[#1e1f22] px-3 py-1.5 text-xs font-bold text-[#dbdee1] transition hover:bg-[#3f4147]"
+          className="rounded border border-border-default bg-surface-raised px-3 py-1.5 text-sm font-bold text-content-secondary transition-colors hover:bg-surface-hover hover:text-content-primary"
         >
           감정 테스트
         </button>
@@ -63,14 +63,14 @@ function ToggleSwitch({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs font-bold text-[#949ba4]">{label}</span>
+      <span className="text-sm font-bold text-content-muted">{label}</span>
       <button
         type="button"
         onClick={onClick}
         role="switch"
         aria-checked={on}
         className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-          on ? "bg-[#23a559]" : "bg-[#4e5058]"
+          on ? "bg-status-success" : "bg-surface-active"
         }`}
       >
         <span className="sr-only">{label}</span>

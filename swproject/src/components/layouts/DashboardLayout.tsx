@@ -30,7 +30,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-discord-main overflow-hidden text-discord-text">
+    <div className="flex h-screen overflow-hidden bg-surface-base text-content-secondary transition-colors">
       {/* 사이드바 네비게이션 */}
       <div onClick={handleSidebarClick} className="h-full flex shrink-0 cursor-default">
         <DashboardSidebar isCollapsed={isCollapsed} onToggleCollapse={() => setIsCollapsed(!isCollapsed)} />
@@ -42,7 +42,7 @@ export default function DashboardLayout() {
         <DashboardHeader />
 
         {/* React Router Outlet */}
-        <main className="flex-1 overflow-auto p-6 cursor-default">
+        <main className="flex-1 overflow-auto bg-surface-base p-6 cursor-default transition-colors">
           <Outlet />
         </main>
       </div>

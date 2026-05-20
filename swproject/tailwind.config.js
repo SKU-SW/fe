@@ -1,3 +1,5 @@
+const semanticColor = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -11,22 +13,56 @@ export default {
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
+        surface: {
+          base: semanticColor('--color-surface-base'),
+          sidebar: semanticColor('--color-surface-sidebar'),
+          panel: semanticColor('--color-surface-panel'),
+          raised: semanticColor('--color-surface-raised'),
+          hover: semanticColor('--color-surface-hover'),
+          active: semanticColor('--color-surface-active'),
+        },
+        content: {
+          primary: semanticColor('--color-content-primary'),
+          secondary: semanticColor('--color-content-secondary'),
+          muted: semanticColor('--color-content-muted'),
+          inverse: semanticColor('--color-content-inverse'),
+        },
+        border: {
+          default: semanticColor('--color-border-default'),
+          strong: semanticColor('--color-border-strong'),
+          subtle: semanticColor('--color-border-subtle'),
+        },
+        brand: {
+          DEFAULT: semanticColor('--color-brand'),
+          hover: semanticColor('--color-brand-hover'),
+        },
+        status: {
+          success: semanticColor('--color-status-success'),
+          danger: semanticColor('--color-status-danger'),
+          warning: semanticColor('--color-status-warning'),
+          info: semanticColor('--color-status-info'),
+        },
+        chat: {
+          ai: semanticColor('--color-chat-ai'),
+          streamer: semanticColor('--color-chat-streamer'),
+          viewer: semanticColor('--color-chat-viewer'),
+        },
         discord: {
-          main: '#313338',     
-          sidebar: '#2b2d31',  
-          dark: '#1e1f22',     
-          hover: '#3f4147',    
-          active: '#404249',   
-          blurple: '#5865F2',  
-          blurpleHover: '#4752C4',
-          success: '#23a559',
-          successHover: '#1a7c43',
-          danger: '#f23f42',
-          dangerHover: '#da373c',
-          warning: '#f0b232',
-          text: '#dbdee1',     
-          textMuted: '#949ba4',
-          textHover: '#f2f3f5',
+          main: semanticColor('--color-surface-base'),
+          sidebar: semanticColor('--color-surface-panel'),
+          dark: semanticColor('--color-surface-raised'),
+          hover: semanticColor('--color-surface-hover'),
+          active: semanticColor('--color-surface-active'),
+          blurple: semanticColor('--color-brand'),
+          blurpleHover: semanticColor('--color-brand-hover'),
+          success: semanticColor('--color-status-success'),
+          successHover: semanticColor('--color-status-success-hover'),
+          danger: semanticColor('--color-status-danger'),
+          dangerHover: semanticColor('--color-status-danger-hover'),
+          warning: semanticColor('--color-status-warning'),
+          text: semanticColor('--color-content-secondary'),
+          textMuted: semanticColor('--color-content-muted'),
+          textHover: semanticColor('--color-content-primary'),
         }
       }
     },

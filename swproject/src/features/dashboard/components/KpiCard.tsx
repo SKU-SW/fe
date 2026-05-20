@@ -17,32 +17,32 @@ interface KpiCardProps {
 
 const TONE_CLASSES: Record<NonNullable<KpiCardProps["tone"]>, { dot: string; value: string; tag: string; iconBg: string; iconText: string }> = {
   emerald: {
-    dot: "bg-[#23a559]",
-    value: "text-[#f2f3f5]",
-    tag: "border-[#1e1f22] bg-[#1e1f22] text-[#23a559]",
-    iconBg: "bg-[#23a559]/20",
-    iconText: "text-[#23a559]",
+    dot: "bg-status-success",
+    value: "text-content-primary",
+    tag: "border-border-strong bg-surface-raised text-status-success",
+    iconBg: "bg-status-success/15",
+    iconText: "text-status-success",
   },
   indigo: {
-    dot: "bg-[#5865F2]",
-    value: "text-[#f2f3f5]",
-    tag: "border-[#1e1f22] bg-[#1e1f22] text-[#5865F2]",
-    iconBg: "bg-[#5865F2]/20",
-    iconText: "text-[#5865F2]",
+    dot: "bg-brand",
+    value: "text-content-primary",
+    tag: "border-border-strong bg-surface-raised text-brand",
+    iconBg: "bg-brand/15",
+    iconText: "text-brand",
   },
   amber: {
-    dot: "bg-[#f0b232]",
-    value: "text-[#f2f3f5]",
-    tag: "border-[#1e1f22] bg-[#1e1f22] text-[#f0b232]",
-    iconBg: "bg-[#f0b232]/20",
-    iconText: "text-[#f0b232]",
+    dot: "bg-status-warning",
+    value: "text-content-primary",
+    tag: "border-border-strong bg-surface-raised text-status-warning",
+    iconBg: "bg-status-warning/15",
+    iconText: "text-status-warning",
   },
   rose: {
-    dot: "bg-[#f23f42]",
-    value: "text-[#f2f3f5]",
-    tag: "border-[#1e1f22] bg-[#1e1f22] text-[#f23f42]",
-    iconBg: "bg-[#f23f42]/20",
-    iconText: "text-[#f23f42]",
+    dot: "bg-status-danger",
+    value: "text-content-primary",
+    tag: "border-border-strong bg-surface-raised text-status-danger",
+    iconBg: "bg-status-danger/15",
+    iconText: "text-status-danger",
   },
 };
 
@@ -50,9 +50,9 @@ export function KpiCard({ icon: Icon, label, value, hint, tag, tone = "emerald" 
   const t = TONE_CLASSES[tone];
 
   return (
-    <div className="relative overflow-hidden rounded bg-[#2b2d31] border border-[#1e1f22] p-4">
+    <div className="relative overflow-hidden rounded-lg border border-border-strong bg-surface-panel p-4 shadow-sm transition-colors">
       {tag && (
-        <span className={`absolute right-3 top-3 inline-flex rounded border px-2 py-0.5 text-[10px] font-bold ${t.tag}`}>
+        <span className={`absolute right-3 top-3 inline-flex rounded border px-2 py-0.5 text-xs font-bold ${t.tag}`}>
           {tag}
         </span>
       )}
@@ -66,9 +66,9 @@ export function KpiCard({ icon: Icon, label, value, hint, tag, tone = "emerald" 
           <Icon className={`h-4 w-4 ${t.iconText}`} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#949ba4]">{label}</p>
-          <p className={`mt-0.5 text-xl font-extrabold ${t.value}`}>{value}</p>
-          {hint && <p className="mt-1 text-[11px] font-medium text-[#949ba4]">{hint}</p>}
+          <p className="text-xs font-bold uppercase tracking-wider text-content-muted">{label}</p>
+          <p className={`mt-0.5 text-2xl font-extrabold ${t.value}`}>{value}</p>
+          {hint && <p className="mt-1 text-xs font-medium text-content-muted">{hint}</p>}
         </div>
       </div>
     </div>

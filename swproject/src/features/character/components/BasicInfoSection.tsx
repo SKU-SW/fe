@@ -98,30 +98,30 @@ export function BasicInfoSection({ config, onChange }: BasicInfoSectionProps) {
   };
 
   return (
-    <section className="space-y-6 rounded-lg border border-discord-dark bg-discord-sidebar p-6">
+    <section className="space-y-6 rounded-lg border border-border-strong bg-surface-panel p-6 transition-colors">
       <div className="flex items-center gap-2">
-        <User className="h-5 w-5 text-discord-blurple" />
-        <h3 className="text-lg font-semibold text-discord-textHover">기본 정보</h3>
+        <User className="h-5 w-5 text-brand" />
+        <h3 className="text-lg font-semibold text-content-primary">기본 정보</h3>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-discord-text">AI 캐릭터 이름</label>
+        <label className="mb-2 block text-sm font-medium text-content-secondary">AI 캐릭터 이름</label>
         <input
           type="text"
           value={config.name}
           onChange={(event) => onChange({ ...config, name: event.target.value })}
           placeholder="예: 아리, 도우미, 짝꿍"
-          className="w-full rounded-md border border-discord-dark bg-discord-main px-4 py-2 text-discord-textHover placeholder-discord-textMuted focus:border-discord-blurple focus:outline-none"
+          className="w-full rounded-md border border-border-default bg-surface-base px-4 py-2 text-content-primary placeholder:text-content-muted transition-colors focus:border-brand focus:outline-none"
         />
       </div>
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <label className="text-sm font-medium text-discord-text">
+          <label className="text-sm font-medium text-content-secondary">
             호출어 등록{" "}
-            <span className="text-xs text-discord-textMuted">(최대 {MAX_CALL_WORDS}개)</span>
+            <span className="text-xs text-content-muted">(최대 {MAX_CALL_WORDS}개)</span>
           </label>
-          <span className="text-xs text-discord-textMuted">
+          <span className="text-xs text-content-muted">
             {config.callWords.length} / {MAX_CALL_WORDS}
           </span>
         </div>
@@ -161,7 +161,7 @@ export function BasicInfoSection({ config, onChange }: BasicInfoSectionProps) {
             }}
             disabled={reachedMax}
             placeholder={reachedMax ? "최대 개수에 도달했습니다" : "예: XX야"}
-            className="flex-1 rounded-md border border-discord-dark bg-discord-main px-4 py-2 text-discord-textHover placeholder-discord-textMuted focus:border-discord-blurple focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex-1 rounded-md border border-border-default bg-surface-base px-4 py-2 text-content-primary placeholder:text-content-muted transition-colors focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           />
           <button
             type="button"
@@ -180,7 +180,7 @@ export function BasicInfoSection({ config, onChange }: BasicInfoSectionProps) {
               addCallWord();
             }}
             disabled={reachedMax || !callWordInput.trim()}
-            className="rounded-md bg-discord-blurple px-6 py-2 font-semibold text-white transition-colors hover:bg-discord-blurpleHover disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md bg-brand px-6 py-2 font-semibold text-content-inverse transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             추가
           </button>
@@ -189,7 +189,7 @@ export function BasicInfoSection({ config, onChange }: BasicInfoSectionProps) {
         {error && (
           <p
             role="alert"
-            className="mb-3 flex items-start gap-1.5 text-xs text-discord-warning"
+            className="mb-3 flex items-start gap-1.5 text-xs text-status-warning"
           >
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>{error}</span>
@@ -199,7 +199,7 @@ export function BasicInfoSection({ config, onChange }: BasicInfoSectionProps) {
         {config.callWords.some((w) => w.length < 2) && (
           <p
             role="status"
-            className="mb-3 flex items-start gap-1.5 rounded-md border border-discord-warning/30 bg-discord-warning/10 px-3 py-2 text-xs text-discord-warning"
+            className="mb-3 flex items-start gap-1.5 rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning"
           >
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
@@ -217,11 +217,11 @@ export function BasicInfoSection({ config, onChange }: BasicInfoSectionProps) {
                 type="button"
                 onClick={() => removeCallWord(word)}
                 title="클릭하여 삭제"
-                className="group relative flex items-center gap-2 rounded-md border border-discord-blurple/30 bg-discord-blurple/15 px-3 py-1.5 transition-colors hover:border-discord-danger/40 hover:bg-discord-danger/15"
+                className="group relative flex items-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-3 py-1.5 transition-colors hover:border-status-danger/40 hover:bg-status-danger/10"
               >
-                <MessageCircle className="h-3 w-3 text-discord-blurple transition-opacity group-hover:opacity-0" />
-                <X className="absolute left-3 h-3 w-3 text-discord-danger opacity-0 transition-opacity group-hover:opacity-100" />
-                <span className="text-sm text-discord-blurple transition-colors group-hover:text-discord-danger">
+                <MessageCircle className="h-3 w-3 text-brand transition-opacity group-hover:opacity-0" />
+                <X className="absolute left-3 h-3 w-3 text-status-danger opacity-0 transition-opacity group-hover:opacity-100" />
+                <span className="text-sm text-brand transition-colors group-hover:text-status-danger">
                   {word}
                 </span>
               </button>

@@ -56,18 +56,18 @@ export function CharacterSettings({
       <button
         type="button"
         onClick={() => setShowAdvanced((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-discord-dark bg-discord-sidebar px-6 py-4 text-left transition hover:border-discord-dark hover:bg-discord-sidebar"
+        className="flex w-full items-center justify-between rounded-xl border border-border-strong bg-surface-panel px-6 py-4 text-left transition-colors hover:bg-surface-hover"
         aria-expanded={showAdvanced}
         aria-controls="character-advanced-settings"
       >
         <div>
-          <p className="text-sm font-semibold text-white">고급 설정</p>
-          <p className="mt-0.5 text-xs text-discord-textMuted">
+          <p className="text-sm font-semibold text-content-primary">고급 설정</p>
+          <p className="mt-0.5 text-xs text-content-muted">
             페르소나 기본값 대신 말투와 성격을 직접 조정하고 싶을 때만 펼치세요
           </p>
         </div>
         <ChevronDown
-          className={`h-5 w-5 shrink-0 text-discord-textMuted transition-transform ${
+          className={`h-5 w-5 shrink-0 text-content-muted transition-transform ${
             showAdvanced ? "rotate-180" : ""
           }`}
         />
@@ -80,22 +80,22 @@ export function CharacterSettings({
       )}
 
       {missingFields.length > 0 && (
-        <div className="rounded-xl border border-discord-blurple/30 bg-discord-blurple/10 p-4 text-sm text-discord-blurple">
+        <div className="rounded-xl border border-brand/30 bg-brand/10 p-4 text-sm text-brand">
           다음 항목을 입력/선택해주세요: <span className="font-medium">{missingFields.join(", ")}</span>
         </div>
       )}
 
       {triggerWordsError && (
-        <div className="rounded-xl border border-discord-warning/30 bg-discord-warning/10 p-4 text-sm text-discord-warning">
+        <div className="rounded-xl border border-status-warning/30 bg-status-warning/10 p-4 text-sm text-status-warning">
           호출어 설정 확인: <span className="font-medium">{triggerWordsError}</span>
         </div>
       )}
 
-      <div className="mt-8 flex justify-end gap-3 border-t border-discord-dark pt-6 pb-2">
+      <div className="mt-8 flex justify-end gap-3 border-t border-border-strong pt-6 pb-2">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-discord-dark bg-discord-sidebar px-6 py-2.5 font-medium text-discord-text transition-colors hover:bg-discord-hover hover:text-discord-textHover"
+          className="rounded-md border border-border-default bg-surface-panel px-6 py-2.5 font-medium text-content-secondary transition-colors hover:bg-surface-hover hover:text-content-primary"
         >
           취소
         </button>
@@ -103,7 +103,7 @@ export function CharacterSettings({
           type="button"
           onClick={onSave}
           disabled={!canSave}
-          className="rounded-md bg-discord-blurple px-8 py-2.5 font-semibold text-white transition-colors hover:bg-discord-blurpleHover disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-md bg-brand px-8 py-2.5 font-semibold text-content-inverse transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSaving ? "저장 중..." : "저장"}
         </button>

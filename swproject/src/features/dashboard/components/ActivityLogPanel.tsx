@@ -24,9 +24,9 @@ const TYPE_LABEL: Record<ActivityLog["type"], string> = {
 };
 
 const LEVEL_TEXT_CLASS: Record<NonNullable<ActivityLog["level"]>, string> = {
-  info: "text-discord-text",
-  warning: "text-[#f0b232]",
-  error: "text-[#f23f42]",
+  info: "text-content-secondary",
+  warning: "text-status-warning",
+  error: "text-status-danger",
 };
 
 function formatTime(timestamp: Date): string {
@@ -69,15 +69,15 @@ export function ActivityLogPanel({ open, logs, onClose }: ActivityLogPanelProps)
       <aside
         role="complementary"
         aria-label="실시간 대화 기록 로그"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-discord-dark bg-discord-sidebar shadow-2xl transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-border-default bg-surface-panel shadow-xl transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-discord-dark px-4">
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-border-default px-4">
           <div className="flex items-center gap-2">
             
-            <h2 className="text-base font-bold text-discord-textHover">활동 로그</h2>
-            <span className="ml-2 rounded-full bg-discord-dark px-1.5 py-0.5 text-[10px] font-bold text-discord-textMuted">
+            <h2 className="text-lg font-bold text-content-primary">활동 로그</h2>
+            <span className="ml-2 rounded-full bg-surface-raised px-1.5 py-0.5 text-xs font-bold text-content-muted">
               {logs.length}
             </span>
           </div>
@@ -85,7 +85,7 @@ export function ActivityLogPanel({ open, logs, onClose }: ActivityLogPanelProps)
             type="button"
             onClick={onClose}
             aria-label="대화 기록 닫기"
-            className="text-sm font-bold text-discord-textMuted hover:text-discord-textHover transition-colors"
+            className="text-base font-bold text-content-muted transition-colors hover:text-content-primary"
           >
             ESC
           </button>
@@ -93,7 +93,7 @@ export function ActivityLogPanel({ open, logs, onClose }: ActivityLogPanelProps)
 
         <div className="flex-1 overflow-y-auto px-2 py-4">
           {sorted.length === 0 ? (
-            <p className="py-12 text-center text-sm font-medium text-discord-textMuted">
+            <p className="py-12 text-center text-base font-medium text-content-muted">
               기록된 활동이 없습니다.
             </p>
           ) : (
@@ -103,14 +103,14 @@ export function ActivityLogPanel({ open, logs, onClose }: ActivityLogPanelProps)
                 return (
                   <li
                     key={log.id}
-                    className="group flex items-start gap-3 rounded-md px-2 py-1 hover:bg-discord-hover"
+                    className="group flex items-start gap-3 rounded-md px-2 py-1 transition-colors hover:bg-surface-hover"
                   >
-                    <time className="mt-0.5 w-[55px] shrink-0 text-[10px] font-mono text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity">
+                    <time className="mt-0.5 w-[55px] shrink-0 text-[10px] font-mono text-content-muted opacity-0 transition-opacity group-hover:opacity-100">
                       {formatTime(log.timestamp)}
                     </time>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm leading-snug ${LEVEL_TEXT_CLASS[level]}`}>
-                        <span className="mr-2 inline-flex items-center justify-center rounded bg-discord-dark px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-discord-textMuted">
+                      <p className={`text-base leading-snug ${LEVEL_TEXT_CLASS[level]}`}>
+                        <span className="mr-2 inline-flex items-center justify-center rounded bg-surface-raised px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-content-muted">
                           {TYPE_LABEL[log.type]}
                         </span>
                         {log.message}

@@ -19,6 +19,7 @@ import ChatAnalysisPage from './pages/ChatAnalysisPage';
 import ProactivePage from './pages/ProactivePage';
 import GamePage from './pages/GamePage';
 import SafetyPage from './pages/SafetyPage';
+import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
 
 // Standalone Pages
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/proactive" element={<ProactivePage />} />
         <Route path="/game" element={<GamePage />} />
         <Route path="/safety" element={<SafetyPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/stats" element={<StatsPage />} />
       </Route>
 
