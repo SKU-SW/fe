@@ -4,6 +4,8 @@
 
 코드는 `swproject/` 안에 있음. 모든 명령어는 `swproject/`에서 실행.
 
+> **개발 타임라인** (git 기준): 2026-04-14 프로젝트 시작 → 2026-04-29 CLAUDE.md 초안 → 2026-04-30 broadcast feature 추가 → 2026-05-10 Faster Whisper STT 데몬 도입 → 2026-05-11~12 OBS 오버레이 자동화 (`obsManager.ts`) → 2026-05-13 캐릭터 커스텀 페르소나 → 2026-05-19 본 문서 보강. 단일 기여자(LeeJJang1).
+
 ## 실제 기술 스택 (`swproject/package.json` 기준)
 
 - **React** 19.2.4 + **react-router-dom** v7
@@ -29,24 +31,41 @@
 pages/                 # 라우트 페이지 (auth/LoginPage, auth/SignupPage,
                        # DashboardPage, CharacterPage, ChatAnalysisPage,
                        # ProactivePage, GamePage, SafetyPage, StatsPage,
-                       # OverlayPage)
-features/              # 기능 모듈 — 현재 auth, character, dashboard만 존재
-  auth/        → api/, components/, hooks/, schemas/
-  character/   → api/, components/, hooks/
-  dashboard/   → api/, hooks/
+                       # OverlayPage, SettingsPage)
+features/              # 기능 모듈
+  auth/        → api/, components/(AuthCard, GoogleButton), hooks/, schemas/
+  character/   → api/, components/(8개: Dashboard/Form/Settings/PNGTuberSelector
+                  /Persona/Voice/Empty/Modal), hooks/(7개 CRUD+settings),
+                  lib/triggerWords.ts
+  dashboard/   → components/(KpiCard, BroadcastControls, BroadcastHeader,
+                  CharacterPortrait, ConversationStream, ActivityLogPanel,
+                  ResetConfirmModal, Empty), types.ts
+  broadcast/   → api/(broadcastApi, streamApi),
+                  components/(ObsGateModal),
+                  hooks/(useObsLaunch, useStartBroadcast, useStreamInfo,
+                  useStreamWS, useTTSPlayer, useTerminateBroadcast,
+                  useViewerChatPolling)
+  stt/         → hooks/useSTT.ts  (Electron의 Python STT 데몬과 통신)
 shared/
-  lib/         → axios.ts, utils.ts
-  stores/      → authStore, characterStore, aiModeStore, safetyStore
+  lib/         → axios.ts, utils.ts, overlayBridge.ts
+  stores/      → authStore, characterStore, aiModeStore, safetyStore,
+                  broadcastNoticeStore, characterSettingsStore,
+                  overlayStore, themeStore
   hooks/       → useWebSocket.ts
-  types/       → api, auth, character, chat, game
+  types/       → api, auth, character, chat, game,
+                  broadcast, broadcastWs, stream, overlay
   constants/   → character.ts
-components/layouts/    → DashboardLayout
+components/layouts/    → DashboardLayout, DashboardHeader, DashboardSidebar
 styles/                # globals.css
 App.tsx                # <Routes> 정의
 main.tsx               # createRoot + HashRouter
 ```
 
-`electron/main.ts` — Electron 메인 프로세스 (BrowserWindow, IPC 핸들러).
+**Electron 프로세스** (`swproject/electron/`):
+- `main.ts` — BrowserWindow + IPC 핸들러
+- `preload.ts` (+`preload.d.ts`) — contextBridge로 렌더러에 노출되는 API
+- `obsManager.ts` — OBS 자동 셋업 / 투명 오버레이 동기화 매니저
+- `stt_server.py` — **Faster Whisper 기반 STT 데몬** (Electron이 spawn 관리, 방송 WebSocket으로 텍스트 푸시)
 
 **중요**: 새 페이지를 만들 때 무조건 `features/{name}/` 디렉토리를 만들 필요는 없음. 위 페이지 중 다수는 page 컴포넌트만 있고 feature 폴더가 없는 상태. 로직이 충분히 복잡해질 때만 feature 폴더로 분리.
 
@@ -129,11 +148,16 @@ VITE_WS_URL=ws://localhost:8080
 | 기능 | 위치 |
 |------|------|
 | 인증 | `features/auth/` (api, hooks, components, schemas) + `shared/stores/authStore.ts` + `shared/types/auth.ts` |
-| 캐릭터 | `features/character/` + `shared/stores/characterStore.ts` + `shared/constants/character.ts` |
-| 대시보드 | `features/dashboard/` (api, hooks) + `pages/DashboardPage.tsx` |
+| 캐릭터 | `features/character/` (Form/Settings/PNGTuberSelector/Persona/Voice 등 8개 컴포넌트, 7개 훅, `lib/triggerWords.ts`) + `shared/stores/characterStore.ts` + `shared/stores/characterSettingsStore.ts` + `shared/constants/character.ts` |
+| 대시보드 | `features/dashboard/` (components 중심: KPI/방송컨트롤/대화스트림/활동로그 등) + `pages/DashboardPage.tsx` + `components/layouts/Dashboard{Layout,Header,Sidebar}.tsx` |
+| 방송 | `features/broadcast/` (broadcastApi, streamApi, ObsGateModal, useObsLaunch / useStartBroadcast / useStreamInfo / useStreamWS / useTTSPlayer / useTerminateBroadcast / useViewerChatPolling) + `shared/stores/broadcastNoticeStore.ts` + `shared/types/broadcast.ts`, `broadcastWs.ts`, `stream.ts` + `electron/obsManager.ts` |
+| STT (음성→텍스트) | `features/stt/hooks/useSTT.ts` + `electron/stt_server.py` (Faster Whisper 데몬) |
+| 오버레이 (OBS) | `pages/OverlayPage.tsx` + `shared/stores/overlayStore.ts` + `shared/lib/overlayBridge.ts` + `shared/types/overlay.ts` + `electron/obsManager.ts` |
 | 채팅 분석 | `pages/ChatAnalysisPage.tsx` + `shared/hooks/useWebSocket.ts` |
 | 안전 검사 | `pages/SafetyPage.tsx` + `shared/stores/safetyStore.ts` |
 | AI 모드 | `shared/stores/aiModeStore.ts` |
+| 테마 | `shared/stores/themeStore.ts` (디스코드 테마 토큰) |
+| 설정 | `pages/SettingsPage.tsx` |
 
 ## 더 자세한 가이드
 
