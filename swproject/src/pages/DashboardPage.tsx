@@ -96,6 +96,7 @@ export default function DashboardPage() {
   const activityLogs = useAIModeStore((s) => s.activityLogs);
   const upsertDialogues = useAIModeStore((s) => s.upsertDialogues);
   const setCurrentTranscript = useAIModeStore((s) => s.setCurrentTranscript);
+  const setEmotion = useAIModeStore((s) => s.setEmotion);
 
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const { character } = useCharacter(selectedCharacterId);
@@ -105,17 +106,80 @@ export default function DashboardPage() {
 
   // 대시보드 진입 시 채팅 화면은 비우고, 현재 방송 정보만 확인한다.
   // 이후 새 dialogue 는 STT/WebSocket 응답과 viewer polling 으로 아래부터 쌓인다.
-  const { error: streamInfoError, refetch: refetchStreamInfo } = useStreamInfo({ size: 1 });
+  const {
+    characterInfo,
+    error: streamInfoError,
+    refetch: refetchStreamInfo,
+  } = useStreamInfo({ size: 1 });
 
   // 대시보드에 머무는 동안 SOOP/RDS에서 서버로 적재된 VIEWER 채팅을 주기적으로 반영
   useViewerChatPolling({ size: 100, intervalMs: 3000 });
 
   // TTS 오디오 재생 큐 (TTS 토글 ON 일 때만)
-  const { enqueue: enqueueTTS } = useTTSPlayer(toggles.ttsEnabled);
+  const { enqueue: enqueueTTS, isPlaying: isTtsPlaying } = useTTSPlayer(toggles.ttsEnabled);
+  const streamCharacterImageUrl = resolveAssetUrl(characterInfo?.characterImageUrl);
+  const effectiveCharacterName = characterInfo?.characterName ?? overlayCharacterName;
+  const effectiveCharacterImageUrl = streamCharacterImageUrl || overlayCharacterImageUrl;
+  const effectiveEmotionImageMap = useMemo(
+    () => buildEmotionImageMap(effectiveCharacterImageUrl),
+    [effectiveCharacterImageUrl]
+  );
 
-  // BE 의 voice 응답(Binary + Metadata 페어)을 받아 dialogue 추가 + TTS 재생
-  const handleVoiceResponse = useCallback(
-    ({ audio, voiceText, cursorId }: { audio: Blob; voiceText: string; cursorId: number; characterId: number }) => {
+  useEffect(() => {
+    updateOverlayRuntime({ isSpeaking: isTtsPlaying });
+  }, [isTtsPlaying, updateOverlayRuntime]);
+
+  useEffect(() => {
+    if (!effectiveCharacterImageUrl) return;
+
+    updateOverlayRuntime({
+      characterName: effectiveCharacterName,
+      characterImageUrl: effectiveCharacterImageUrl,
+      emotionImageMap: effectiveEmotionImageMap,
+    });
+  }, [
+    effectiveCharacterImageUrl,
+    effectiveCharacterName,
+    effectiveEmotionImageMap,
+    updateOverlayRuntime,
+  ]);
+
+  // BE Notion 스펙: VOICE_CHUNK (binary 페어, 부분 자막) / VOICE_TURN_COMPLETE (확정 cursorId, 누적 텍스트) / VOICE_EMOTION (감정 단독)
+  // 청크: TTS 재생 + 부분 자막 누적 (overlay transcript 갱신).
+  // voiceText 는 null 가능 — 누적 시 빈 문자열로 폴백.
+  const handleVoiceChunk = useCallback(
+    ({ audio, voiceText, emotion }: { audio: Blob; voiceText: string | null; emotion: import("@/shared/types/stream").StreamEmotion }) => {
+      const safeText = voiceText ?? "";
+      // 부분 자막은 누적/덮어쓰기 — 현재는 단순 덮어쓰기 (BE 가 한 청크에 부분 텍스트만 보냄)
+      const prev = useAIModeStore.getState().currentTranscript;
+      const next = prev ? `${prev}${safeText}` : safeText;
+      setCurrentTranscript(next);
+      setEmotion(emotion);
+      updateOverlayRuntime({
+        isBroadcasting: true,
+        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
+        characterName: effectiveCharacterName,
+        characterImageUrl: effectiveCharacterImageUrl,
+        emotionImageMap: effectiveEmotionImageMap,
+        transcript: next,
+        emotion,
+      });
+      enqueueTTS(audio);
+    },
+    [
+      effectiveCharacterImageUrl,
+      effectiveCharacterName,
+      effectiveEmotionImageMap,
+      enqueueTTS,
+      setCurrentTranscript,
+      setEmotion,
+      updateOverlayRuntime,
+    ]
+  );
+
+  // 턴 종료: 누적 voiceText + 최종 cursorId 로 dialogue 확정 + 자막 리셋
+  const handleVoiceTurnComplete = useCallback(
+    ({ voiceText, emotion, cursorId }: { voiceText: string; emotion: import("@/shared/types/stream").StreamEmotion; cursorId: number }) => {
       upsertDialogues(
         [
           {
@@ -123,26 +187,57 @@ export default function DashboardPage() {
             cursorId,
             speaker: "ai",
             text: voiceText,
-            emotion: "default",
+            emotion,
             // BE metadata 에 timestamp 가 없어 클라 도착 시각 사용 (ISO).
-            // parseDialogueTimestamp 가 ISO 도 fallback 으로 처리.
             timestamp: new Date().toISOString(),
           },
         ],
         cursorId
       );
+      setEmotion(emotion);
+      // 턴 종료 시 자막은 최종 텍스트로 확정 (다음 턴까지 유지)
       setCurrentTranscript(voiceText);
       updateOverlayRuntime({
         isBroadcasting: true,
         broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
-        characterName: overlayCharacterName,
-        characterImageUrl: overlayCharacterImageUrl,
+        characterName: effectiveCharacterName,
+        characterImageUrl: effectiveCharacterImageUrl,
+        emotionImageMap: effectiveEmotionImageMap,
         transcript: voiceText,
-        emotion: "default",
+        emotion,
       });
-      enqueueTTS(audio);
     },
-    [enqueueTTS, overlayCharacterImageUrl, overlayCharacterName, setCurrentTranscript, updateOverlayRuntime, upsertDialogues]
+    [
+      effectiveCharacterImageUrl,
+      effectiveCharacterName,
+      effectiveEmotionImageMap,
+      setCurrentTranscript,
+      setEmotion,
+      updateOverlayRuntime,
+      upsertDialogues,
+    ]
+  );
+
+  // 감정 단독 알림 (VOICE_EMOTION) — UI/오버레이만 갱신
+  const handleEmotionChange = useCallback(
+    (emotion: import("@/shared/types/stream").StreamEmotion) => {
+      setEmotion(emotion);
+      updateOverlayRuntime({
+        isBroadcasting: true,
+        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
+        characterName: effectiveCharacterName,
+        characterImageUrl: effectiveCharacterImageUrl,
+        emotionImageMap: effectiveEmotionImageMap,
+        emotion,
+      });
+    },
+    [
+      effectiveCharacterImageUrl,
+      effectiveCharacterName,
+      effectiveEmotionImageMap,
+      setEmotion,
+      updateOverlayRuntime,
+    ]
   );
 
   // 방송 WebSocket — broadcastStreamId + accessToken 둘 다 있을 때만 연결
@@ -151,8 +246,11 @@ export default function DashboardPage() {
     error: wsError,
     sendChat,
   } = useStreamWS({
-    onVoiceResponse: handleVoiceResponse,
-    onError: (msg) => console.error("[stream-ws] server error:", msg),
+    onVoiceChunk: handleVoiceChunk,
+    onVoiceTurnComplete: handleVoiceTurnComplete,
+    onEmotionChange: handleEmotionChange,
+    onError: (msg, code) =>
+      console.error("[stream-ws] server error:", code ? `[${code}]` : "", msg),
   });
 
   /**
@@ -179,7 +277,7 @@ export default function DashboardPage() {
             cursorId: null,
             speaker: "streamer",
             text: trimmed,
-            emotion: "default",
+            emotion: "DEFAULT",
             timestamp: new Date().toISOString(),
           },
         ],
@@ -248,12 +346,21 @@ export default function DashboardPage() {
     updateOverlayRuntime({
       isBroadcasting,
       broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
-      characterName: overlayCharacterName,
-      characterImageUrl: overlayCharacterImageUrl,
+      isSpeaking: isTtsPlaying,
+      characterName: effectiveCharacterName,
+      characterImageUrl: effectiveCharacterImageUrl,
+      emotionImageMap: effectiveEmotionImageMap,
       transcript: isBroadcasting ? useAIModeStore.getState().currentTranscript : "",
-      emotion: isBroadcasting ? useAIModeStore.getState().currentEmotion : "default",
+      emotion: isBroadcasting ? useAIModeStore.getState().currentEmotion : "DEFAULT",
     });
-  }, [isBroadcasting, overlayCharacterImageUrl, overlayCharacterName, updateOverlayRuntime]);
+  }, [
+    effectiveCharacterImageUrl,
+    effectiveCharacterName,
+    effectiveEmotionImageMap,
+    isBroadcasting,
+    isTtsPlaying,
+    updateOverlayRuntime,
+  ]);
 
   useEffect(() => {
     if (!isBroadcasting || !toggles.sttEnabled || !isSupported) return;
@@ -342,7 +449,7 @@ export default function DashboardPage() {
 
   // 방송 중일 때
   return (
-    <div className="flex flex-col gap-4 px-0 py-0">
+    <div className="flex flex-col gap-6 px-0 py-0">
       <PageHeader />
 
       <BroadcastHeader logOpen={logOpen} onToggleLog={() => setLogOpen((v) => !v)} />
@@ -357,13 +464,13 @@ export default function DashboardPage() {
       {streamInfoError && (
         <div
           role="status"
-          className="flex items-center justify-between gap-3 rounded-lg border border-[#1e1f22] bg-[#2b2d31] px-3 py-2 text-xs text-[#dbdee1]"
+          className="flex items-center justify-between gap-3 rounded-md border border-border-default bg-surface-panel px-3 py-2 text-xs text-content-secondary shadow-sm"
         >
           <span>{streamInfoError}</span>
           <button
             type="button"
             onClick={() => void refetchStreamInfo()}
-            className="rounded border border-[#3f4147] px-2 py-0.5 font-semibold text-[#dbdee1] hover:bg-[#3f4147]"
+            className="rounded border border-border-strong px-2 py-0.5 font-semibold text-content-secondary transition-colors hover:bg-surface-hover hover:text-content-primary"
           >
             다시 시도
           </button>
@@ -373,7 +480,7 @@ export default function DashboardPage() {
       {wsError && (
         <div
           role="status"
-          className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+          className="rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-xs text-status-danger"
         >
           {wsError}
         </div>
@@ -382,7 +489,7 @@ export default function DashboardPage() {
       {sttError && (
         <div
           role="status"
-          className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+          className="rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-xs text-status-danger"
         >
           {sttError}
         </div>
@@ -395,7 +502,7 @@ export default function DashboardPage() {
       />
 
       {/* 메인: 좌(초상) / 우(대화 스트림) — 2 컬럼 */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(280px,360px)_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(320px,400px)_1fr]">
         <CharacterPortrait
           imageUrl={overlayCharacterImageUrl}
           name={overlayCharacterName}
@@ -442,7 +549,7 @@ export default function DashboardPage() {
 function PageHeader() {
   return (
     <div className="space-y-1">
-      <h1 className="text-2xl font-bold text-discord-textHover">대시보드</h1>
+      <h1 className="text-2xl font-bold text-content-primary">대시보드</h1>
     </div>
   );
 }
@@ -469,11 +576,11 @@ function PttIndicator({
     return (
       <div
         role="status"
-        className="flex items-center gap-2 rounded-lg border bg-[#313338] border border-[#1e1f22] px-4 py-3 text-sm font-bold text-[#f23f42]"
+        className="flex items-center justify-center gap-2 bg-transparent px-2 py-1 text-xs font-medium text-status-danger"
       >
         <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-danger opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-status-danger" />
         </span>
         듣는 중... (키를 떼면 전송됩니다)
       </div>
@@ -484,9 +591,9 @@ function PttIndicator({
     return (
       <div
         role="status"
-        className="flex items-center gap-2 rounded-lg bg-[#313338] border border-[#1e1f22] px-4 py-3 text-sm font-bold text-[#949ba4]"
+        className="flex items-center justify-center gap-2 bg-transparent px-2 py-1 text-xs font-medium text-content-muted"
       >
-        <span className="h-2 w-2 rounded-full bg-slate-500" />
+        <span className="h-2 w-2 rounded-full bg-content-muted" />
         방송 채널 연결 중...
       </div>
     );
@@ -495,10 +602,10 @@ function PttIndicator({
   return (
     <div
       role="status"
-      className="flex items-center gap-2 rounded-lg border bg-[#313338] border border-[#1e1f22] px-4 py-3 text-sm font-bold text-[#dbdee1]"
+      className="flex items-center justify-center gap-2 bg-transparent px-2 py-1 text-xs font-medium text-content-muted"
     >
       <Mic className="h-3.5 w-3.5" />
-      <kbd className="rounded bg-[#404249] px-1.5 py-0.5 font-mono text-xs text-[#f2f3f5] rounded border border-[#1e1f22]">
+      <kbd className="rounded border border-border-strong bg-surface-active px-1.5 py-0.5 font-mono text-xs text-content-primary">
         Ctrl + M
       </kbd>
       <span>을 누르고 있는 동안 말하면 AI 캐릭터에게 전달됩니다.</span>
@@ -508,15 +615,15 @@ function PttIndicator({
 
 function MicWarningBanner({ onEnable, onDismiss }: { onEnable: () => void; onDismiss: () => void }) {
   return (
-    <div className="rounded bg-[#2b2d31] border border-[#1e1f22] p-4">
+    <div className="rounded-md border border-border-default bg-surface-panel/90 p-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-3">
-          <div className="rounded bg-[#1e1f22] p-2 text-[#949ba4]">
+          <div className="rounded bg-surface-raised p-2 text-content-muted">
             <MicOff className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-bold text-[#dbdee1]">마이크가 꺼져 있습니다</p>
-            <p className="mt-1 text-xs text-[#949ba4]">
+            <p className="text-sm font-bold text-content-secondary">마이크가 꺼져 있습니다</p>
+            <p className="mt-1 text-xs text-content-muted">
               현재 상태에서는 스트리머 음성을 입력받지 못해 호출어 감지와 음성인식 기반 반응을 수행할
               수 없습니다. 방송 흐름을 따라가려면 마이크를 켜주세요.
             </p>
@@ -527,14 +634,14 @@ function MicWarningBanner({ onEnable, onDismiss }: { onEnable: () => void; onDis
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-[#dbdee1] transition bg-[#1e1f22] hover:bg-[#3f4147]"
+            className="rounded-lg bg-surface-raised px-3 py-1.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-hover hover:text-content-primary"
           >
             나중에
           </button>
           <button
             type="button"
             onClick={onEnable}
-            className="rounded-lg bg-[#5865F2] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#4752C4]"
+            className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-content-inverse transition-colors hover:bg-brand-hover"
           >
             마이크 켜기
           </button>
@@ -601,3 +708,4 @@ function KpiGrid({ stats }: { stats: ReturnType<typeof useAIModeStore.getState>[
     </div>
   );
 }
+import { buildEmotionImageMap } from "@/shared/lib/characterEmotionImages";

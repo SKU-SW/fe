@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AxiosError } from "axios";
 import { getStreamInfo } from "@/features/broadcast/api/streamApi";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
+import { normalizeCharacterImageUrlToDefault } from "@/shared/lib/characterEmotionImages";
 import type { BroadcastCharacterInfoResDto } from "@/shared/types/broadcast";
 
 interface UseStreamInfoOptions {
@@ -74,7 +75,13 @@ export function useStreamInfo(options: UseStreamInfoOptions = {}): UseStreamInfo
     setError(null);
     try {
       const res = await getStreamInfo(size);
-      setCharacterInfo(res.broadcastCharacterInfo);
+      // BE 가 stream info 응답에서 잘못된 감정 파일명을 줄 때 Default 로 정규화 (useCharacter 와 동일 처리)
+      const info = res.broadcastCharacterInfo;
+      setCharacterInfo(
+        info
+          ? { ...info, characterImageUrl: normalizeCharacterImageUrlToDefault(info.characterImageUrl) }
+          : null,
+      );
     } catch (err: unknown) {
       if (statusOf(err) === 404) {
         // 서버 기준 진행 중 방송이 없으면 stale local broadcasting 상태를 정리한다.

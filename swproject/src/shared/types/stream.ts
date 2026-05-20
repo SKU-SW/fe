@@ -10,7 +10,21 @@
  *   - 변환은 features/broadcast/api/streamApi.ts 의 adapter 에서 수행.
  */
 
-export type StreamEmotion = "happy" | "sad" | "angry" | "crying" | "default";
+/**
+ * AI 캐릭터 감정 — 백엔드 enum 과 1:1 (UPPER_SNAKE).
+ *   - DEFAULT: 평상시
+ *   - TALKING: 말하는 중 (lip-sync 등 시각 강조)
+ *   - HAPPY / ANGRY / TIRED / SAD / FEAR: 감정 상태
+ * Notion WS 스펙: VOICE_EMOTION / VOICE_CHUNK / VOICE_TURN_COMPLETE 의 emotion 필드.
+ */
+export type StreamEmotion =
+  | "DEFAULT"
+  | "TALKING"
+  | "HAPPY"
+  | "ANGRY"
+  | "TIRED"
+  | "SAD"
+  | "FEAR";
 
 /** UI 에서 다루는 화자 종류 — 백엔드 4종 subject 와 1:1 매핑 (대소문자만 다름) */
 export type DialogueSpeaker = "streamer" | "ai" | "viewer" | "system";

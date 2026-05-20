@@ -216,7 +216,7 @@ export const useAIModeStore = create<AIModeStore>()(
       activityLogs: [],
       dialogues: [],
       dialogueCursorId: null,
-      currentEmotion: 'default',
+      currentEmotion: 'DEFAULT',
       currentTranscript: '',
 
       // === AI 모드 및 전략 ===
@@ -234,7 +234,7 @@ export const useAIModeStore = create<AIModeStore>()(
           dialogues: [],
           dialogueCursorId: null,
           activityLogs: [],
-          currentEmotion: 'default',
+          currentEmotion: 'DEFAULT',
           currentTranscript: '',
         }),
       /**
@@ -249,7 +249,7 @@ export const useAIModeStore = create<AIModeStore>()(
           dialogues: [],
           dialogueCursorId: null,
           activityLogs: [],
-          currentEmotion: 'default',
+          currentEmotion: 'DEFAULT',
           currentTranscript: '',
         }),
       setReactionStrategy: (reactionStrategy) => set({ reactionStrategy }),
@@ -336,7 +336,7 @@ export const useAIModeStore = create<AIModeStore>()(
           activityLogs: [],
           dialogues: [],
           dialogueCursorId: null,
-          currentEmotion: 'default',
+          currentEmotion: 'DEFAULT',
           currentTranscript: '',
         }),
     }),

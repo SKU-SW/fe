@@ -21,19 +21,23 @@ import type {
 import type { StreamEmotion } from "@/shared/types/stream";
 
 const EMOTION_LABELS: Record<StreamEmotion, string> = {
-  happy: "기쁨",
-  sad: "슬픔",
-  angry: "화남",
-  crying: "우는",
-  default: "기본",
+  DEFAULT: "기본",
+  TALKING: "말하는 중",
+  HAPPY: "기쁨",
+  ANGRY: "화남",
+  TIRED: "지침",
+  SAD: "슬픔",
+  FEAR: "두려움",
 };
 
 const EMOTION_RING_CLASS: Record<StreamEmotion, string> = {
-  happy: "drop-shadow-[0_0_22px_rgba(250,204,21,0.55)]",
-  sad: "drop-shadow-[0_0_22px_rgba(59,130,246,0.5)] grayscale-[15%]",
-  angry: "drop-shadow-[0_0_24px_rgba(239,68,68,0.6)] saturate-125",
-  crying: "drop-shadow-[0_0_22px_rgba(34,211,238,0.5)]",
-  default: "drop-shadow-[0_0_18px_rgba(15,23,42,0.45)]",
+  DEFAULT: "drop-shadow-[0_0_18px_rgba(15,23,42,0.45)]",
+  TALKING: "drop-shadow-[0_0_22px_rgba(99,102,241,0.55)]",
+  HAPPY: "drop-shadow-[0_0_22px_rgba(250,204,21,0.55)]",
+  ANGRY: "drop-shadow-[0_0_24px_rgba(239,68,68,0.6)] saturate-125",
+  TIRED: "drop-shadow-[0_0_22px_rgba(148,163,184,0.5)] grayscale-[15%]",
+  SAD: "drop-shadow-[0_0_22px_rgba(59,130,246,0.5)] grayscale-[15%]",
+  FEAR: "drop-shadow-[0_0_22px_rgba(167,139,250,0.55)]",
 };
 
 const POSITION_CLASS: Record<OverlayPosition, string> = {
@@ -51,6 +55,8 @@ const POSITION_LABEL: Record<OverlayPosition, string> = {
 };
 
 const POSITIONS: OverlayPosition[] = ["bottom-right", "bottom-left", "top-right", "top-left"];
+const FADE_DELAY_MS = 3000;
+const FADE_DURATION_MS = 300;
 
 function createDefaultBridgeState(settings: OverlaySettings): OverlayBridgeState {
   return {
@@ -58,10 +64,12 @@ function createDefaultBridgeState(settings: OverlaySettings): OverlayBridgeState
     runtime: {
       isBroadcasting: false,
       broadcastStreamId: null,
+      isSpeaking: false,
       characterName: "AI",
       characterImageUrl: "",
+      emotionImageMap: {},
       transcript: "",
-      emotion: "default",
+      emotion: "DEFAULT",
       updatedAt: 0,
     },
   };
@@ -102,17 +110,14 @@ export default function OverlayPage() {
   useEffect(() => {
     const current = readOverlayBridgeState();
     if (current) {
-      console.log("[OverlayPage] Initial bridge state from localStorage:", current);
       setBridgeState(current);
     }
     void readOverlayStateServer().then((serverState) => {
       if (serverState) {
-        console.log("[OverlayPage] Initial bridge state from server:", serverState);
         setBridgeState(serverState);
       }
     });
     const unsubscribe = subscribeOverlayBridgeState((state) => {
-      console.log("[OverlayPage] Bridge state updated:", state);
       setBridgeState(state);
     });
     return unsubscribe;
@@ -172,11 +177,60 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
         isBroadcasting: true,
         characterName: runtime.characterName || "AI 캐릭터",
         transcript: runtime.transcript || "오버레이 미리보기입니다. 방송 시작 후 AI 응답이 여기에 표시됩니다.",
-        emotion: runtime.emotion || "default",
+        emotion: runtime.emotion || "DEFAULT",
       }
     : runtime;
+  const [displayTranscript, setDisplayTranscript] = useState(previewRuntime.transcript);
+  const [displayEmotion, setDisplayEmotion] = useState<StreamEmotion>(previewRuntime.emotion);
+  const [bubbleVisible, setBubbleVisible] = useState(Boolean(previewRuntime.transcript));
+
+  useEffect(() => {
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
+
+    if (preview) {
+      setDisplayTranscript(previewRuntime.transcript);
+      setDisplayEmotion(previewRuntime.emotion);
+      setBubbleVisible(Boolean(previewRuntime.transcript));
+      return;
+    }
+
+    setDisplayTranscript(previewRuntime.transcript);
+    setDisplayEmotion(previewRuntime.emotion);
+    setBubbleVisible(Boolean(previewRuntime.transcript));
+
+    if (previewRuntime.isSpeaking || !previewRuntime.transcript) {
+      return () => {
+        if (fadeTimer) clearTimeout(fadeTimer);
+        if (clearTimer) clearTimeout(clearTimer);
+      };
+    }
+
+    fadeTimer = setTimeout(() => {
+      setBubbleVisible(false);
+      setDisplayEmotion("DEFAULT");
+      clearTimer = setTimeout(() => setDisplayTranscript(""), FADE_DURATION_MS);
+    }, FADE_DELAY_MS);
+
+    return () => {
+      if (fadeTimer) clearTimeout(fadeTimer);
+      if (clearTimer) clearTimeout(clearTimer);
+    };
+  }, [
+    preview,
+    previewRuntime.transcript,
+    previewRuntime.emotion,
+    previewRuntime.isSpeaking,
+  ]);
+
+  const displayRuntime: OverlayRuntimeState = {
+    ...previewRuntime,
+    transcript: displayTranscript,
+    emotion: displayEmotion,
+  };
   const shouldShow = settings.enabled && previewRuntime.isBroadcasting;
-  const hasCharacterImage = previewRuntime.characterImageUrl.length > 0;
+  const resolvedCharacterImage = resolveCharacterImage(displayRuntime);
+  const hasCharacterImage = resolvedCharacterImage.length > 0;
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-transparent pointer-events-none z-50">
@@ -186,23 +240,39 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
             className="pointer-events-none flex items-end gap-4 transition-transform duration-300"
             style={{ transform: `scale(${settings.scale})`, transformOrigin: transformOriginFor(settings.position) }}
           >
-            {settings.showBubble && previewRuntime.transcript && (
-              <div className="mb-20 max-w-[520px] rounded-3xl border border-white/25 bg-black/55 px-5 py-4 text-white shadow-2xl backdrop-blur-md">
-                <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/60">
-                  {previewRuntime.characterName} · {EMOTION_LABELS[previewRuntime.emotion]}
+            {settings.showBubble && displayTranscript && (
+              <div
+                className={`mb-16 rounded-[22px] border border-white/25 bg-black/55 px-4 py-3 text-white shadow-2xl backdrop-blur-md transition-opacity duration-300 ${
+                  bubbleVisible ? "opacity-100" : "opacity-0"
+                }`}
+                style={{
+                  width: "360px",
+                  minHeight: "84px",
+                }}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">
+                  {previewRuntime.characterName} · {EMOTION_LABELS[displayEmotion]}
                 </p>
-                <p className="mt-2 whitespace-pre-wrap text-xl font-extrabold leading-relaxed">
-                  {previewRuntime.transcript}
+                <p
+                  className="mt-1.5 text-sm font-bold leading-snug"
+                  style={{
+                    display: "-webkit-box",
+                    WebkitBoxOrient: "vertical",
+                    WebkitLineClamp: 2,
+                    overflow: "hidden",
+                  }}
+                >
+                  {displayTranscript}
                 </p>
               </div>
             )}
 
-            <div className="relative flex h-[420px] w-[320px] items-end justify-center">
+            <div className="relative flex h-[420px] w-[320px] shrink-0 items-end justify-center">
               {hasCharacterImage ? (
                 <img
-                  src={previewRuntime.characterImageUrl}
+                  src={resolvedCharacterImage}
                   alt={previewRuntime.characterName}
-                  className={`max-h-full max-w-full object-contain transition-all duration-300 ${EMOTION_RING_CLASS[previewRuntime.emotion]}`}
+                  className={`max-h-full max-w-full object-contain transition-all duration-300 ${EMOTION_RING_CLASS[displayEmotion]}`}
                   draggable={false}
                 />
               ) : preview ? (
@@ -220,6 +290,16 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
       )}
     </main>
   );
+}
+
+function resolveCharacterImage(runtime: OverlayRuntimeState): string {
+  const map = runtime.emotionImageMap ?? {};
+
+  if (runtime.emotion !== "DEFAULT" && map[runtime.emotion]) {
+    return map[runtime.emotion] as string;
+  }
+
+  return map.DEFAULT ?? runtime.characterImageUrl ?? "";
 }
 
 function transformOriginFor(position: OverlayPosition): string {

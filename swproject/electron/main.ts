@@ -54,7 +54,7 @@ const STATIC_MIME: Record<string, string> = {
 };
 
 type OverlayPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-type StreamEmotion = 'happy' | 'sad' | 'angry' | 'crying' | 'default';
+type StreamEmotion = 'DEFAULT' | 'TALKING' | 'HAPPY' | 'ANGRY' | 'TIRED' | 'SAD' | 'FEAR';
 
 interface OverlaySettings {
   enabled: boolean;
@@ -66,8 +66,10 @@ interface OverlaySettings {
 interface OverlayRuntimeState {
   isBroadcasting: boolean;
   broadcastStreamId: string | null;
+  isSpeaking: boolean;
   characterName: string;
   characterImageUrl: string;
+  emotionImageMap: Partial<Record<StreamEmotion, string>>;
   transcript: string;
   emotion: StreamEmotion;
   updatedAt: number;
@@ -88,10 +90,12 @@ const DEFAULT_OVERLAY_STATE: OverlayBridgeState = {
   runtime: {
     isBroadcasting: false,
     broadcastStreamId: null,
+    isSpeaking: false,
     characterName: 'AI',
     characterImageUrl: '',
+    emotionImageMap: {},
     transcript: '',
-    emotion: 'default',
+    emotion: 'DEFAULT',
     updatedAt: 0,
   },
 };
@@ -117,7 +121,20 @@ function isOverlayPosition(value: unknown): value is OverlayPosition {
 }
 
 function isStreamEmotion(value: unknown): value is StreamEmotion {
-  return value === 'happy' || value === 'sad' || value === 'angry' || value === 'crying' || value === 'default';
+  return value === 'DEFAULT'
+    || value === 'TALKING'
+    || value === 'HAPPY'
+    || value === 'ANGRY'
+    || value === 'TIRED'
+    || value === 'SAD'
+    || value === 'FEAR';
+}
+
+function isEmotionImageMap(value: unknown): value is Partial<Record<StreamEmotion, string>> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).every(
+    ([key, mapValue]) => isStreamEmotion(key) && typeof mapValue === 'string'
+  );
 }
 
 function sanitizeOverlayState(value: unknown): OverlayBridgeState {
@@ -153,12 +170,18 @@ function sanitizeOverlayState(value: unknown): OverlayBridgeState {
       broadcastStreamId: typeof runtimeCandidate.broadcastStreamId === 'string'
         ? runtimeCandidate.broadcastStreamId
         : null,
+      isSpeaking: typeof runtimeCandidate.isSpeaking === 'boolean'
+        ? runtimeCandidate.isSpeaking
+        : DEFAULT_OVERLAY_STATE.runtime.isSpeaking,
       characterName: typeof runtimeCandidate.characterName === 'string'
         ? runtimeCandidate.characterName
         : DEFAULT_OVERLAY_STATE.runtime.characterName,
       characterImageUrl: typeof runtimeCandidate.characterImageUrl === 'string'
         ? runtimeCandidate.characterImageUrl
         : DEFAULT_OVERLAY_STATE.runtime.characterImageUrl,
+      emotionImageMap: isEmotionImageMap(runtimeCandidate.emotionImageMap)
+        ? runtimeCandidate.emotionImageMap
+        : DEFAULT_OVERLAY_STATE.runtime.emotionImageMap,
       transcript: typeof runtimeCandidate.transcript === 'string'
         ? runtimeCandidate.transcript
         : DEFAULT_OVERLAY_STATE.runtime.transcript,

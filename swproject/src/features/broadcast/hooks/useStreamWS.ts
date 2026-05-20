@@ -1,24 +1,20 @@
 /**
- * @file 방송 WebSocket 클라이언트 훅 — Faster Whisper STT 텍스트 송신 + LLM/TTS 응답 수신
+ * @file 방송 WebSocket 클라이언트 훅 — STT 텍스트 송신 + LLM/TTS 응답 수신
  * @dependsOn src/shared/stores/aiModeStore.ts (broadcastStreamId)
  * @dependsOn src/shared/stores/authStore.ts (accessToken)
  * @dependsOn src/shared/types/broadcastWs.ts
  * @usedBy src/pages/DashboardPage.tsx
  *
- * Backend contract (SKU-SW/be 레포 분석 결과):
+ * Notion WS 스펙(2026-04):
  *   - URL: ${VITE_WS_URL}/api/v1/stream/ws?broadcastStreamId=...&accessToken=...
- *   - FE → BE: { type: "CHAT", message: text } JSON 1 프레임
- *   - BE → FE: 항상 페어 도착
- *       1) Binary 프레임 (TTS 오디오 Blob)
- *       2) Text 프레임 ({ characterId, voiceText, broadcastDialogueCursorId })
- *     순서 server 측 synchronized 보장. FE 는 binary 를 큐에 쌓고 metadata 도착 시 페어링.
- *   - 에러: { error: "ERROR", message: "..." } text 후 server close.
- *   - Ping: 30초마다 server 가 보냄 → 브라우저 자동 Pong 응답 (FE 코드 불필요).
+ *   - FE → BE (text JSON): { "message": "..." }
+ *   - BE → FE: text JSON 또는 binary(raw PCM) + text JSON 페어
+ *       · VOICE_EMOTION         : 감정 단독 (오디오 없음)
+ *       · VOICE_CHUNK           : TTS 청크 — 직전 binary 와 페어
+ *       · VOICE_TURN_COMPLETE   : 턴 종료 (오디오 없음, 누적 voiceText + cursorId)
+ *   - 에러 (text): { "error": "ERROR", "message": "..." } → 서버 close
  *
- * 재연결 정책:
- *   - close code 1000 (normal), 1008 (policy) → 재연결 안 함 (인증 실패/방송 종료/정책 위반)
- *   - 그 외 (네트워크 단절 등) → 3초 후 자동 재연결
- *   - broadcastStreamId 또는 accessToken 이 사라지면(idle 전환/로그아웃) 즉시 close.
+ * 재연결: code 1000/1008 → 중지, OPEN 전 1006(handshake 실패) → 중지, 그 외 3초 재시도.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,27 +22,33 @@ import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useAuthStore } from "@/shared/stores/authStore";
 import type {
   StreamWsClientMessage,
-  VoiceResponse,
+  StreamWsErrorCode,
+  StreamWsVoiceEvent,
+  VoiceChunk,
+  VoiceTurnComplete,
 } from "@/shared/types/broadcastWs";
+import type { StreamEmotion } from "@/shared/types/stream";
 
 const WS_PATH = "/api/v1/stream/ws";
 const RECONNECT_DELAY_MS = 3000;
 const RESPONSE_TIMEOUT_MS = 5000;
 
 interface UseStreamWSOptions {
-  /** 음성 + 메타데이터 페어 도착 시 호출 — dialogue 추가 + TTS 재생 트리거 용 */
-  onVoiceResponse?: (response: VoiceResponse) => void;
-  /** 서버 에러 frame 수신 시 호출 (사용자 알림 등) */
-  onError?: (message: string) => void;
+  /** TTS 청크 도착 (binary + VOICE_CHUNK 페어) — 재생 + 부분 자막 갱신 */
+  onVoiceChunk?: (chunk: VoiceChunk) => void;
+  /** 턴 종료 — dialogue 확정 (cursorId, 누적 voiceText) */
+  onVoiceTurnComplete?: (turn: VoiceTurnComplete) => void;
+  /** 감정 단독 변경 알림 (VOICE_EMOTION) */
+  onEmotionChange?: (emotion: StreamEmotion) => void;
+  /** 서버 에러 frame 수신 시 호출. code 가 없는 레거시 frame 도 있을 수 있음. */
+  onError?: (message: string, code?: StreamWsErrorCode) => void;
 }
 
 interface UseStreamWSReturn {
   isConnected: boolean;
-  /** 마지막 서버 에러 메시지 (없으면 null) */
   error: string | null;
-  /** 디버깅용 연결 상태 상세 정보 */
   diagnostic: string | null;
-  /** 채팅(STT 텍스트) 송신. 실패 사유를 함께 반환. */
+  /** 채팅(STT 텍스트) 송신. */
   sendChat: (text: string) => { ok: boolean; reason?: string };
 }
 
@@ -71,21 +73,26 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
   const clearBroadcast = useAIModeStore((s) => s.clearBroadcast);
 
   const wsRef = useRef<WebSocket | null>(null);
-  /** binary 프레임 임시 보관 — metadata 도착 시 FIFO 로 페어링 */
+  /** binary 프레임 임시 보관 — VOICE_CHUNK 도착 시 FIFO 로 페어링 */
   const pendingAudiosRef = useRef<Blob[]>([]);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const responseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** 명시적 disconnect (모드/토큰 사라질 때) 시 자동 재연결 차단 */
   const shouldReconnectRef = useRef(true);
-  /** cleanup 등 의도된 close 인지 추적 — dev StrictMode 가짜 에러 노이즈 제거용 */
   const intentionalCloseRef = useRef<WeakSet<WebSocket>>(new WeakSet());
 
-  // 콜백을 ref 에 저장 — connect 가 매 렌더마다 재생성되지 않도록
-  const onVoiceResponseRef = useRef(options.onVoiceResponse);
+  const onVoiceChunkRef = useRef(options.onVoiceChunk);
+  const onVoiceTurnCompleteRef = useRef(options.onVoiceTurnComplete);
+  const onEmotionChangeRef = useRef(options.onEmotionChange);
   const onErrorRef = useRef(options.onError);
   useEffect(() => {
-    onVoiceResponseRef.current = options.onVoiceResponse;
-  }, [options.onVoiceResponse]);
+    onVoiceChunkRef.current = options.onVoiceChunk;
+  }, [options.onVoiceChunk]);
+  useEffect(() => {
+    onVoiceTurnCompleteRef.current = options.onVoiceTurnComplete;
+  }, [options.onVoiceTurnComplete]);
+  useEffect(() => {
+    onEmotionChangeRef.current = options.onEmotionChange;
+  }, [options.onEmotionChange]);
   useEffect(() => {
     onErrorRef.current = options.onError;
   }, [options.onError]);
@@ -101,7 +108,6 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     }
   }, []);
 
-  // URL 빌드 — 둘 중 하나라도 없으면 null (즉 연결 안 함)
   const wsUrl = useMemo(() => {
     if (!accessToken || !broadcastStreamId) return null;
     const base = import.meta.env.VITE_WS_URL ?? "wss://dev.sku-sw.cloud";
@@ -112,73 +118,112 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     return `${base}${WS_PATH}?${params.toString()}`;
   }, [accessToken, broadcastStreamId]);
 
-  /** Text 프레임 처리: 에러 vs voice metadata 분기 + 페어링 */
-  const handleTextFrame = useCallback((raw: string) => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      console.warn("[stream-ws] non-JSON text frame ignored:", raw);
-      return;
-    }
-    if (!parsed || typeof parsed !== "object") return;
-    const obj = parsed as Record<string, unknown>;
-
-    // 에러 frame: { error: "ERROR", message: "..." }
-    if (obj.error === "ERROR" && typeof obj.message === "string") {
-      clearResponseTimer();
-      const msg = obj.message;
-      setError(msg);
-      onErrorRef.current?.(msg);
-
-      const lowerMsg = msg.toLowerCase();
-      if (
-        lowerMsg.includes("broadcast") ||
-        lowerMsg.includes("stream") ||
-        lowerMsg.includes("방송")
-      ) {
-        // 서버가 진행 중 방송 없음/세션 불일치류 에러를 보낸 경우 stale local 상태를 정리한다.
-        shouldReconnectRef.current = false;
-        clearBroadcast();
-      }
-      return;
-    }
-
-    // 음성 메타데이터: { characterId, voiceText, broadcastDialogueCursorId }
-    if (
-      typeof obj.voiceText === "string" &&
-      typeof obj.broadcastDialogueCursorId === "number"
-    ) {
-      // 가장 오래된 pending Blob 과 페어링 (FIFO)
-      const audio = pendingAudiosRef.current.shift();
-      if (!audio) {
-        // 서버는 binary→text 순서 보장하므로 여기 도달하면 프레임 누락이거나 순서 어긋남
-        console.warn(
-          "[stream-ws] voice metadata received without preceding binary frame — server contract assumes binary-first"
-        );
+  /** Text 프레임 처리 — eventType 분기 + 페어링 */
+  const handleTextFrame = useCallback(
+    (raw: string) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        console.warn("[stream-ws] non-JSON text frame ignored:", raw);
         return;
       }
-      const response: VoiceResponse = {
-        audio,
-        voiceText: obj.voiceText,
-        cursorId: obj.broadcastDialogueCursorId,
-        characterId: typeof obj.characterId === "number" ? obj.characterId : 0,
-      };
-      clearResponseTimer();
-      setDiagnostic(
-        `음성 응답 수신: cursorId=${response.cursorId}, text=${response.voiceText.slice(0, 40)}${response.voiceText.length > 40 ? "…" : ""}`
-      );
-      onVoiceResponseRef.current?.(response);
-      return;
-    }
+      if (!parsed || typeof parsed !== "object") return;
+      const obj = parsed as Record<string, unknown>;
 
-    console.warn("[stream-ws] unrecognized text frame:", obj);
-  }, [clearBroadcast, clearResponseTimer]);
+      // 에러 frame
+      if (obj.error === "ERROR" && typeof obj.message === "string") {
+        clearResponseTimer();
+        const msg = obj.message;
+        const code =
+          typeof obj.code === "string" ? (obj.code as StreamWsErrorCode) : undefined;
+        setError(code ? `[${code}] ${msg}` : msg);
+        onErrorRef.current?.(msg, code);
 
-  /** WebSocket 연결 (close 후 재시도 시에도 동일 함수 호출) */
+        // 코드별 재연결 정책 — 노션 공통 에러 코드 기준
+        // UNAUTHORIZED/FORBIDDEN/NOT_FOUND: 인증/리소스 문제 → 재연결 무의미
+        // CONFLICT/INVALID_REQUEST: 요청 자체 문제 → 재시도해도 같음
+        // INTERNAL_SERVER_ERROR: BE 일시 장애 → 기본 재연결 허용
+        if (
+          code === "UNAUTHORIZED" ||
+          code === "FORBIDDEN" ||
+          code === "NOT_FOUND" ||
+          code === "CONFLICT" ||
+          code === "INVALID_REQUEST"
+        ) {
+          shouldReconnectRef.current = false;
+          if (code === "UNAUTHORIZED" || code === "FORBIDDEN" || code === "NOT_FOUND") {
+            clearBroadcast();
+          }
+          return;
+        }
+
+        // 레거시 폴백 — code 가 없을 때 message 키워드로 방송 종료 판단
+        if (!code) {
+          const lowerMsg = msg.toLowerCase();
+          if (
+            lowerMsg.includes("broadcast") ||
+            lowerMsg.includes("stream") ||
+            lowerMsg.includes("방송")
+          ) {
+            shouldReconnectRef.current = false;
+            clearBroadcast();
+          }
+        }
+        return;
+      }
+
+      const evt = obj as unknown as StreamWsVoiceEvent;
+      switch (evt.eventType) {
+        case "VOICE_EMOTION": {
+          clearResponseTimer();
+          setDiagnostic(`감정 변경: ${evt.emotion}`);
+          onEmotionChangeRef.current?.(evt.emotion);
+          return;
+        }
+        case "VOICE_CHUNK": {
+          // 직전 binary 와 페어
+          const audio = pendingAudiosRef.current.shift();
+          if (!audio) {
+            console.warn(
+              "[stream-ws] VOICE_CHUNK received without preceding binary frame"
+            );
+            return;
+          }
+          clearResponseTimer();
+          // voiceText 는 null 가능 — 자막 누적 시 빈 문자열로 표시
+          const previewText = evt.voiceText ?? "";
+          setDiagnostic(
+            `청크 수신: emotion=${evt.emotion}, text="${previewText.slice(0, 30)}${previewText.length > 30 ? "…" : ""}"`
+          );
+          onVoiceChunkRef.current?.({
+            audio,
+            voiceText: evt.voiceText,
+            emotion: evt.emotion,
+          });
+          return;
+        }
+        case "VOICE_TURN_COMPLETE": {
+          clearResponseTimer();
+          setDiagnostic(
+            `턴 종료: cursorId=${evt.broadcastDialogueCursorId}, text="${evt.voiceText.slice(0, 30)}${evt.voiceText.length > 30 ? "…" : ""}"`
+          );
+          onVoiceTurnCompleteRef.current?.({
+            voiceText: evt.voiceText,
+            emotion: evt.emotion,
+            cursorId: evt.broadcastDialogueCursorId,
+          });
+          return;
+        }
+        default:
+          console.warn("[stream-ws] unrecognized text frame:", obj);
+      }
+    },
+    [clearBroadcast, clearResponseTimer]
+  );
+
   const connect = useCallback(() => {
     if (!wsUrl) return;
-    // 이미 살아있으면 중복 연결 방지
     if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) return;
 
     setError(null);
@@ -192,10 +237,7 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     let opened = false;
 
     ws.onopen = () => {
-      if (wsRef.current !== ws) {
-        console.debug("[stream-ws] stale onopen ignored");
-        return;
-      }
+      if (wsRef.current !== ws) return;
       opened = true;
       console.info("[stream-ws] connected");
       setIsConnected(true);
@@ -203,13 +245,9 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     };
 
     ws.onmessage = (event: MessageEvent) => {
-      if (wsRef.current !== ws) {
-        console.debug("[stream-ws] stale onmessage ignored");
-        return;
-      }
+      if (wsRef.current !== ws) return;
       if (event.data instanceof Blob) {
-        // 음성 frame — 페어 metadata 도착할 때까지 큐에 보관
-        if (pendingAudiosRef.current.length >= 10) {
+        if (pendingAudiosRef.current.length >= 50) {
           console.warn("[stream-ws] pending audio queue full — dropping oldest frame");
           pendingAudiosRef.current.shift();
         }
@@ -226,14 +264,8 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     };
 
     ws.onerror = () => {
-      if (wsRef.current !== ws) {
-        console.debug("[stream-ws] stale onerror ignored");
-        return;
-      }
-      if (intentionalCloseRef.current.has(ws)) {
-        console.debug("[stream-ws] onerror ignored for intentional close");
-        return;
-      }
+      if (wsRef.current !== ws) return;
+      if (intentionalCloseRef.current.has(ws)) return;
       clearResponseTimer();
       console.error("[stream-ws] error event");
       setError("WebSocket 통신 오류가 발생했습니다.");
@@ -241,13 +273,8 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     };
 
     ws.onclose = (event: CloseEvent) => {
-      if (wsRef.current !== ws) {
-        console.debug("[stream-ws] stale onclose ignored");
-        return;
-      }
-      console.info(
-        `[stream-ws] closed (code=${event.code}, reason="${event.reason}")`
-      );
+      if (wsRef.current !== ws) return;
+      console.info(`[stream-ws] closed (code=${event.code}, reason="${event.reason}")`);
       clearResponseTimer();
       setIsConnected(false);
       wsRef.current = null;
@@ -264,23 +291,21 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
 
       if (!shouldReconnectRef.current) return;
 
-      // 1000=normal, 1008=policy violation (인증/세션 교체/정책 등) → 재연결 안 함
       if (event.code === 1000 || event.code === 1008) {
         shouldReconnectRef.current = false;
         return;
       }
 
-      // 브라우저는 WS handshake 401/403/404 를 code=1006 으로만 노출할 수 있다.
-      // OPEN 되기 전 실패한 경우는 인증/방송 세션 불일치로 보고 재연결 루프를 중지한다.
       if (event.code === 1006 && !event.wasClean && !opened) {
         shouldReconnectRef.current = false;
-        setError("방송 채널 연결에 실패했습니다. 진행 중 방송이 없거나 인증이 만료되었을 수 있습니다.");
+        setError(
+          "방송 채널 연결에 실패했습니다. 진행 중 방송이 없거나 인증이 만료되었을 수 있습니다."
+        );
         setDiagnostic("연결 중단: WebSocket handshake 실패로 재연결을 중지했습니다.");
         clearBroadcast();
         return;
       }
 
-      // 그 외 (1006 등 비정상 단절) → 3초 후 재연결
       reconnectTimerRef.current = setTimeout(() => {
         if (shouldReconnectRef.current) connect();
       }, RECONNECT_DELAY_MS);
@@ -306,12 +331,10 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
         ws.close(1000, "Client disconnect");
       } catch {
         intentionalCloseRef.current.delete(ws);
-        /* ignore */
       }
     }
   }, [clearResponseTimer]);
 
-  // wsUrl 변화에 따라 connect/disconnect
   useEffect(() => {
     if (!wsUrl) {
       setDiagnostic(
@@ -331,45 +354,51 @@ export function useStreamWS(options: UseStreamWSOptions = {}): UseStreamWSReturn
     };
   }, [accessToken, broadcastStreamId, wsUrl, connect, disconnect]);
 
-  const sendChat = useCallback((text: string): { ok: boolean; reason?: string } => {
-    const ws = wsRef.current;
-    if (!ws) {
-      const reason = "소켓 인스턴스가 없습니다.";
-      console.warn("[stream-ws] sendChat called but socket missing");
-      setError(reason);
-      setDiagnostic(`송신 실패: ${reason}`);
-      return { ok: false, reason };
-    }
-    if (ws.readyState !== WebSocket.OPEN) {
-      const reason = `소켓 상태가 OPEN이 아닙니다 (${readyStateLabel(ws.readyState)}).`;
-      console.warn("[stream-ws] sendChat called but not OPEN", ws.readyState);
-      setError(reason);
-      setDiagnostic(`송신 실패: ${reason}`);
-      return { ok: false, reason };
-    }
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return { ok: false, reason: "전송할 텍스트가 비어 있습니다." };
-    }
+  const sendChat = useCallback(
+    (text: string): { ok: boolean; reason?: string } => {
+      const ws = wsRef.current;
+      if (!ws) {
+        const reason = "소켓 인스턴스가 없습니다.";
+        setError(reason);
+        setDiagnostic(`송신 실패: ${reason}`);
+        return { ok: false, reason };
+      }
+      if (ws.readyState !== WebSocket.OPEN) {
+        const reason = `소켓 상태가 OPEN이 아닙니다 (${readyStateLabel(ws.readyState)}).`;
+        setError(reason);
+        setDiagnostic(`송신 실패: ${reason}`);
+        return { ok: false, reason };
+      }
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return { ok: false, reason: "전송할 텍스트가 비어 있습니다." };
+      }
 
-    const payload: StreamWsClientMessage = { type: "CHAT", message: trimmed };
-    try {
-      ws.send(JSON.stringify(payload));
-      clearResponseTimer();
-      responseTimerRef.current = setTimeout(() => {
-        setDiagnostic(`응답 대기 시간 초과: ${RESPONSE_TIMEOUT_MS / 1000}초 내 서버 응답 없음`);
-      }, RESPONSE_TIMEOUT_MS);
-      setError(null);
-      setDiagnostic(`송신 성공 후 응답 대기 중: ${trimmed.slice(0, 40)}${trimmed.length > 40 ? "…" : ""}`);
-      return { ok: true };
-    } catch (e) {
-      console.error("[stream-ws] send failed:", e);
-      const reason = e instanceof Error ? e.message : "WebSocket send 실패";
-      setError(reason);
-      setDiagnostic(`송신 예외: ${reason}`);
-      return { ok: false, reason };
-    }
-  }, [clearResponseTimer]);
+      // Notion 스펙: { "message": "..." } — type 필드 없음.
+      const payload: StreamWsClientMessage = { message: trimmed };
+      try {
+        ws.send(JSON.stringify(payload));
+        clearResponseTimer();
+        responseTimerRef.current = setTimeout(() => {
+          setDiagnostic(
+            `응답 대기 시간 초과: ${RESPONSE_TIMEOUT_MS / 1000}초 내 서버 응답 없음`
+          );
+        }, RESPONSE_TIMEOUT_MS);
+        setError(null);
+        setDiagnostic(
+          `송신 성공 후 응답 대기 중: ${trimmed.slice(0, 40)}${trimmed.length > 40 ? "…" : ""}`
+        );
+        return { ok: true };
+      } catch (e) {
+        console.error("[stream-ws] send failed:", e);
+        const reason = e instanceof Error ? e.message : "WebSocket send 실패";
+        setError(reason);
+        setDiagnostic(`송신 예외: ${reason}`);
+        return { ok: false, reason };
+      }
+    },
+    [clearResponseTimer]
+  );
 
   return { isConnected, error, diagnostic, sendChat };
 }

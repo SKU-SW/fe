@@ -75,7 +75,13 @@ export interface BroadcastCharacterInfoResDto {
 // ============================================================
 
 /** 발언 주체 — Swagger enum 그대로 (UPPER_SNAKE) */
-export type DialogueSubject = "STREAMER" | "AI_CHARACTER" | "VIEWER" | "SYSTEM_SUMMARY";
+export type DialogueSubject =
+  | "STREAMER"
+  | "AI_CHARACTER"
+  | "VIEWER"
+  | "DONATION"
+  | "GAME_EVENT"
+  | "SYSTEM_SUMMARY";
 
 export interface BroadcastDialogueCursorItemResDto {
   /** cursor 페이징 기준이 되는 PK (단조 증가 가정) */

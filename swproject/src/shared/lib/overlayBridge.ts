@@ -24,7 +24,6 @@ export function writeOverlayBridgeState(state: OverlayBridgeState) {
   const storage = getStorage();
   if (!storage || typeof window === "undefined") return;
   const serialized = JSON.stringify(state);
-  console.log("[overlayBridge] Writing state to localStorage and IPC:", state);
   storage.setItem(OVERLAY_STATE_KEY, serialized);
   window.dispatchEvent(
     new CustomEvent<OverlayBridgeState>(OVERLAY_EVENT_NAME, { detail: state })

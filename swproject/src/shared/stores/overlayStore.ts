@@ -36,10 +36,12 @@ export const DEFAULT_OVERLAY_SETTINGS: OverlaySettings = {
 export const DEFAULT_OVERLAY_RUNTIME: OverlayRuntimeState = {
   isBroadcasting: false,
   broadcastStreamId: null,
+  isSpeaking: false,
   characterName: "AI",
   characterImageUrl: "",
+  emotionImageMap: {},
   transcript: "",
-  emotion: "default",
+  emotion: "DEFAULT",
   updatedAt: 0,
 };
 
@@ -91,7 +93,6 @@ export const useOverlayStore = create<OverlayStore>()(
              ...runtime,
              updatedAt: Date.now(),
            };
-           console.log("[overlayStore] updateRuntime called with:", runtime, "-> merged:", nextRuntime);
            syncOverlayBridge(state.settings, nextRuntime);
            return { runtime: nextRuntime };
          }),
@@ -104,7 +105,7 @@ export const useOverlayStore = create<OverlayStore>()(
           syncOverlayBridge(state.settings, runtime);
           return { runtime };
         }),
-      setTranscript: (transcript, emotion = "default") =>
+      setTranscript: (transcript, emotion = "DEFAULT") =>
         set((state) => {
           const runtime = {
             ...state.runtime,

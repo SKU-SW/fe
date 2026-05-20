@@ -1,21 +1,33 @@
 /**
- * @file TTS 오디오 재생 큐 훅
- * @dependsOn 없음 (브라우저 Audio API 만 사용)
+ * @file TTS 오디오 재생 큐 훅 — WebAudio 기반 raw PCM / 컨테이너 듀얼 디코드
+ * @dependsOn 없음 (브라우저 WebAudio API)
  * @usedBy src/pages/DashboardPage.tsx
  *
  * 동작:
  *   - enqueue(blob) 호출 시 큐에 적재
  *   - 재생 중이 아니면 즉시 재생, 재생 중이면 끝난 후 다음 항목 자동 재생
- *   - enabled=false 면 enqueue 가 즉시 무시 (사용자가 TTS 토글 OFF)
- *   - stop() 으로 큐 비우고 현재 재생 중지 (예: 방송 종료 시)
+ *   - enabled=false 면 enqueue 가 즉시 무시
+ *   - stop() 으로 큐 비우고 현재 재생 중지
  *
- * 비고:
- *   - 백엔드는 binary frame 으로 raw 오디오 bytes 를 보냄. 포맷(MP3/Opus 등) 은 명시 안 됨.
- *   - 브라우저의 <audio> 가 자동 인식 가능한 표준 포맷으로 가정 (참고 클라이언트 동작 동일).
- *   - 인식 못 하면 onerror 발생 → 다음 항목으로 넘어감 (큐 멈추지 않음).
+ * 디코드 전략 (노션 스펙: binary 는 "raw PCM"):
+ *   1) AudioContext.decodeAudioData 로 먼저 시도 — MP3/Opus/WAV 같은 컨테이너면 통과
+ *   2) 실패 시 raw PCM 으로 간주: 16-bit signed little-endian, mono, sampleRate=PCM_SAMPLE_RATE
+ *      → Int16 → Float32 변환 → AudioBuffer 생성 → 재생
+ *   3) 둘 다 실패 시 onerror 로 다음 항목 진행
+ *
+ * Raw PCM 파라미터:
+ *   - sampleRate: 환경변수 VITE_TTS_PCM_SAMPLE_RATE (기본 24000Hz)
+ *   - bitDepth: 16-bit signed little-endian (TTS 표준)
+ *   - channels: mono (1)
+ *   BE 가 다른 파라미터로 보내면 환경변수로 조정.
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const PCM_SAMPLE_RATE = Number(
+  import.meta.env.VITE_TTS_PCM_SAMPLE_RATE ?? 24000
+);
+const PCM_CHANNELS = 1;
 
 interface UseTTSPlayerOptions {
   onEvent?: (message: string) => void;
@@ -26,6 +38,32 @@ interface UseTTSPlayerReturn {
   enqueue: (audio: Blob) => void;
   /** 현재 재생 중지 + 큐 비우기 */
   stop: () => void;
+  /** 현재 TTS 재생 여부 */
+  isPlaying: boolean;
+}
+
+/**
+ * raw 16-bit signed little-endian PCM ArrayBuffer 를 AudioBuffer 로 변환.
+ * - 짝수 바이트(샘플 단위) 보장. 홀수면 마지막 1바이트 무시.
+ */
+function rawPcmToAudioBuffer(
+  ctx: AudioContext,
+  buffer: ArrayBuffer
+): AudioBuffer {
+  const view = new DataView(buffer);
+  const sampleCount = Math.floor(buffer.byteLength / 2);
+  const audioBuffer = ctx.createBuffer(
+    PCM_CHANNELS,
+    sampleCount,
+    PCM_SAMPLE_RATE
+  );
+  const channel = audioBuffer.getChannelData(0);
+  for (let i = 0; i < sampleCount; i++) {
+    const sample = view.getInt16(i * 2, /* littleEndian */ true);
+    // Int16 → Float32 [-1, 1)
+    channel[i] = sample < 0 ? sample / 0x8000 : sample / 0x7fff;
+  }
+  return audioBuffer;
 }
 
 export function useTTSPlayer(
@@ -33,12 +71,12 @@ export function useTTSPlayer(
   options: UseTTSPlayerOptions = {}
 ): UseTTSPlayerReturn {
   const queueRef = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const currentUrlRef = useRef<string | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const isPlayingRef = useRef(false);
   const onEventRef = useRef(options.onEvent);
-  // enabled 를 ref 에 동기화 — playNext 가 재귀 호출되면서 최신 값 보게
   const enabledRef = useRef(enabled);
+  const [isPlaying, setIsPlaying] = useState(false);
   useEffect(() => {
     enabledRef.current = enabled;
   }, [enabled]);
@@ -46,14 +84,54 @@ export function useTTSPlayer(
     onEventRef.current = options.onEvent;
   }, [options.onEvent]);
 
-  const cleanupCurrent = useCallback(() => {
-    if (currentUrlRef.current) {
-      URL.revokeObjectURL(currentUrlRef.current);
-      currentUrlRef.current = null;
+  const ensureContext = useCallback((): AudioContext | null => {
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+      return audioCtxRef.current;
     }
-    audioRef.current = null;
+    try {
+      const Ctx: typeof AudioContext =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      const ctx = new Ctx();
+      audioCtxRef.current = ctx;
+      return ctx;
+    } catch (e) {
+      console.error("[tts] AudioContext 생성 실패:", e);
+      onEventRef.current?.(
+        `AudioContext 생성 실패: ${e instanceof Error ? e.message : "알 수 없는 오류"}`
+      );
+      return null;
+    }
+  }, []);
+
+  const cleanupCurrent = useCallback(() => {
+    if (currentSourceRef.current) {
+      try {
+        currentSourceRef.current.onended = null;
+        currentSourceRef.current.disconnect();
+      } catch {
+        /* ignore */
+      }
+      currentSourceRef.current = null;
+    }
     isPlayingRef.current = false;
   }, []);
+
+  const decodeBlob = useCallback(
+    async (blob: Blob, ctx: AudioContext): Promise<AudioBuffer> => {
+      const arrayBuffer = await blob.arrayBuffer();
+      // 1) 컨테이너 포맷 우선 시도 (MP3/Opus/WAV 등)
+      try {
+        // decodeAudioData 는 buffer 를 detach 할 수 있으므로 복사본 사용
+        return await ctx.decodeAudioData(arrayBuffer.slice(0));
+      } catch {
+        // 2) raw PCM 폴백 — 노션 스펙 기본 경로
+        return rawPcmToAudioBuffer(ctx, arrayBuffer);
+      }
+    },
+    []
+  );
 
   const playNext = useCallback(() => {
     if (isPlayingRef.current) return;
@@ -62,35 +140,46 @@ export function useTTSPlayer(
     const next = queueRef.current.shift();
     if (!next) return;
 
+    const ctx = ensureContext();
+    if (!ctx) return;
+
     isPlayingRef.current = true;
-    const url = URL.createObjectURL(next);
-    currentUrlRef.current = url;
-    const audio = new Audio(url);
-    audioRef.current = audio;
+    setIsPlaying(true);
     onEventRef.current?.("TTS 재생 시도 중...");
 
-    audio.onended = () => {
-      onEventRef.current?.("TTS 재생 완료");
-      cleanupCurrent();
-      playNext();
-    };
-    audio.onerror = () => {
-      console.warn("[tts] audio decode/play failed, skipping to next");
-      onEventRef.current?.("TTS 오디오 디코드/재생 실패");
-      cleanupCurrent();
-      playNext();
-    };
+    // suspend 상태면 resume (자동재생 정책 우회)
+    const resume =
+      ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
 
-    void audio.play().catch((err) => {
-      // 자동재생 정책 거부 등
-      console.warn("[tts] play() rejected:", err);
-      onEventRef.current?.(
-        `TTS play() 거부: ${err instanceof Error ? err.message : "알 수 없는 오류"}`
-      );
-      cleanupCurrent();
-      playNext();
-    });
-  }, [cleanupCurrent]);
+    resume
+      .then(() => decodeBlob(next, ctx))
+      .then((audioBuffer) => {
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        currentSourceRef.current = source;
+        source.onended = () => {
+          onEventRef.current?.("TTS 재생 완료");
+          cleanupCurrent();
+          if (queueRef.current.length === 0) {
+            setIsPlaying(false);
+          }
+          playNext();
+        };
+        source.start();
+      })
+      .catch((err) => {
+        console.warn("[tts] decode/play 실패:", err);
+        onEventRef.current?.(
+          `TTS 디코드/재생 실패: ${err instanceof Error ? err.message : "알 수 없는 오류"}`
+        );
+        cleanupCurrent();
+        if (queueRef.current.length === 0) {
+          setIsPlaying(false);
+        }
+        playNext();
+      });
+  }, [cleanupCurrent, decodeBlob, ensureContext]);
 
   const enqueue = useCallback(
     (audio: Blob) => {
@@ -107,25 +196,36 @@ export function useTTSPlayer(
   );
 
   const stop = useCallback(() => {
-    const hadPlayback = !!audioRef.current || queueRef.current.length > 0;
-    if (audioRef.current) {
+    const hadPlayback =
+      !!currentSourceRef.current || queueRef.current.length > 0;
+    if (currentSourceRef.current) {
       try {
-        audioRef.current.pause();
+        currentSourceRef.current.stop();
       } catch {
-        /* ignore */
+        /* ignore: already stopped */
       }
     }
     cleanupCurrent();
     queueRef.current = [];
+    setIsPlaying(false);
     if (hadPlayback) {
       onEventRef.current?.("TTS 정지 및 큐 비움");
     }
   }, [cleanupCurrent]);
 
-  // unmount 시 정리
+  // unmount 시 정리 — AudioContext 는 close
   useEffect(() => {
-    return () => stop();
+    return () => {
+      stop();
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "closed") {
+        ctx.close().catch(() => {
+          /* ignore */
+        });
+      }
+      audioCtxRef.current = null;
+    };
   }, [stop]);
 
-  return { enqueue, stop };
+  return { enqueue, stop, isPlaying };
 }

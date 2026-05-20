@@ -14,7 +14,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 type OverlayPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-type StreamEmotion = 'happy' | 'sad' | 'angry' | 'crying' | 'default';
+type StreamEmotion = 'DEFAULT' | 'TALKING' | 'HAPPY' | 'ANGRY' | 'TIRED' | 'SAD' | 'FEAR';
 
 interface OverlayBridgeState {
   settings: {
@@ -26,8 +26,10 @@ interface OverlayBridgeState {
   runtime: {
     isBroadcasting: boolean;
     broadcastStreamId: string | null;
+    isSpeaking: boolean;
     characterName: string;
     characterImageUrl: string;
+    emotionImageMap: Partial<Record<StreamEmotion, string>>;
     transcript: string;
     emotion: StreamEmotion;
     updatedAt: number;
