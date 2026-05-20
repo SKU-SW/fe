@@ -32,6 +32,7 @@ import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useOverlayStore } from "@/shared/stores/overlayStore";
 import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
+import { buildEmotionImageMap } from "@/shared/lib/characterEmotionImages";
 import { resolveAssetUrl } from "@/shared/lib/utils";
 import type {
   CharacterConfig,
@@ -257,6 +258,7 @@ export default function CharacterPage() {
   const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
   const clearOverlayRuntime = useOverlayStore((s) => s.clearRuntime);
   const storedSelectedCharacter = useCharacterStore((s) => s.selectedCharacter);
+  const characterDetailsMap = useCharacterStore((s) => s.characterDetailsMap);
 
   // 방송 중 캐릭터 ID는 별도 저장하지 않고 aiModeStore.mode + 선택된 캐릭터로 도출
   // - 단일 진실 원천(single source of truth)으로 두 store 동기화 비용 제거
@@ -291,14 +293,19 @@ export default function CharacterPage() {
     }
   }, [terminateBroadcastError]);
   // API 응답을 UI CharacterPreset으로 변환
+  // 우선순위: storedSelectedCharacter > characterDetailsMap > toCharacterPreset(목록 폴백)
   const characters = useMemo(
     () => apiCharacters.map((item) => {
       if (storedSelectedCharacter && storedSelectedCharacter.characterId === item.characterId) {
         return detailToPreset(storedSelectedCharacter, settings as CharacterSettingsResDto | null);
       }
+      const cachedDetail = characterDetailsMap[item.characterId];
+      if (cachedDetail) {
+        return detailToPreset(cachedDetail, settings as CharacterSettingsResDto | null);
+      }
       return toCharacterPreset(item);
     }),
-    [apiCharacters, settings, storedSelectedCharacter]
+    [apiCharacters, characterDetailsMap, settings, storedSelectedCharacter]
   );
 
   const selectedCharacter = useMemo<CharacterPreset | null>(() => {
@@ -420,13 +427,17 @@ export default function CharacterPage() {
        if (!started) return;
 
        const broadcastCharacter = apiCharacters.find((item) => item.characterId === cid);
+       const resolvedCharacterImageUrl = resolveAssetUrl(broadcastCharacter?.characterImageUrl);
        const overlayUpdate = {
          isBroadcasting: true,
          broadcastStreamId: started.broadcastStreamId,
+         isSpeaking: false,
          characterName: broadcastCharacter?.characterName ?? "AI",
-         characterImageUrl: resolveAssetUrl(broadcastCharacter?.characterImageUrl),
+         characterImageUrl: resolvedCharacterImageUrl,
+         // characterImageUrl 기반으로 FE 가 감정별 PNG 경로를 생성한다.
+         emotionImageMap: buildEmotionImageMap(resolvedCharacterImageUrl),
          transcript: "",
-         emotion: "default" as const,
+         emotion: "DEFAULT" as const,
        };
        console.log("[CharacterPage] Broadcasting started, updating overlay runtime:", overlayUpdate);
        updateOverlayRuntime(overlayUpdate);

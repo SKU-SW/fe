@@ -8,9 +8,27 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { getCharacters } from '@/features/character/api/characterApi';
+import type { AxiosError } from 'axios';
+import { getCharacters, getCharacter } from '@/features/character/api/characterApi';
 import { useCharacterStore } from '@/shared/stores/characterStore';
+import { normalizeCharacterImageUrlToDefault } from '@/shared/lib/characterEmotionImages';
 import type { CharacterListItemResDto } from '@/shared/types/character';
+
+function getAxiosErrorMessage(err: unknown, fallback: string): string {
+  const axiosErr = err as AxiosError<{ message?: string; error?: string } | string>;
+  const responseData = axiosErr?.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    const message = responseData.message ?? responseData.error;
+    if (message) return message;
+  }
+
+  return err instanceof Error ? err.message : fallback;
+}
 
 /**
  * useCharacters 훅 반환 타입
@@ -40,17 +58,41 @@ export function useCharacters(): UseCharactersReturn {
   const [hasNext, setHasNext] = useState(false);
   const characters = useCharacterStore((s) => s.characters);
   const setCharacters = useCharacterStore((s) => s.setCharacters);
+  const setCharacterDetail = useCharacterStore((s) => s.setCharacterDetail);
 
   const fetchCharacters = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await getCharacters();
-      // API 결과를 store에 저장하여 다른 컴포넌트와 공유
+      // Swagger: page 는 1-based (백엔드 정렬 기준)
+      const response = await getCharacters(1, 10);
       setCharacters(response.content);
       setHasNext(response.hasNext);
+
+      // 목록 API가 characterPersona를 생략하는 경우 대비: 상세를 병렬 조회해 캐시에 저장
+      void Promise.all(
+        response.content.map(async (item) => {
+          try {
+            const detail = await getCharacter(item.characterId);
+            setCharacterDetail({
+              ...detail,
+              characterImageUrl: normalizeCharacterImageUrlToDefault(detail.characterImageUrl),
+            });
+          } catch {
+            // 개별 실패는 무시 — 목록 렌더링을 막지 않음
+          }
+        })
+      );
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '캐릭터 목록을 불러오지 못했습니다.';
+      const message = getAxiosErrorMessage(err, '캐릭터 목록을 불러오지 못했습니다.');
+      if (import.meta.env.DEV) {
+        const axiosErr = err as AxiosError;
+        console.error('[useCharacters] GET /api/v1/characters 실패', {
+          status: axiosErr.response?.status,
+          data: axiosErr.response?.data,
+          message,
+        });
+      }
       setError(message);
     } finally {
       setIsLoading(false);

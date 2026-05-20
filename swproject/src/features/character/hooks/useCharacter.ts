@@ -7,9 +7,27 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import type { AxiosError } from 'axios';
 import { getCharacter } from '@/features/character/api/characterApi';
 import { useCharacterStore } from '@/shared/stores/characterStore';
+import { normalizeCharacterImageUrlToDefault } from '@/shared/lib/characterEmotionImages';
 import type { CharacterDetailResDto } from '@/shared/types/character';
+
+function getAxiosErrorMessage(err: unknown, fallback: string): string {
+  const axiosErr = err as AxiosError<{ message?: string; error?: string } | string>;
+  const responseData = axiosErr?.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    const message = responseData.message ?? responseData.error;
+    if (message) return message;
+  }
+
+  return err instanceof Error ? err.message : fallback;
+}
 
 /**
  * useCharacter 훅 반환 타입
@@ -35,6 +53,7 @@ export function useCharacter(characterId: number | null): UseCharacterReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setSelectedCharacter = useCharacterStore((s) => s.setSelectedCharacter);
+  const setCharacterDetail = useCharacterStore((s) => s.setCharacterDetail);
 
   const fetchCharacter = useCallback(async () => {
     if (characterId === null) return;
@@ -42,12 +61,27 @@ export function useCharacter(characterId: number | null): UseCharacterReturn {
     setError(null);
     try {
       const data = await getCharacter(characterId);
-      setCharacter(data);
-      if (data.isSelected) {
-        setSelectedCharacter(data);
+      // BE 가 단일 조회 응답에서 잘못된 감정 파일명(Angry.png 등) 을 줄 때 Default 로 정규화
+      const normalized: CharacterDetailResDto = {
+        ...data,
+        characterImageUrl: normalizeCharacterImageUrlToDefault(data.characterImageUrl),
+      };
+      setCharacter(normalized);
+      setCharacterDetail(normalized);
+      if (normalized.isSelected) {
+        setSelectedCharacter(normalized);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '캐릭터 정보를 불러오지 못했습니다.';
+      const message = getAxiosErrorMessage(err, '캐릭터 정보를 불러오지 못했습니다.');
+      if (import.meta.env.DEV) {
+        const axiosErr = err as AxiosError;
+        console.error('[useCharacter] GET /api/v1/characters/:id 실패', {
+          characterId,
+          status: axiosErr.response?.status,
+          data: axiosErr.response?.data,
+          message,
+        });
+      }
       setError(message);
     } finally {
       setIsLoading(false);

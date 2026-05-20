@@ -181,6 +181,14 @@ export interface VoiceTypeResDto {
 
 /**
  * 캐릭터 이미지 응답
+ *
+ * Phase 2 (감정별 이미지) — BE 확장 대기 중:
+ *   - 현재 스키마: imageUrl (단일) — DEFAULT 감정에 매핑.
+ *   - 향후 BE 가 노출할 가능성 있는 형태:
+ *       a) imageUrlHappy / imageUrlAngry / ... (감정별 필드 추가)
+ *       b) emotionImages: Record<StreamEmotion, string>
+ *       c) 별도 엔드포인트 GET /character/{id}/emotion-images
+ *   - 확정되면 이 인터페이스에 optional 필드를 추가하고 OverlayRuntimeState.emotionImageMap 에 어댑팅.
  */
 export interface CharacterImageResDto {
   imageId: number;
@@ -188,6 +196,15 @@ export interface CharacterImageResDto {
   name: string;
   imageUrl: string;
   imageUrl1?: string; // 서버 호환용 (imageUrl1 필드)
+  // === Phase 2 placeholder (BE 확장 시 활성화) ===
+  // imageUrlHappy?: string;
+  // imageUrlAngry?: string;
+  // imageUrlTired?: string;
+  // imageUrlSad?: string;
+  // imageUrlFear?: string;
+  // imageUrlTalking?: string;
+  // 또는 통합 맵:
+  // emotionImages?: Partial<Record<StreamEmotion, string>>;
 }
 
 /**

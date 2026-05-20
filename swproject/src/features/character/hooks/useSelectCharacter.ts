@@ -8,9 +8,26 @@
  */
 
 import { useState, useCallback } from 'react';
+import type { AxiosError } from 'axios';
 import { selectCharacter } from '@/features/character/api/characterApi';
 import { useCharacterStore } from '@/shared/stores/characterStore';
 import type { CharacterSelectResDto } from '@/shared/types/character';
+
+function getAxiosErrorMessage(err: unknown, fallback: string): string {
+  const axiosErr = err as AxiosError<{ message?: string; error?: string } | string>;
+  const responseData = axiosErr?.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    const message = responseData.message ?? responseData.error;
+    if (message) return message;
+  }
+
+  return err instanceof Error ? err.message : fallback;
+}
 
 /**
  * useSelectCharacter 훅 반환 타입
@@ -59,7 +76,17 @@ export function useSelectCharacter(): UseSelectCharacterReturn {
         }
         return result;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : '캐릭터 선택에 실패했습니다.';
+        const message = getAxiosErrorMessage(err, '캐릭터 선택에 실패했습니다.');
+        if (import.meta.env.DEV) {
+          const axiosErr = err as AxiosError;
+          console.error('[useSelectCharacter] PATCH /api/v1/characters/:id 실패', {
+            characterId,
+            isSelected,
+            status: axiosErr.response?.status,
+            data: axiosErr.response?.data,
+            message,
+          });
+        }
         setError(message);
         return null;
       } finally {

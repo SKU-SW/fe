@@ -1,9 +1,7 @@
 /**
  * @file 캐릭터 생성 훅 - useCreateCharacter
- * @created Sprint 1 - Character 훅 구현
- * @updated Backend Swagger spec alignment
+ * @updated Backend Swagger spec alignment - POST /api/v1/characters 응답이 CharacterDetailResDto
  * @dependsOn src/features/character/api/characterApi.ts (createCharacter)
- * @dependsOn src/shared/stores/characterStore.ts (addCharacter)
  * @usedBy src/pages/CharacterPage.tsx
  */
 
@@ -13,7 +11,8 @@ import { createCharacter } from '@/features/character/api/characterApi';
 import type { CharacterCreateReqDto, CharacterDetailResDto } from '@/shared/types/character';
 
 interface UseCreateCharacterReturn {
-  create: (data: CharacterCreateReqDto) => Promise<CharacterDetailResDto | null>;
+  /** 생성된 캐릭터 상세 정보 반환 (성공 시) */
+  create: (data: CharacterCreateReqDto) => Promise<CharacterDetailResDto>;
   isPending: boolean;
   error: string | null;
 }
@@ -23,7 +22,7 @@ export function useCreateCharacter(): UseCreateCharacterReturn {
   const [error, setError] = useState<string | null>(null);
 
   const create = useCallback(
-    async (data: CharacterCreateReqDto) => {
+    async (data: CharacterCreateReqDto): Promise<CharacterDetailResDto> => {
       setIsPending(true);
       setError(null);
       try {
@@ -35,7 +34,7 @@ export function useCreateCharacter(): UseCreateCharacterReturn {
           (err instanceof Error ? err.message : '캐릭터 생성에 실패했습니다.');
         console.error('[useCreateCharacter] 실패:', err);
         setError(message);
-        return null;
+        throw err;
       } finally {
         setIsPending(false);
       }

@@ -35,17 +35,24 @@ export async function createCharacter(data: CharacterCreateReqDto): Promise<Char
 
 /**
  * 캐릭터 목록 조회
- * - GET /api/v1/characters
+ * - GET /api/v1/characters?page={page}&size={size}
+ * - 요청: page (1-indexed), size (items per page)
  * - 성공 시 SliceResponse<CharacterListItemResDto> 반환
  */
-export async function getCharacters(): Promise<SliceResponse<CharacterListItemResDto>> {
-  const res = await apiClient.get<SliceResponse<CharacterListItemResDto>>(CHAR_BASE);
+export async function getCharacters(page: number = 1, size: number = 10): Promise<SliceResponse<CharacterListItemResDto>> {
+  const res = await apiClient.get<SliceResponse<CharacterListItemResDto>>(CHAR_BASE, {
+    params: { page, size }
+  });
   if (IS_DEV) {
-    console.log('[characterApi] GET /characters response:', res.data.content.map((item) => ({
-      characterId: item.characterId,
-      characterName: item.characterName,
-      characterPersona: item.characterPersona ?? null,
-    })));
+    console.log('[characterApi] GET /characters response:', {
+      page,
+      size,
+      items: res.data.content.map((item) => ({
+        characterId: item.characterId,
+        characterName: item.characterName,
+        characterPersona: item.characterPersona ?? null,
+      }))
+    });
   }
   return res.data;
 }
@@ -87,7 +94,7 @@ export async function updateCharacter(
   }
   const res = await apiClient.put<CharacterDetailResDto>(`${CHAR_BASE}/${characterId}`, data);
   if (IS_DEV) {
-    console.log('[characterApi] PUT /characters/:id response:', {
+    console.log('[characterApi] PUT /characters/:id success:', {
       characterId: res.data.characterId,
       characterName: res.data.characterName,
       characterPersona: res.data.characterPersona,

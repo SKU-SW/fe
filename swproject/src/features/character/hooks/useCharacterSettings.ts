@@ -7,9 +7,26 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import type { AxiosError } from 'axios';
 import { getCharacterSettings } from '@/features/character/api/characterApi';
 import { useCharacterSettingsStore } from '@/shared/stores/characterSettingsStore';
 import type { CharacterSettingsResDto } from '@/shared/types/character';
+
+function getAxiosErrorMessage(err: unknown, fallback: string): string {
+  const axiosErr = err as AxiosError<{ message?: string; error?: string } | string>;
+  const responseData = axiosErr?.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    const message = responseData.message ?? responseData.error;
+    if (message) return message;
+  }
+
+  return err instanceof Error ? err.message : fallback;
+}
 
 /**
  * useCharacterSettings 훅 반환 타입
@@ -46,7 +63,15 @@ export function useCharacterSettings(enabled = true): UseCharacterSettingsReturn
       setSettings(data);
       setCachedSettings(data);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '설정 정보를 불러오지 못했습니다.';
+      const message = getAxiosErrorMessage(err, '설정 정보를 불러오지 못했습니다.');
+      if (import.meta.env.DEV) {
+        const axiosErr = err as AxiosError;
+        console.error('[useCharacterSettings] GET /api/v1/characters/settings 실패', {
+          status: axiosErr.response?.status,
+          data: axiosErr.response?.data,
+          message,
+        });
+      }
       setError(message);
     } finally {
       setIsLoading(false);

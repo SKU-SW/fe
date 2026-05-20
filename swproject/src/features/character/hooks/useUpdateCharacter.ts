@@ -1,7 +1,7 @@
 /**
  * @file 캐릭터 수정 훅 - useUpdateCharacter
  * @created Sprint 1 - Character 훅 구현
- * @updated Backend Swagger spec alignment
+ * @updated Backend Swagger spec alignment - PUT /api/v1/characters/:id 이 CharacterDetailResDto 를 반환하므로 재조회 제거
  * @dependsOn src/features/character/api/characterApi.ts (updateCharacter)
  * @dependsOn src/shared/stores/characterStore.ts (updateCharacter)
  * @usedBy src/pages/CharacterPage.tsx
@@ -10,14 +10,18 @@
 import { useState, useCallback } from 'react';
 import { updateCharacter } from '@/features/character/api/characterApi';
 import { useCharacterStore } from '@/shared/stores/characterStore';
-import type { CharacterUpdateReqDto, CharacterDetailResDto, CharacterListItemResDto } from '@/shared/types/character';
+import type {
+  CharacterUpdateReqDto,
+  CharacterListItemResDto,
+  CharacterDetailResDto,
+} from '@/shared/types/character';
 
 /**
  * useUpdateCharacter 훅 반환 타입
  */
 interface UseUpdateCharacterReturn {
-  /** 캐릭터 수정 함수 - 성공 시 CharacterDetailResDto 반환, 실패 시 null */
-  update: (characterId: number, data: CharacterUpdateReqDto) => Promise<CharacterDetailResDto | null>;
+  /** 캐릭터 수정 함수 - 성공 시 갱신된 CharacterDetailResDto 반환 */
+  update: (characterId: number, data: CharacterUpdateReqDto) => Promise<CharacterDetailResDto>;
   /** 수정 요청 진행 중 여부 */
   isPending: boolean;
   /** 에러 메시지 (실패 시) */
@@ -26,23 +30,23 @@ interface UseUpdateCharacterReturn {
 
 /**
  * 캐릭터 수정 훅
- * - API 호출 성공 시 characterStore에서 해당 캐릭터 업데이트
- * - CharacterUpdateReqDto는 모든 필드가 필수
- * - 실패 시 null 반환
+ * - PUT 응답으로 받은 CharacterDetailResDto 로 store 즉시 갱신 (별도 GET 재조회 불필요)
+ * - CharacterUpdateReqDto 는 모든 필드가 필수
  */
 export function useUpdateCharacter(): UseUpdateCharacterReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const updateCharacterInStore = useCharacterStore((s) => s.updateCharacter);
   const setSelectedCharacter = useCharacterStore((s) => s.setSelectedCharacter);
+  const setCharacterDetail = useCharacterStore((s) => s.setCharacterDetail);
 
   const update = useCallback(
-    async (characterId: number, data: CharacterUpdateReqDto) => {
+    async (characterId: number, data: CharacterUpdateReqDto): Promise<CharacterDetailResDto> => {
       setIsPending(true);
       setError(null);
       try {
         const character = await updateCharacter(characterId, data);
-        // 수정 성공: store에서 해당 캐릭터 업데이트
+        // store 의 목록 아이템 갱신
         const listItem: Partial<CharacterListItemResDto> = {
           characterName: character.characterName,
           triggerWords: character.triggerWords,
@@ -53,6 +57,7 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
           isSelected: character.isSelected,
         };
         updateCharacterInStore(characterId, listItem);
+        setCharacterDetail(character);
         if (character.isSelected) {
           setSelectedCharacter(character);
         }
@@ -64,7 +69,7 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
           (err instanceof Error ? err.message : '캐릭터 수정에 실패했습니다.');
         console.error('[useUpdateCharacter] 실패:', err);
         setError(message);
-        return null;
+        throw err;
       } finally {
         setIsPending(false);
       }
