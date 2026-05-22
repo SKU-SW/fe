@@ -14,7 +14,7 @@
  * - 보안: contextIsolation=true, nodeIntegration=false
  */
 
-import { app, BrowserWindow, globalShortcut, ipcMain, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, session, shell, systemPreferences } from 'electron';
 import { existsSync, promises as fs } from 'fs';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import http from 'http';
@@ -599,12 +599,30 @@ app.whenReady().then(async () => {
   sttManager.start();
   startOverlayStateServer();
 
+  // macOS: 손쉬운 사용 권한 확인 및 요청
+  // globalShortcut이 다른 앱 포커스 중에도 동작하려면 이 권한이 필요함
+  // 개발 모드에서는 "Electron", 패키징 후에는 앱 이름으로 목록에 표시됨
+  if (process.platform === 'darwin') {
+    const trusted = systemPreferences.isTrustedAccessibilityClient(false);
+    if (!trusted) {
+      // prompt=true → 시스템 설정 열기 안내 다이얼로그 자동 표시
+      systemPreferences.isTrustedAccessibilityClient(true);
+      dialog.showMessageBox({
+        type: 'info',
+        title: '손쉬운 사용 권한 필요',
+        message: '전역 단축키(Cmd+Shift+M)를 사용하려면 손쉬운 사용 권한이 필요합니다.',
+        detail: '시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서\n"Electron" (개발 중) 또는 앱 이름을 활성화한 뒤 앱을 재시작해주세요.',
+        buttons: ['확인'],
+      });
+    }
+  }
+
   // 전역 단축키 등록 — 앱이 백그라운드(게임 중 등)여도 동작
   // Cmd+M(macOS 창 최소화) 충돌 방지 위해 Shift 추가
   // CommandOrControl = macOS: Cmd, Windows/Linux: Ctrl
   const shortcutKey = 'CommandOrControl+Shift+M';
   const registered = globalShortcut.register(shortcutKey, () => {
-    // mainWindow가 닫혀 null이면 전달 불가 — 복원 후 전달
+    // mainWindow가 닫혀 null이면 전달 불가
     if (!mainWindow) return;
     // 최소화 상태여도 webContents는 살아있어서 IPC 전달 가능
     mainWindow.webContents.send('stt:global-toggle');
