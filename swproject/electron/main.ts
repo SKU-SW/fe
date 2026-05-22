@@ -600,11 +600,22 @@ app.whenReady().then(async () => {
   startOverlayStateServer();
 
   // 전역 단축키 등록 — 앱이 백그라운드(게임 중 등)여도 동작
+  // Cmd+M(macOS 창 최소화) 충돌 방지 위해 Shift 추가
   // CommandOrControl = macOS: Cmd, Windows/Linux: Ctrl
-  globalShortcut.register('CommandOrControl+M', () => {
-    // 렌더러(useSTT 훅)에 STT 토글 이벤트 전달
-    mainWindow?.webContents.send('stt:global-toggle');
+  const shortcutKey = 'CommandOrControl+Shift+M';
+  const registered = globalShortcut.register(shortcutKey, () => {
+    // mainWindow가 닫혀 null이면 전달 불가 — 복원 후 전달
+    if (!mainWindow) return;
+    // 최소화 상태여도 webContents는 살아있어서 IPC 전달 가능
+    mainWindow.webContents.send('stt:global-toggle');
   });
+
+  if (!registered) {
+    // 다른 앱이 같은 단축키를 선점하고 있거나 권한 문제일 때 발생
+    console.error(`[shortcut] 전역 단축키 등록 실패: ${shortcutKey}`);
+  } else {
+    console.info(`[shortcut] 전역 단축키 등록 완료: ${shortcutKey}`);
+  }
 
   // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
