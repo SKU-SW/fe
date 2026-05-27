@@ -261,20 +261,21 @@ export function useSTT(options: UseSTTOptions = {}): UseSTTReturn {
     [setCurrentTranscript]
   );
 
-  // 전역 단축키(Cmd/Ctrl+M) 이벤트 구독
-  // 앱이 백그라운드(게임 중)여도 main.ts globalShortcut이 이 이벤트를 발사함
+  // 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독
+  // 앱이 백그라운드(게임 중)여도 main.ts가 keydown/keyup 이벤트를 전달함
   useEffect(() => {
-    const onGlobalToggle = window.electronAPI?.stt?.onGlobalToggle;
-    if (typeof onGlobalToggle !== 'function') return;
+    const onGlobalPtt = window.electronAPI?.stt?.onGlobalPtt;
+    if (typeof onGlobalPtt !== 'function') return;
 
-    const unsubscribe = onGlobalToggle(() => {
-      if (isListening) {
-        // 녹음 중이면 → 중지하고 STT 변환 시작
-        void stopListening();
-      } else {
-        // 대기 중이면 → 녹음 시작
+    const unsubscribe = onGlobalPtt((payload) => {
+      if (payload.type === 'start') {
+        if (isListening) return;
         void startListening();
+        return;
       }
+
+      if (!isListening) return;
+      void stopListening();
     });
 
     return unsubscribe;

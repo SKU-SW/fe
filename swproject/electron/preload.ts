@@ -41,6 +41,20 @@ type STTResult = {
   isFinal: boolean;
 };
 
+type GlobalPttPayload = {
+  type: 'start' | 'stop';
+};
+
+type AppSettingsPayload = {
+  closeToTray: boolean;
+  pttShortcut: {
+    ctrlOrCmd: boolean;
+    shift: boolean;
+    alt: boolean;
+    key: string;
+  };
+};
+
 /**
  * Renderer → Main IPC 통신 브리지
  * - window.electronAPI로 renderer에서 접근 가능
@@ -50,6 +64,10 @@ type STTResult = {
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('app:version'),
   getPlatform: () => ipcRenderer.invoke('app:platform'),
+  appSettings: {
+    get: () => ipcRenderer.invoke('app-settings:get'),
+    set: (settings: AppSettingsPayload) => ipcRenderer.invoke('app-settings:set', settings),
+  },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
   },
@@ -73,12 +91,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('stt:result', listener);
       return () => ipcRenderer.removeListener('stt:result', listener);
     },
-    // 전역 단축키(Cmd/Ctrl+M) 트리거 이벤트 구독
-    // main.ts의 globalShortcut이 발사 → 렌더러 훅에서 STT 토글 처리
-    onGlobalToggle: (callback: () => void) => {
-      const listener = () => callback();
-      ipcRenderer.on('stt:global-toggle', listener);
-      return () => ipcRenderer.removeListener('stt:global-toggle', listener);
+    // 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독
+    onGlobalPtt: (callback: (payload: GlobalPttPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: GlobalPttPayload) => callback(payload);
+      ipcRenderer.on('stt:global-ptt', listener);
+      return () => ipcRenderer.removeListener('stt:global-ptt', listener);
     },
   },
 });

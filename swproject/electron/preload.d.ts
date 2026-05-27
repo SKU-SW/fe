@@ -18,6 +18,34 @@ interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   /** 실행 플랫폼 조회 (main: process.platform) */
   getPlatform: () => Promise<string>;
+  appSettings: {
+    get: () => Promise<{
+      closeToTray: boolean;
+      pttShortcut: {
+        ctrlOrCmd: boolean;
+        shift: boolean;
+        alt: boolean;
+        key: string;
+      };
+    }>;
+    set: (settings: {
+      closeToTray: boolean;
+      pttShortcut: {
+        ctrlOrCmd: boolean;
+        shift: boolean;
+        alt: boolean;
+        key: string;
+      };
+    }) => Promise<{ ok: boolean; settings: {
+      closeToTray: boolean;
+      pttShortcut: {
+        ctrlOrCmd: boolean;
+        shift: boolean;
+        alt: boolean;
+        key: string;
+      };
+    } }>;
+  };
   shell: {
     openExternal: (url: string) => Promise<void>;
   };
@@ -54,8 +82,8 @@ interface ElectronAPI {
     transcribe: (audioBuffer: ArrayBuffer, mimeType: string) => Promise<{ ok: boolean; text?: string; error?: string }>;
     debugPush: (text: string) => Promise<{ ok: boolean }>;
     onResult: (callback: (payload: { text: string; isFinal: boolean }) => void) => () => void;
-    /** 전역 단축키(Cmd/Ctrl+M) 트리거 구독. 반환값은 cleanup 함수. */
-    onGlobalToggle: (callback: () => void) => () => void;
+    /** 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독. 반환값은 cleanup 함수. */
+    onGlobalPtt: (callback: (payload: { type: 'start' | 'stop' }) => void) => () => void;
   };
 }
 

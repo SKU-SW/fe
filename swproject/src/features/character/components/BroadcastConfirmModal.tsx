@@ -65,7 +65,7 @@ export function BroadcastConfirmModal({
 
           <div className="rounded-lg border border-border-default bg-surface-base p-3 transition-colors">
             <p className="text-xs leading-relaxed text-content-muted">
-              <span className="font-medium text-content-secondary">Ctrl + M</span> 단축키를 눌러 마이크를 끄면
+              <span className="font-medium text-content-secondary">Ctrl/Cmd + Shift + M</span> 단축키를 눌러 마이크를 켜고/끄면
               AI 캐릭터는 당신의 목소리를 들을 수 없습니다.
             </p>
           </div>

@@ -16,7 +16,7 @@
  *   - 그 외엔 빈 상태 (캐릭터 페이지로 가는 CTA)
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, Mic, MicOff, Users, MessageSquare, Sparkles } from "lucide-react";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
@@ -84,6 +84,9 @@ const SPEAKER_MAP: Record<StreamDialogue["speaker"], ConversationSpeaker> = {
 // 페이지 컴포넌트
 // ============================================================
 
+/** VOICE_CHUNK 누적 중인 임시 AI dialogue 의 id. turn_complete 시 제거됨. */
+const STREAMING_AI_DIALOGUE_ID = "streaming-ai-pending";
+
 export default function DashboardPage() {
   const mode = useAIModeStore((s) => s.mode);
   const stats = useAIModeStore((s) => s.stats);
@@ -95,6 +98,7 @@ export default function DashboardPage() {
   const dialogues = useAIModeStore((s) => s.dialogues);
   const activityLogs = useAIModeStore((s) => s.activityLogs);
   const upsertDialogues = useAIModeStore((s) => s.upsertDialogues);
+  const removeDialogue = useAIModeStore((s) => s.removeDialogue);
   const setCurrentTranscript = useAIModeStore((s) => s.setCurrentTranscript);
   const setEmotion = useAIModeStore((s) => s.setEmotion);
 
@@ -124,6 +128,7 @@ export default function DashboardPage() {
     () => buildEmotionImageMap(effectiveCharacterImageUrl),
     [effectiveCharacterImageUrl]
   );
+  useEmotionImagePreload(effectiveEmotionImageMap);
 
   useEffect(() => {
     updateOverlayRuntime({ isSpeaking: isTtsPlaying });
@@ -145,8 +150,10 @@ export default function DashboardPage() {
   ]);
 
   // BE Notion 스펙: VOICE_CHUNK (binary 페어, 부분 자막) / VOICE_TURN_COMPLETE (확정 cursorId, 누적 텍스트) / VOICE_EMOTION (감정 단독)
-  // 청크: TTS 재생 + 부분 자막 누적 (overlay transcript 갱신).
+  // 청크: TTS 재생 + 부분 자막 누적 (overlay transcript 갱신) + 채팅창 임시 dialogue 갱신(타이핑 효과).
   // voiceText 는 null 가능 — 누적 시 빈 문자열로 폴백.
+  /** 현재 턴 동안 청크 voiceText 만 누적해 임시 dialogue 텍스트로 사용. turn_complete 시 리셋. */
+  const streamingDialogueTextRef = useRef("");
   const handleVoiceChunk = useCallback(
     ({ audio, voiceText, emotion }: { audio: Blob; voiceText: string | null; emotion: import("@/shared/types/stream").StreamEmotion }) => {
       const safeText = voiceText ?? "";
@@ -165,6 +172,24 @@ export default function DashboardPage() {
         emotion,
       });
       enqueueTTS(audio);
+
+      // 채팅창에 ChatGPT 식 타이핑 효과: 누적 텍스트가 있을 때만 임시 dialogue upsert.
+      streamingDialogueTextRef.current += safeText;
+      if (streamingDialogueTextRef.current.length > 0) {
+        upsertDialogues(
+          [
+            {
+              id: STREAMING_AI_DIALOGUE_ID,
+              cursorId: null,
+              speaker: "ai",
+              text: streamingDialogueTextRef.current,
+              emotion,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          null
+        );
+      }
     },
     [
       effectiveCharacterImageUrl,
@@ -174,12 +199,16 @@ export default function DashboardPage() {
       setCurrentTranscript,
       setEmotion,
       updateOverlayRuntime,
+      upsertDialogues,
     ]
   );
 
   // 턴 종료: 누적 voiceText + 최종 cursorId 로 dialogue 확정 + 자막 리셋
   const handleVoiceTurnComplete = useCallback(
     ({ voiceText, emotion, cursorId }: { voiceText: string; emotion: import("@/shared/types/stream").StreamEmotion; cursorId: number }) => {
+      // 스트리밍 중이던 임시 dialogue 제거 후 정식 dialogue 로 교체.
+      removeDialogue(STREAMING_AI_DIALOGUE_ID);
+      streamingDialogueTextRef.current = "";
       upsertDialogues(
         [
           {
@@ -211,6 +240,7 @@ export default function DashboardPage() {
       effectiveCharacterImageUrl,
       effectiveCharacterName,
       effectiveEmotionImageMap,
+      removeDialogue,
       setCurrentTranscript,
       setEmotion,
       updateOverlayRuntime,
@@ -335,8 +365,8 @@ export default function DashboardPage() {
   }, [cancelListening, isListening, toggles.sttEnabled]);
 
   /**
-   * Push-to-Talk: Ctrl+M 누른 동안만 마이크 ON, 떼면 즉시 종료 + 변환.
-   * - keydown: Ctrl+M 콤보 감지 → startListening (한 번만, repeat 무시)
+   * Push-to-Talk: Ctrl/Cmd+Shift+M 누른 동안만 마이크 ON, 떼면 즉시 종료 + 변환.
+   * - keydown: Ctrl/Cmd+Shift+M 콤보 감지 → startListening (한 번만, repeat 무시)
    * - keyup: M 또는 Ctrl 떼면 stopListening
    * - 방송 중 + STT 토글 ON 일 때만 활성
    * - 입력 필드 포커스 중에는 무시 (사용자 타이핑 방해 방지)
@@ -378,7 +408,7 @@ export default function DashboardPage() {
     };
 
     const isPttCombo = (e: KeyboardEvent) =>
-      (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m";
+      (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "m";
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isPttCombo(e)) return;
@@ -555,11 +585,11 @@ function PageHeader() {
 }
 
 /**
- * Push-to-Talk 안내 인디케이터 (Ctrl+M Hold)
+ * Push-to-Talk 안내 인디케이터 (Ctrl/Cmd+Shift+M Hold)
  * - sttEnabled OFF: 표시 안 함 (사용자가 일부러 끈 상태)
  * - WS 연결 중: "연결 대기" 회색
  * - 듣는 중: 빨간 펄스
- * - 평상시: "Ctrl+M 누르고 말하기" 안내
+ * - 평상시: "Ctrl/Cmd+Shift+M 누르고 말하기" 안내
  */
 function PttIndicator({
   sttEnabled,
@@ -606,7 +636,7 @@ function PttIndicator({
     >
       <Mic className="h-3.5 w-3.5" />
       <kbd className="rounded border border-border-strong bg-surface-active px-1.5 py-0.5 font-mono text-xs text-content-primary">
-        Ctrl + M
+        Ctrl/Cmd + Shift + M
       </kbd>
       <span>을 누르고 있는 동안 말하면 AI 캐릭터에게 전달됩니다.</span>
     </div>
@@ -709,3 +739,4 @@ function KpiGrid({ stats }: { stats: ReturnType<typeof useAIModeStore.getState>[
   );
 }
 import { buildEmotionImageMap } from "@/shared/lib/characterEmotionImages";
+import { useEmotionImagePreload } from "@/shared/hooks/useEmotionImagePreload";

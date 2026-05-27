@@ -14,12 +14,13 @@
  * - 보안: contextIsolation=true, nodeIntegration=false
  */
 
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, session, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, systemPreferences, Tray } from 'electron';
 import { existsSync, promises as fs } from 'fs';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import http from 'http';
 import os from 'os';
 import path from 'path';
+import { UiohookKey, type UiohookKeyboardEvent, uIOhook } from 'uiohook-napi';
 import { OBSManager, type ObsSetupResult } from './obsManager';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -28,7 +29,32 @@ const OVERLAY_SERVER_PORT = 5174;
 let mainWindow: BrowserWindow | null = null;
 let sttListening = false;
 let overlayServer: http.Server | null = null;
+let isQuitting = false;
+let isGlobalPttHeld = false;
+let tray: Tray | null = null;
 const obsManager = new OBSManager();
+
+interface AppSettingsPayload {
+  closeToTray: boolean;
+  pttShortcut: {
+    ctrlOrCmd: boolean;
+    shift: boolean;
+    alt: boolean;
+    key: string;
+  };
+}
+
+const DEFAULT_APP_SETTINGS: AppSettingsPayload = {
+  closeToTray: true,
+  pttShortcut: {
+    ctrlOrCmd: true,
+    shift: true,
+    alt: false,
+    key: 'M',
+  },
+};
+
+let appSettings: AppSettingsPayload = DEFAULT_APP_SETTINGS;
 
 interface ObsDetectionResult {
   found: boolean;
@@ -114,6 +140,99 @@ function resolveSttScriptPath(): string {
 
 function sendSttResult(payload: { text: string; isFinal: boolean }) {
   mainWindow?.webContents.send('stt:result', payload);
+}
+
+function sendGlobalPttEvent(type: 'start' | 'stop') {
+  mainWindow?.webContents.send('stt:global-ptt', { type });
+}
+
+function isGlobalPttCombo(event: UiohookKeyboardEvent): boolean {
+  const { ctrlOrCmd, shift, alt, key } = appSettings.pttShortcut;
+  const keycode = UiohookKey[key as keyof typeof UiohookKey];
+  const hasRequiredPrimaryModifier = ctrlOrCmd ? (event.ctrlKey || event.metaKey) : true;
+  const hasRequiredShift = shift ? event.shiftKey : true;
+  const hasRequiredAlt = alt ? event.altKey : true;
+  return Boolean(keycode) && hasRequiredPrimaryModifier && hasRequiredShift && hasRequiredAlt && event.keycode === keycode;
+}
+
+function startGlobalPttHook() {
+  uIOhook.on('keydown', (event) => {
+    if (!isGlobalPttCombo(event) || isGlobalPttHeld) return;
+    isGlobalPttHeld = true;
+    sendGlobalPttEvent('start');
+  });
+
+  uIOhook.on('keyup', (event) => {
+    if (!isGlobalPttHeld) return;
+
+    const isModifierRelease = event.keycode === UiohookKey.Ctrl
+      || event.keycode === UiohookKey.CtrlRight
+      || event.keycode === UiohookKey.Meta
+      || event.keycode === UiohookKey.MetaRight
+      || event.keycode === UiohookKey.Shift
+      || event.keycode === UiohookKey.ShiftRight;
+
+    if (event.keycode !== UiohookKey.M && !isModifierRelease) return;
+
+    isGlobalPttHeld = false;
+    sendGlobalPttEvent('stop');
+  });
+
+  uIOhook.start();
+}
+
+function sanitizeAppSettings(value: unknown): AppSettingsPayload {
+  const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const pttShortcut = candidate.pttShortcut && typeof candidate.pttShortcut === 'object'
+    ? candidate.pttShortcut as Record<string, unknown>
+    : {};
+
+  const ctrlOrCmd = pttShortcut.ctrlOrCmd !== false;
+  const shift = typeof pttShortcut.shift === 'boolean' ? pttShortcut.shift : DEFAULT_APP_SETTINGS.pttShortcut.shift;
+  const alt = typeof pttShortcut.alt === 'boolean' ? pttShortcut.alt : DEFAULT_APP_SETTINGS.pttShortcut.alt;
+  const key = typeof pttShortcut.key === 'string' && pttShortcut.key in UiohookKey
+    ? pttShortcut.key
+    : DEFAULT_APP_SETTINGS.pttShortcut.key;
+
+  return {
+    closeToTray: candidate.closeToTray !== false,
+    pttShortcut: {
+      ctrlOrCmd: ctrlOrCmd || (!shift && !alt),
+      shift,
+      alt,
+      key,
+    },
+  };
+}
+
+function createTray() {
+  if (tray) return;
+
+  const iconPath = path.join(app.getAppPath(), 'public', 'logo.png');
+  const fallbackIcon = nativeImage.createFromNamedImage('NSStatusAvailable', [16, 16]);
+  const trayIcon = existsSync(iconPath)
+    ? nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 })
+    : fallbackIcon;
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip('SKU-SW');
+
+  const openApp = () => {
+    if (!mainWindow) {
+      createWindow();
+      return;
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  };
+
+  tray.on('click', openApp);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '앱 열기', click: openApp },
+    { type: 'separator' },
+    { label: '종료', click: () => app.quit() },
+  ]));
 }
 
 function isOverlayPosition(value: unknown): value is OverlayPosition {
@@ -577,6 +696,14 @@ function createWindow() {
     mainWindow?.show();
   });
 
+  mainWindow.on('close', (event) => {
+    if (isQuitting || !mainWindow) return;
+    if (!appSettings.closeToTray) return;
+    // 트레이 상주 모드에서는 창을 실제로 닫지 않고 숨긴다.
+    event.preventDefault();
+    mainWindow.hide();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -598,9 +725,10 @@ app.whenReady().then(async () => {
   // STT 데몬 사전 부팅 — 사용자 첫 발화 전 모델 로딩 끝내두기
   sttManager.start();
   startOverlayStateServer();
+  createTray();
 
   // macOS: 손쉬운 사용 권한 확인 및 요청
-  // globalShortcut이 다른 앱 포커스 중에도 동작하려면 이 권한이 필요함
+  // 전역 키 훅이 다른 앱 포커스 중에도 동작하려면 이 권한이 필요함
   // 개발 모드에서는 "Electron", 패키징 후에는 앱 이름으로 목록에 표시됨
   if (process.platform === 'darwin') {
     const trusted = systemPreferences.isTrustedAccessibilityClient(false);
@@ -610,34 +738,24 @@ app.whenReady().then(async () => {
       dialog.showMessageBox({
         type: 'info',
         title: '손쉬운 사용 권한 필요',
-        message: '전역 단축키(Cmd+Shift+M)를 사용하려면 손쉬운 사용 권한이 필요합니다.',
+        message: '전역 PTT(Cmd/Ctrl+Shift+M)를 사용하려면 손쉬운 사용 권한이 필요합니다.',
         detail: '시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서\n"Electron" (개발 중) 또는 앱 이름을 활성화한 뒤 앱을 재시작해주세요.',
         buttons: ['확인'],
       });
     }
   }
 
-  // 전역 단축키 등록 — 앱이 백그라운드(게임 중 등)여도 동작
-  // Cmd+M(macOS 창 최소화) 충돌 방지 위해 Shift 추가
-  // CommandOrControl = macOS: Cmd, Windows/Linux: Ctrl
-  const shortcutKey = 'CommandOrControl+Shift+M';
-  const registered = globalShortcut.register(shortcutKey, () => {
-    // mainWindow가 닫혀 null이면 전달 불가
-    if (!mainWindow) return;
-    // 최소화 상태여도 webContents는 살아있어서 IPC 전달 가능
-    mainWindow.webContents.send('stt:global-toggle');
-  });
-
-  if (!registered) {
-    // 다른 앱이 같은 단축키를 선점하고 있거나 권한 문제일 때 발생
-    console.error(`[shortcut] 전역 단축키 등록 실패: ${shortcutKey}`);
-  } else {
-    console.info(`[shortcut] 전역 단축키 등록 완료: ${shortcutKey}`);
-  }
+  startGlobalPttHook();
+  console.info('[shortcut] 전역 PTT 후킹 시작: Ctrl/Cmd+Shift+M (hold)');
 
   // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
+  ipcMain.handle('app-settings:get', () => appSettings);
+  ipcMain.handle('app-settings:set', (_event, settings: unknown) => {
+    appSettings = sanitizeAppSettings(settings);
+    return { ok: true, settings: appSettings };
+  });
   ipcMain.handle('shell:open-external', (_event, url: string) => shell.openExternal(url));
   ipcMain.handle('obs:detect', () => detectObs());
   ipcMain.handle('obs:launch', (_event, obsPath: string) => launchObs(obsPath));
@@ -684,6 +802,18 @@ app.whenReady().then(async () => {
   createWindow();
 
   app.on('activate', () => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+      return;
+    }
+
+    if (mainWindow && mainWindow.isMinimized()) {
+      mainWindow.restore();
+      mainWindow.focus();
+      return;
+    }
+
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
@@ -691,8 +821,10 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
-  // 전역 단축키 해제 — 앱 종료 후에도 단축키가 시스템에 남는 것 방지
-  globalShortcut.unregisterAll();
+  isQuitting = true;
+  uIOhook.stop();
+  tray?.destroy();
+  tray = null;
   obsManager.disconnect();
   sttManager.shutdown();
   overlayServer?.close();
