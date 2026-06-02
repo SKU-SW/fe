@@ -1,6 +1,7 @@
 /**
  * @file 치지직 연동 상태 배지 — 사이드바 / 대시보드 등에서 재사용
  * @created Sprint Chzzk - 치지직 연동 UI
+ * @updated Backend Swagger spec alignment - authorized boolean only (no expiry)
  * @dependsOn src/features/auth/hooks/useChzzkStatus.ts
  * @dependsOn public/icons/chzzk.png (치지직 공식 아이콘)
  * @usedBy src/components/layouts/DashboardSidebar.tsx
@@ -15,7 +16,7 @@
 import { useMemo } from "react";
 import { useChzzkStatus } from "@/features/auth/hooks/useChzzkStatus";
 
-type BadgeStatus = "linked" | "expired" | "not_linked" | "loading";
+type BadgeStatus = "linked" | "not_linked" | "loading";
 
 interface ChzzkStatusBadgeProps {
   variant: "icon" | "compact" | "full";
@@ -32,10 +33,8 @@ export function ChzzkStatusBadge({ variant, showCTA = false, onConnectClick }: C
 
   const badgeStatus: BadgeStatus = useMemo(() => {
     if (isLoading || !status) return "loading";
-    if (!status.linked) return "not_linked";
-    const expiresAt = status.chzzkRefreshTokenExpiresAt;
-    if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) return "expired";
-    return "linked";
+    if (status.authorized) return "linked";
+    return "not_linked";
   }, [isLoading, status]);
 
   const config = STATUS_CONFIG[badgeStatus];
@@ -97,13 +96,13 @@ export function ChzzkStatusBadge({ variant, showCTA = false, onConnectClick }: C
           <p className="truncate text-xs text-content-muted">{config.fullDescription}</p>
         )}
       </div>
-      {showCTA && (badgeStatus === "not_linked" || badgeStatus === "expired") && onConnectClick && (
+      {showCTA && badgeStatus === "not_linked" && onConnectClick && (
         <button
           type="button"
           onClick={onConnectClick}
           className="shrink-0 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-content-inverse transition-colors hover:bg-brand-hover"
         >
-          {badgeStatus === "expired" ? "다시 연결" : "연동하기"}
+          연동하기
         </button>
       )}
     </div>
@@ -130,17 +129,6 @@ const STATUS_CONFIG: Record<BadgeStatus, {
     compactTextClass: "text-status-success",
     fullBorderClass: "border-status-success/30 bg-status-success/5",
     fullLabelClass: "text-status-success",
-  },
-  expired: {
-    label: "만료됨",
-    compactLabel: "만료",
-    iconOpacity: "opacity-80",
-    dotClass: "bg-status-danger",
-    compactBgClass: "bg-status-danger/15",
-    compactTextClass: "text-status-danger",
-    fullBorderClass: "border-status-danger/30 bg-status-danger/5",
-    fullLabelClass: "text-status-danger",
-    fullDescription: "30일이 지났습니다. 다시 연결해 주세요.",
   },
   not_linked: {
     label: "미연동",

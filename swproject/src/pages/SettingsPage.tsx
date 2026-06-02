@@ -8,7 +8,6 @@
  */
 
 import {
-  AlertTriangle,
   Check,
   CheckCircle2,
   ExternalLink,
@@ -35,23 +34,6 @@ import {
   type ChzzkConnectModalMode,
 } from "@/features/auth/components/ChzzkConnectModal";
 
-const EXPIRY_WARNING_DAYS = 7;
-
-function getDaysUntil(isoDate: string | null): number | null {
-  if (!isoDate) return null;
-  const target = new Date(isoDate).getTime();
-  if (Number.isNaN(target)) return null;
-  const diffMs = target - Date.now();
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-}
-
-function formatExpiryDate(isoDate: string | null): string {
-  if (!isoDate) return "-";
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
-}
-
 export default function SettingsPage() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
@@ -61,16 +43,10 @@ export default function SettingsPage() {
   const updatePttShortcut = useAppSettingsStore((s) => s.updatePttShortcut);
   const resetPttShortcut = useAppSettingsStore((s) => s.resetPttShortcut);
 
-  const { status, isLoading, error, refetch, isMock } = useChzzkStatus();
+  const { status, isLoading, error, refetch } = useChzzkStatus();
   const [chzzkModalMode, setChzzkModalMode] = useState<ChzzkConnectModalMode | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
-
-  const refreshExpiresAt = status?.chzzkRefreshTokenExpiresAt ?? null;
-  const daysUntilExpiry = getDaysUntil(refreshExpiresAt);
-  const isExpired = daysUntilExpiry !== null && daysUntilExpiry <= 0;
-  const isExpiringSoon =
-    daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= EXPIRY_WARNING_DAYS;
 
   const handleDisconnect = async () => {
     if (!window.confirm("치지직 연동을 해제하시겠어요? 방송을 시작하려면 다시 연동해야 합니다.")) {
@@ -141,15 +117,10 @@ export default function SettingsPage() {
                   <div>
                   <div className="flex items-center gap-2">
                     <p className="text-base font-semibold text-content-primary">치지직</p>
-                    {status?.linked && !isExpired ? (
+                    {status?.authorized ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-status-success/10 px-2 py-0.5 text-xs font-medium text-status-success">
                         <CheckCircle2 className="h-3 w-3" />
                         연동됨
-                      </span>
-                    ) : isExpired ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-status-danger/10 px-2 py-0.5 text-xs font-medium text-status-danger">
-                        <AlertTriangle className="h-3 w-3" />
-                        만료됨
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-full bg-surface-panel px-2 py-0.5 text-xs font-medium text-content-muted">
@@ -158,14 +129,14 @@ export default function SettingsPage() {
                     )}
                   </div>
                   <p className="mt-1 text-sm text-content-muted">
-                    {status?.linked && refreshExpiresAt
-                      ? `다음 만료일: ${formatExpiryDate(refreshExpiresAt)}`
+                    {status?.authorized
+                      ? "연동되었습니다. 방송을 시작할 수 있습니다."
                       : "방송 정보·채팅을 가져오려면 연동이 필요합니다."}
                   </p>
                   </div>
                 </div>
 
-                {status?.linked && !isExpired ? (
+                {status?.authorized ? (
                   <button
                     type="button"
                     onClick={() => void handleDisconnect()}
@@ -182,27 +153,14 @@ export default function SettingsPage() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setChzzkModalMode(isExpired ? "gate-expired" : "connect")}
+                    onClick={() => setChzzkModalMode("connect")}
                     className="inline-flex shrink-0 items-center gap-2 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-content-inverse transition-colors hover:bg-brand-hover"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    {isExpired ? "다시 연결하기" : "치지직 연동하기"}
+                    치지직 연동하기
                   </button>
                 )}
               </div>
-
-              {isExpiringSoon && (
-                <div className="rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs leading-5 text-status-warning">
-                  <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-                  치지직 인증이 <strong>{daysUntilExpiry}일 후</strong>에 만료됩니다. 미리 재연결해 두는 것을 권장합니다.
-                </div>
-              )}
-
-              {isMock && (
-                <div className="rounded-md border border-brand/30 bg-brand/5 px-3 py-2 text-xs leading-5 text-content-muted">
-                  ℹ️ 백엔드 연동 상태 API가 준비되면 실제 상태로 표시됩니다. 지금은 임시 응답을 사용 중입니다.
-                </div>
-              )}
 
               {disconnectError && (
                 <div className="rounded-md border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-xs leading-5 text-status-danger">

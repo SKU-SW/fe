@@ -1,15 +1,16 @@
 /**
  * @file 치지직 연동 시작 훅 - useChzzkConnect
  * @created Sprint Chzzk - 치지직 연동 UI
+ * @updated Backend Swagger spec alignment - authorized boolean instead of linked
  * @dependsOn src/features/auth/api/authApi.ts (getChzzkAuthUrl)
  * @dependsOn electron/preload.ts (electronAPI.shell.openExternal)
- * @usedBy src/pages/SettingsPage.tsx, src/features/broadcast/components/ChzzkGateModal.tsx
+ * @usedBy src/features/auth/components/ChzzkConnectModal.tsx
  *
  * 흐름:
  * 1. getChzzkAuthUrl() → 백엔드가 chzzk OAuth URL 반환 (state는 Redis 저장)
  * 2. shell.openExternal()로 시스템 브라우저에 URL 열기
  * 3. 사용자가 치지직 인증 → 백엔드 callback 처리 → User 엔티티에 토큰 저장
- * 4. 5초 간격으로 status 폴링 → linked=true 되면 onConnected 콜백 호출
+ * 4. 5초 간격으로 status 폴링 → authorized=true 되면 onConnected 콜백 호출
  * 5. POLL_TIMEOUT_MS 초과 시 timeout 처리 (사용자가 인증을 취소했을 수 있음)
  */
 
@@ -89,7 +90,7 @@ export function useChzzkConnect(options?: UseChzzkConnectOptions): UseChzzkConne
       }
       await electronAPI.shell.openExternal(authUrl);
 
-      // 3. 폴링 시작 — 사용자가 치지직 인증을 완료하면 status가 linked=true 로 바뀜
+       // 3. 폴링 시작 — 사용자가 치지직 인증을 완료하면 status가 authorized=true 로 바뀜
       setIsWaitingForUser(true);
       pollDeadlineRef.current = Date.now() + POLL_TIMEOUT_MS;
 
@@ -103,21 +104,14 @@ export function useChzzkConnect(options?: UseChzzkConnectOptions): UseChzzkConne
 
         try {
           const status = await getChzzkStatus();
-          if (status.linked) {
+          if (status.authorized) {
             stopPolling();
             setIsConnecting(false);
             onConnectedRef.current?.();
           }
         } catch (pollErr: unknown) {
-          // status API 미구현(404) 환경에서는 polling이 무의미 — 한번 알려주고 멈춤
-          const pollStatus = (pollErr as AxiosError)?.response?.status;
-          if (pollStatus === 404 || pollStatus === undefined) {
-            stopPolling();
-            setIsConnecting(false);
-            console.warn('[chzzk-connect] status API 미구현 — polling 중단. 사용자가 수동으로 새로고침해야 함.');
-            // 사용자에게 "수동 확인" 안내를 위해 콜백은 호출 — UI에서 refetch 처리
-            onConnectedRef.current?.();
-          }
+          const pollMessage = pollErr instanceof Error ? pollErr.message : "unknown polling error";
+          console.warn(`[chzzk-connect] status polling failed, retrying: ${pollMessage}`);
         }
       }, POLL_INTERVAL_MS);
     } catch (err: unknown) {

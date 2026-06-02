@@ -5,9 +5,12 @@
  * @updated Sprint 4 - 방송 시작 동의 모달 + 방송 상태(aiMode) 연동, 캐릭터 10개 한도 가드
  * @updated 방송 시작/종료를 백엔드 API(/stream/start, /stream/terminate)와 연결
  * @updated OBS 준비 체크리스트 패널 추가
+ * @updated 치지직 게이트(미연동/만료) 추가 및 방송 시작 전 선행 검증
  * @dependsOn src/features/character/hooks/index.ts
  * @dependsOn src/features/character/components/index.ts
  * @dependsOn src/features/broadcast/hooks (useStartBroadcast, useTerminateBroadcast, useObsLaunch)
+ * @dependsOn src/features/auth/api/authApi.ts (getChzzkStatus)
+ * @dependsOn src/features/auth/components/ChzzkConnectModal.tsx
  * @dependsOn src/shared/stores/aiModeStore.ts (방송 mode 동기화)
  * @dependsOn src/shared/constants/character.ts (MAX_CHARACTERS_PER_USER, PERSONA_VOICE_MAP)
  * @usedBy src/App.tsx
@@ -26,6 +29,11 @@ import {
 import { BroadcastConfirmModal, CharacterDashboard, CharacterForm } from "@/features/character/components";
 import { ObsGateModal } from "@/features/broadcast/components";
 import { useObsLaunch, useStartBroadcast, useTerminateBroadcast } from "@/features/broadcast/hooks";
+import { getChzzkStatus } from "@/features/auth/api/authApi";
+import {
+  ChzzkConnectModal,
+  type ChzzkConnectModalMode,
+} from "@/features/auth/components/ChzzkConnectModal";
 import { getTriggerWordsValidationError, normalizeTriggerWords } from "@/features/character/lib/triggerWords";
 import { useBroadcastNoticeStore } from "@/shared/stores/broadcastNoticeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
@@ -266,6 +274,8 @@ export default function CharacterPage() {
   const [view, setView] = useState<CharacterView>("dashboard");
   const [pendingBroadcastId, setPendingBroadcastId] = useState<string | null>(null);
   const [obsGatePending, setObsGatePending] = useState<number | null>(null);
+  const [chzzkGatePending, setChzzkGatePending] = useState<number | null>(null);
+  const [chzzkGateMode, setChzzkGateMode] = useState<ChzzkConnectModalMode | null>(null);
   const [pageNotice, setPageNotice] = useState<{ tone: "error" | "info"; message: string } | null>(null);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
@@ -466,11 +476,32 @@ export default function CharacterPage() {
      [select, startBroadcastApi]
    );
 
-  const enterObsGate = useCallback((cid: number) => {
-    void select(cid, true);
+   const ensureChzzkReady = useCallback(async (cid: number): Promise<boolean> => {
+     try {
+       const status = await getChzzkStatus();
+       if (!status.authorized) {
+         setChzzkGatePending(cid);
+         setChzzkGateMode("gate-not-linked");
+         return false;
+       }
+       return true;
+     } catch (err: unknown) {
+       const message = err instanceof Error
+         ? err.message
+         : "치지직 연동 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+       setPageNotice({ tone: "error", message });
+       return false;
+     }
+   }, []);
+
+  const enterObsGate = useCallback(async (cid: number) => {
+    const chzzkReady = await ensureChzzkReady(cid);
+    if (!chzzkReady) return;
+
+    await select(cid, true);
     setObsGatePending(cid);
     void launchObs(overlayUrl);
-  }, [launchObs, overlayUrl, select]);
+  }, [ensureChzzkReady, launchObs, overlayUrl, select]);
 
   /**
    * 방송 시작 버튼 클릭 핸들러
@@ -487,7 +518,7 @@ export default function CharacterPage() {
       const skipNotice = shouldSkipBroadcastNotice(characterId);
 
       if (skipNotice) {
-        enterObsGate(cid);
+        void enterObsGate(cid);
         return;
       }
 
@@ -517,7 +548,7 @@ export default function CharacterPage() {
       }
       const cid = Number(pendingBroadcastId);
       setPendingBroadcastId(null);
-      enterObsGate(cid);
+      void enterObsGate(cid);
     },
     [enterObsGate, pendingBroadcastId, skipNoticeForCharacter]
   );
@@ -549,6 +580,22 @@ export default function CharacterPage() {
     setObsGatePending(null);
     void performStart(cid);
   }, [obsGatePending, performStart]);
+
+  const handleChzzkGateSuccess = useCallback(() => {
+    if (chzzkGatePending === null) {
+      setChzzkGateMode(null);
+      return;
+    }
+    const cid = chzzkGatePending;
+    setChzzkGatePending(null);
+    setChzzkGateMode(null);
+    void enterObsGate(cid);
+  }, [chzzkGatePending, enterObsGate]);
+
+  const handleChzzkGateCancel = useCallback(() => {
+    setChzzkGatePending(null);
+    setChzzkGateMode(null);
+  }, []);
 
   /** 방송 종료 — 백엔드 /stream/terminate 호출, 성공 시 hook 내부에서 clearBroadcast() 처리 */
   const handleBroadcastStop = useCallback(async () => {
@@ -660,6 +707,14 @@ export default function CharacterPage() {
           onConfirmManualReady={handleObsGateManualConfirm}
           onForceStart={handleObsGateForceStart}
           onCancel={handleObsGateCancel}
+        />
+      )}
+
+      {chzzkGateMode && (
+        <ChzzkConnectModal
+          mode={chzzkGateMode}
+          onSuccess={handleChzzkGateSuccess}
+          onCancel={handleChzzkGateCancel}
         />
       )}
      </>

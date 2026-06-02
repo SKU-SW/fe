@@ -3,6 +3,7 @@
  * @created Sprint Chzzk - 치지직 연동 UI
  * @dependsOn src/features/auth/hooks/useChzzkConnect.ts
  * @usedBy src/pages/SettingsPage.tsx, src/pages/DashboardPage.tsx(방송 시작 게이트)
+ * TODO: 백엔드 callback 응답이 HTML/redirect 로 변경되면 JSON 안내 카피를 정리하세요.
  *
  * mode:
  * - "connect": SettingsPage에서 직접 "연동하기" 클릭 시
@@ -94,8 +95,9 @@ export function ChzzkConnectModal({ mode, onSuccess, onCancel }: ChzzkConnectMod
                 <div className="text-sm leading-6 text-content-secondary">
                   <p className="font-semibold text-content-primary">치지직 인증 대기 중</p>
                   <p className="mt-1 text-xs text-content-muted">
-                    브라우저에서 치지직 로그인을 완료한 뒤 이 창으로 돌아오세요.
-                    완료 후 자동으로 닫힙니다.
+                    브라우저에서 치지직 로그인을 완료하면 결과 화면이 표시됩니다.<br />
+                    JSON 같은 텍스트가 보여도 인증은 정상 완료된 상태입니다.<br />
+                    이 창은 잠시 후 자동으로 닫힙니다.
                   </p>
                 </div>
               </div>
