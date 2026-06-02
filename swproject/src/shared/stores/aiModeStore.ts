@@ -126,6 +126,8 @@ interface AIModeStore {
   clearActivityLogs: () => void;
   setDialogues: (items: StreamDialogue[], cursorId: number | null) => void;
   upsertDialogues: (items: StreamDialogue[], cursorId: number | null) => void;
+  /** 특정 id 의 dialogue 만 제거. 스트리밍 중 임시 dialogue 정리에 사용. */
+  removeDialogue: (id: string) => void;
   clearDialogues: () => void;
   setEmotion: (emotion: StreamEmotion) => void;
   setCurrentTranscript: (transcript: string) => void;
@@ -313,6 +315,10 @@ export const useAIModeStore = create<AIModeStore>()(
             dialogueCursorId: cursorId ?? state.dialogueCursorId,
           };
         }),
+      removeDialogue: (id) =>
+        set((state) => ({
+          dialogues: state.dialogues.filter((item) => item.id !== id),
+        })),
       clearDialogues: () => set({ dialogues: [], dialogueCursorId: null }),
       setEmotion: (currentEmotion) => set({ currentEmotion }),
       setCurrentTranscript: (currentTranscript) => set({ currentTranscript }),

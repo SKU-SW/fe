@@ -9,7 +9,7 @@
  * @dependsOn src/features/character/components/index.ts
  * @dependsOn src/features/broadcast/hooks (useStartBroadcast, useTerminateBroadcast, useObsLaunch)
  * @dependsOn src/shared/stores/aiModeStore.ts (방송 mode 동기화)
- * @dependsOn src/shared/constants/character.ts (MAX_CHARACTERS_PER_USER)
+ * @dependsOn src/shared/constants/character.ts (MAX_CHARACTERS_PER_USER, PERSONA_VOICE_MAP)
  * @usedBy src/App.tsx
  */
 
@@ -31,8 +31,7 @@ import { useBroadcastNoticeStore } from "@/shared/stores/broadcastNoticeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useOverlayStore } from "@/shared/stores/overlayStore";
-import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
-import { buildEmotionImageMap } from "@/shared/lib/characterEmotionImages";
+import { MAX_CHARACTERS_PER_USER, PERSONA_VOICE_MAP } from "@/shared/constants/character";
 import { resolveAssetUrl } from "@/shared/lib/utils";
 import type {
   CharacterConfig,
@@ -83,7 +82,7 @@ function mapBroadcastPresetToPresetType(preset: BroadcastPreset | null): PresetT
     case "manager": return "PROFESSIONAL_MANAGER";
     case "immersive": return "ROLEPLAY_EXPERT";
     case "custom": return "CUSTOM";
-    default: return "CUSTOM";
+    default: throw new Error("페르소나 프리셋이 선택되지 않았습니다.");
   }
 }
 
@@ -103,14 +102,14 @@ function toPositiveIntOrFallback(value: string | undefined | null, fallback: num
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-/** CharacterConfig → CharacterCreateReqDto */
-function toBackendCreatePayload(config: CharacterConfig): CharacterCreateReqDto {
+/** CharacterConfig → CharacterCreateReqDto (voiceTypeId resolved externally) */
+function toBackendCreatePayload(config: CharacterConfig, voiceTypeId: number): CharacterCreateReqDto {
   const triggerWords = normalizeTriggerWords(config.callWords);
   return {
     characterName: config.name.trim() || "새 AI 캐릭터",
     triggerWords,
     gender: mapUiGenderToBackend(config.gender),
-    voiceTypeId: toPositiveIntOrFallback(config.voiceId, 1),
+    voiceTypeId,
     characterImageId: toPositiveIntOrFallback(config.model2D.presetId, 1),
     characterPersona: {
       presetType: mapBroadcastPresetToPresetType(config.broadcastPreset),
@@ -120,14 +119,14 @@ function toBackendCreatePayload(config: CharacterConfig): CharacterCreateReqDto 
   };
 }
 
-/** CharacterConfig → CharacterUpdateReqDto */
-function toBackendUpdatePayload(config: CharacterConfig): CharacterUpdateReqDto {
+/** CharacterConfig → CharacterUpdateReqDto (voiceTypeId resolved externally) */
+function toBackendUpdatePayload(config: CharacterConfig, voiceTypeId: number): CharacterUpdateReqDto {
   const triggerWords = normalizeTriggerWords(config.callWords);
   return {
     characterName: config.name.trim() || "새 AI 캐릭터",
     triggerWords,
     gender: mapUiGenderToBackend(config.gender),
-    voiceTypeId: toPositiveIntOrFallback(config.voiceId, 1),
+    voiceTypeId,
     characterImageId: toPositiveIntOrFallback(config.model2D.presetId, 1),
     characterPersona: {
       presetType: mapBroadcastPresetToPresetType(config.broadcastPreset),
@@ -169,6 +168,23 @@ function mapBackendPersonalityToUi(p: Personality): CharacterPreset["info"]["per
     case "HUMOROUS": return "humorous";
     case "SERIOUS": return "serious";
   }
+}
+
+/**
+ * config.broadcastPreset + config.gender → voiceTypeId 찾기
+ * PERSONA_VOICE_MAP에서 음성 이름을 조회한 뒤 settings.voiceTypes에서 ttsId로 매칭
+ * @returns {number | null} 일치하는 voiceTypeId, 실패 시 null
+ */
+function resolveVoiceTypeId(
+  config: CharacterConfig,
+  settings: CharacterSettingsResDto | null,
+): number | null {
+  if (!config.broadcastPreset) return null;
+  const voiceEntry = PERSONA_VOICE_MAP[config.broadcastPreset];
+  if (!voiceEntry) return null;
+  const voiceName = config.gender === "male" ? voiceEntry.male : voiceEntry.female;
+  const matched = settings?.voiceTypes.find((vt) => vt.ttsId === voiceName || vt.label === voiceName);
+  return matched ? matched.voiceTypeId : null;
 }
 
 /** number를 안전하게 문자열로 변환 (null/undefined → 빈 문자열) */
@@ -255,7 +271,6 @@ export default function CharacterPage() {
   const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
   const skipNoticeForCharacter = useBroadcastNoticeStore((s) => s.skipNoticeForCharacter);
   const aiMode = useAIModeStore((s) => s.mode);
-  const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
   const clearOverlayRuntime = useOverlayStore((s) => s.clearRuntime);
   const storedSelectedCharacter = useCharacterStore((s) => s.selectedCharacter);
   const characterDetailsMap = useCharacterStore((s) => s.characterDetailsMap);
@@ -363,7 +378,18 @@ export default function CharacterPage() {
         setView("dashboard");
         return;
       }
-      const payload = toBackendCreatePayload(config);
+      // 음성 타입 해석: persona + gender → PERSONA_VOICE_MAP → settings.voiceTypes ttsId 매칭
+      const voiceTypeId = resolveVoiceTypeId(config, settings);
+      if (voiceTypeId === null) {
+        setPageNotice({
+          tone: "error",
+          message: config.broadcastPreset
+            ? `선택한 페르소나에 맞는 음성을 찾을 수 없습니다.`
+            : "페르소나 프리셋을 선택해주세요.",
+        });
+        return;
+      }
+      const payload = toBackendCreatePayload(config, voiceTypeId);
       try {
         await create(payload);
         await refetch(); // 목록 새로고침: 생성된 캐릭터 포함 전체 목록 재조회
@@ -373,7 +399,7 @@ export default function CharacterPage() {
         // No additional error handling needed here
       }
     },
-    [apiCharacters.length, create, refetch]
+    [apiCharacters.length, create, refetch, settings]
   );
 
   const handleUpdate = useCallback(
@@ -386,7 +412,18 @@ export default function CharacterPage() {
       if (!selectedCharacterId) {
         return;
       }
-      const payload = toBackendUpdatePayload(config);
+      // 음성 타입 해석: persona + gender → PERSONA_VOICE_MAP → settings.voiceTypes ttsId 매칭
+      const voiceTypeId = resolveVoiceTypeId(config, settings);
+      if (voiceTypeId === null) {
+        setPageNotice({
+          tone: "error",
+          message: config.broadcastPreset
+            ? `선택한 페르소나에 맞는 음성을 찾을 수 없습니다.`
+            : "페르소나 프리셋을 선택해주세요.",
+        });
+        return;
+      }
+      const payload = toBackendUpdatePayload(config, voiceTypeId);
       try {
         await update(selectedCharacterId, payload);
         await refetch(); // 수정 후 목록 새로고침
@@ -396,7 +433,7 @@ export default function CharacterPage() {
         // No additional error handling needed here
       }
     },
-    [selectedCharacterId, update, refetch]
+    [selectedCharacterId, update, refetch, settings]
   );
 
   const handleDelete = useCallback(
@@ -425,24 +462,8 @@ export default function CharacterPage() {
        await select(cid, true);
        const started = await startBroadcastApi(cid);
        if (!started) return;
-
-       const broadcastCharacter = apiCharacters.find((item) => item.characterId === cid);
-       const resolvedCharacterImageUrl = resolveAssetUrl(broadcastCharacter?.characterImageUrl);
-       const overlayUpdate = {
-         isBroadcasting: true,
-         broadcastStreamId: started.broadcastStreamId,
-         isSpeaking: false,
-         characterName: broadcastCharacter?.characterName ?? "AI",
-         characterImageUrl: resolvedCharacterImageUrl,
-         // characterImageUrl 기반으로 FE 가 감정별 PNG 경로를 생성한다.
-         emotionImageMap: buildEmotionImageMap(resolvedCharacterImageUrl),
-         transcript: "",
-         emotion: "DEFAULT" as const,
-       };
-       console.log("[CharacterPage] Broadcasting started, updating overlay runtime:", overlayUpdate);
-       updateOverlayRuntime(overlayUpdate);
      },
-     [apiCharacters, select, startBroadcastApi, updateOverlayRuntime]
+     [select, startBroadcastApi]
    );
 
   const enterObsGate = useCallback((cid: number) => {

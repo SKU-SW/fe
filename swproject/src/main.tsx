@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import App from './App';
 import AppSettingsSync from './components/AppSettingsSync';
+import AppInitializer from './components/AppInitializer';
 import { applyTheme, useThemeStore } from './shared/stores/themeStore';
 import './styles/globals.css';
 
@@ -17,6 +18,7 @@ applyTheme(useThemeStore.getState().theme);
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <HashRouter>
+      <AppInitializer />
       <AppSettingsSync />
       <App />
     </HashRouter>

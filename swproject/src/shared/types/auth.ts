@@ -81,3 +81,24 @@ export interface LogoutRequest {
   accessToken: string;
   refreshToken: string;
 }
+
+/**
+ * 치지직 인증 URL 응답
+ * - backend AuthChzzkAuthUrlResDto 매칭
+ * - GET /api/v1/auth/chzzk 응답
+ */
+export interface ChzzkAuthUrlResponse {
+  authUrl: string;
+}
+
+/**
+ * 치지직 연동 상태 응답
+ * - GET /api/v1/auth/chzzk/status (백엔드 추가 요청 중)
+ * - linked=false 일 때 만료시각 필드는 null
+ * - 토큰 만료시각은 ISO 8601 문자열
+ */
+export interface ChzzkStatusResponse {
+  linked: boolean;
+  chzzkAccessTokenExpiresAt: string | null;
+  chzzkRefreshTokenExpiresAt: string | null;
+}

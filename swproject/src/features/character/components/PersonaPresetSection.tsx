@@ -1,12 +1,16 @@
 /**
  * @file 페르소나 프리셋 선택 섹션
  * @created Sprint 3 - Character UI 이식
+ * @updated Voice playback on preset card click
  * @dependsOn src/shared/types/character.ts (CharacterConfig)
+ * @dependsOn src/shared/constants/character.ts (PERSONA_VOICE_MAP)
  * @usedBy src/features/character/components/CharacterSettings.tsx
  */
 
-import { Info } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Info, Play, StopCircle } from "lucide-react";
 import type { CharacterConfig } from "@/shared/types/character";
+import { PERSONA_VOICE_MAP } from "@/shared/constants/character";
 
 interface PersonaPresetSectionProps {
   config: CharacterConfig;
@@ -73,7 +77,66 @@ const PRESETS = [
 
 export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionProps) {
   const selectedPreset = PRESETS.find((preset) => preset.id === config.broadcastPreset);
-  const isCustom = config.broadcastPreset === "custom";
+
+  // 음성 샘플 재생 상태
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingPresetId, setPlayingPresetId] = useState<string | null>(null);
+
+  const getVoiceSamplePath = (presetId: string) => {
+    const voiceEntry = PERSONA_VOICE_MAP[presetId];
+    if (!voiceEntry) return null;
+    const voiceName = config.gender === "male" ? voiceEntry.male : voiceEntry.female;
+    return `${import.meta.env.BASE_URL}voice_samples/${voiceName}.wav`;
+  };
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    setPlayingPresetId(null);
+  };
+
+  const handlePresetClick = (presetId: string) => {
+    // 먼저 프리셋 선택
+    const preset = PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+
+    onChange({
+      ...config,
+      broadcastPreset: preset.id,
+      speechStyle: preset.speechStyle,
+      personality: preset.personality,
+    });
+
+    const wavPath = getVoiceSamplePath(presetId);
+    if (!wavPath) return;
+
+    // 같은 프리셋 다시 클릭 시 토글 (재생/정지)
+    if (playingPresetId === presetId) {
+      stopAudio();
+      return;
+    }
+
+    stopAudio();
+    const audio = new Audio(wavPath);
+    audio.onended = () => setPlayingPresetId(null);
+    audio.onerror = () => setPlayingPresetId(null);
+    audio.play().catch(() => setPlayingPresetId(null));
+    audioRef.current = audio;
+    setPlayingPresetId(presetId);
+  };
+
+  // 컴포넌트 언마운트 시 재생 중인 오디오 정리
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <section className="space-y-5 rounded-lg border border-border-strong bg-surface-panel p-6 transition-colors">
@@ -82,18 +145,12 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {PRESETS.map((preset) => {
           const isSelected = config.broadcastPreset === preset.id;
+          const isPlaying = playingPresetId === preset.id;
           return (
             <button
               key={preset.id}
               type="button"
-              onClick={() =>
-                onChange({
-                  ...config,
-                  broadcastPreset: preset.id,
-                  speechStyle: preset.speechStyle,
-                  personality: preset.personality,
-                })
-              }
+              onClick={() => handlePresetClick(preset.id)}
               className={`rounded-md border px-3 py-2.5 text-center transition-colors ${
                 isSelected
                   ? "border-brand bg-brand/10"
@@ -107,32 +164,37 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
               >
                 {preset.label}
               </p>
+              {isSelected && (
+                <span
+                  className="mt-1 inline-flex items-center gap-1 text-xs text-content-muted"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isPlaying) {
+                      stopAudio();
+                    } else {
+                      const wavPath = getVoiceSamplePath(preset.id);
+                      if (wavPath) {
+                        stopAudio();
+                        const audio = new Audio(wavPath);
+                        audio.onended = () => setPlayingPresetId(null);
+                        audio.onerror = () => setPlayingPresetId(null);
+                        audio.play().catch(() => setPlayingPresetId(null));
+                        audioRef.current = audio;
+                        setPlayingPresetId(preset.id);
+                      }
+                    }
+                  }}
+                >
+                  {isPlaying ? <StopCircle className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                  {isPlaying ? "정지" : "샘플"}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {isCustom && (
-        <div className="rounded-md border border-status-warning/30 bg-status-warning/10 p-5">
-          <div className="flex items-start gap-3">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-status-warning" />
-            <div className="flex-1 space-y-3">
-              <div>
-                <p className="text-base font-semibold text-status-warning">커스텀</p>
-                <p className="mt-0.5 text-xs font-medium text-status-warning/80">
-                  고급 설정에서 말투 또는 성격을 직접 조정한 상태입니다.
-                </p>
-              </div>
-
-              <p className="text-sm leading-relaxed text-content-secondary">
-                현재 캐릭터는 프리셋 기본값 대신 직접 조합한 말투와 성격을 사용합니다.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!isCustom && selectedPreset ? (
+      {selectedPreset ? (
         <div className="rounded-md border border-brand/30 bg-brand/10 p-5">
           <div className="flex items-start gap-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
@@ -157,11 +219,11 @@ export function PersonaPresetSection({ config, onChange }: PersonaPresetSectionP
             </div>
           </div>
         </div>
-      ) : !isCustom ? (
+      ) : (
         <p className="rounded-md border border-dashed border-border-default bg-surface-base px-4 py-3 text-center text-xs text-content-muted transition-colors">
           위에서 프리셋을 선택하면 상세 설명이 표시됩니다.
         </p>
-      ) : null}
+      )}
     </section>
   );
 }

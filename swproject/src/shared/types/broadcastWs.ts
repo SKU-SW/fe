@@ -33,6 +33,16 @@ export interface StreamWsClientChatMessage {
 
 export type StreamWsClientMessage = StreamWsClientChatMessage;
 
+/** AI 응답 인터럽트 요청 — 기존 { message } 채널의 message 본문 prefix. */
+export const AI_RESPONSE_INTERRUPT_PREFIX = "__AI_RESPONSE_INTERRUPT_REQUEST__:";
+
+export function buildInterruptRequestMessage(
+  turnNumber: number,
+  reason: string
+): string {
+  return `${AI_RESPONSE_INTERRUPT_PREFIX}${JSON.stringify({ turnNumber, reason })}`;
+}
+
 // ============================================================
 // BE → FE (text frames)
 // ============================================================
@@ -67,10 +77,21 @@ export interface StreamWsVoiceTurnCompleteEvent {
   broadcastDialogueCursorId: number;
 }
 
+/** 응답 중단 완료 — BE가 중단된 AI dialogue를 Redis에 저장한 뒤 전송. */
+export interface StreamWsVoiceInterruptedEvent {
+  eventType: "VOICE_INTERRUPTED";
+  turnNumber: number;
+  characterId: number;
+  voiceText: string;
+  emotion: StreamEmotion;
+  broadcastDialogueCursorId: number;
+}
+
 export type StreamWsVoiceEvent =
   | StreamWsVoiceEmotionEvent
   | StreamWsVoiceChunkEvent
-  | StreamWsVoiceTurnCompleteEvent;
+  | StreamWsVoiceTurnCompleteEvent
+  | StreamWsVoiceInterruptedEvent;
 
 /** 노션 공통 에러 코드 enum */
 export type StreamWsErrorCode =
@@ -105,6 +126,14 @@ export interface VoiceChunk {
 
 /** VOICE_TURN_COMPLETE — 턴 종료 시 누적 voiceText/cursorId 확정 */
 export interface VoiceTurnComplete {
+  voiceText: string;
+  emotion: StreamEmotion;
+  cursorId: number;
+}
+
+/** VOICE_INTERRUPTED — 현재 AI 응답 turn이 중단되어 확정됨. */
+export interface VoiceInterrupted {
+  turnNumber: number;
   voiceText: string;
   emotion: StreamEmotion;
   cursorId: number;

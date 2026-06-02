@@ -105,8 +105,7 @@ export default function GamePage() {
             <Gamepad2 className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-base font-semibold text-content-primary">게임 연동</h1>
-            <p className="mt-1 text-sm text-content-muted">
+            <p className="text-sm text-content-muted">
               LoL 게임을 실행하면 자동으로 감지되어 AI 동료 캐릭터가 게임 모드로 전환됩니다.
               게임 중 발생하는 이벤트에 따라 캐릭터가 페르소나에 맞게 반응합니다.
             </p>

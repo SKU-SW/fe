@@ -5,12 +5,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  MessageSquareText, 
-  BarChart3, 
-  ShieldAlert, 
+import {
+  LayoutDashboard,
+  Users,
+  MessageSquareText,
+  BarChart3,
+  ShieldAlert,
   Gamepad2,
   Settings,
   ChevronLeft,
@@ -24,6 +24,8 @@ import {
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useLogout } from '@/features/auth/hooks';
 import { useAIModeStore, AIMode } from '@/shared/stores/aiModeStore';
+import { usePlatform } from '@/shared/hooks/usePlatform';
+import { ChzzkStatusBadge } from '@/features/auth/components/ChzzkStatusBadge';
 
 interface NavItem {
   href: string;
@@ -57,6 +59,11 @@ const MODE_DOT_CLASS: Record<AIMode, string> = {
 export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { isCollapsed: boolean; onToggleCollapse: () => void }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const location = useLocation();
+  const platform = usePlatform();
+  // macOS hiddenInset 타이틀바의 traffic light 가 좌상단을 차지하므로
+  // 사이드바 로고 영역을 더 크게 잡아 시각적으로 겹치지 않게 한다.
+  // 윈도우/리눅스는 시스템 타이틀바가 위에 있어 별도 보정 불필요.
+  const isMac = platform === 'darwin';
 
   const user = useAuthStore((s) => s.user);
   const { logout, isPending } = useLogout();
@@ -109,8 +116,8 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
     <aside 
       className={`relative z-20 flex h-full shrink-0 flex-col border-r border-border-strong bg-surface-sidebar shadow-2xl transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}
     >
-      {/* 1. 상단 로고 및 타이틀 영역 */}
-      <div className="relative flex h-16 shrink-0 items-center border-b border-border-strong bg-surface-sidebar">
+      {/* 1. 상단 로고 및 타이틀 영역 (macOS 는 traffic light 회피용으로 h-24 사용) */}
+      <div className={`relative flex ${isMac ? 'h-24' : 'h-16'} shrink-0 items-center border-b border-border-strong bg-surface-sidebar`}>
         <Link 
           to="/dashboard" 
           className={`flex items-center gap-3 transition-colors group overflow-hidden ${
@@ -260,12 +267,20 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
           className={`flex w-full items-center gap-2.5 rounded-md py-1.5 transition-colors hover:bg-surface-hover/70 ${isCollapsed ? 'justify-center px-0' : 'px-2'}`}
           title={isCollapsed ? user?.name || 'User' : undefined}
         >
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-active text-content-primary shadow-sm transition-colors">
+          <div className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-active text-content-primary shadow-sm transition-colors">
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            {isCollapsed && (
+              <span className="absolute -bottom-1 -right-1">
+                <ChzzkStatusBadge variant="icon" />
+              </span>
+            )}
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0 text-left">
               <p className="truncate text-sm font-bold text-content-primary">{user?.name || 'User'}</p>
+              <div className="mt-0.5">
+                <ChzzkStatusBadge variant="compact" />
+              </div>
             </div>
           )}
         </button>

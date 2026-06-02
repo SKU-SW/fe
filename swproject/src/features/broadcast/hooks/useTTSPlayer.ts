@@ -1,7 +1,11 @@
 /**
  * @file TTS 오디오 재생 큐 훅 — WebAudio 기반 raw PCM / 컨테이너 듀얼 디코드
+ * @deprecated Phase 2 완료: TTS 재생 로직이 broadcastWSBackgroundService로 이동됨.
+ *             대신 broadcastWSBackgroundService.enqueueTTS(blob)를 직접 호출하거나,
+ *             useBroadcastWSState()의 isPlayingTTS 상태를 구독하세요.
+ *             본 훅은 backwards compatibility를 위해 유지되며, 더 이상 사용되지 않습니다.
  * @dependsOn 없음 (브라우저 WebAudio API)
- * @usedBy src/pages/DashboardPage.tsx
+ * @usedBy (deprecated — 더 이상 사용되지 않음)
  *
  * 동작:
  *   - enqueue(blob) 호출 시 큐에 적재

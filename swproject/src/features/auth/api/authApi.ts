@@ -15,6 +15,8 @@ import type {
   RefreshRequest,
   TokenResponse,
   LogoutRequest,
+  ChzzkAuthUrlResponse,
+  ChzzkStatusResponse,
 } from '@/shared/types/auth';
 
 const AUTH_BASE = '/api/v1/auth';
@@ -62,4 +64,34 @@ export async function refreshAccessToken(data: RefreshRequest): Promise<TokenRes
  */
 export async function logout(data: LogoutRequest): Promise<void> {
   await apiClient.post(`${AUTH_BASE}/logout`, data);
+}
+
+/**
+ * 치지직 인증 URL 조회
+ * - GET /api/v1/auth/chzzk (Bearer JWT 필요)
+ * - 백엔드가 state를 Redis에 저장 후 chzzk OAuth URL 반환
+ * - 프론트는 받은 authUrl을 외부 브라우저로 열어야 함 (Electron shell.openExternal)
+ */
+export async function getChzzkAuthUrl(): Promise<ChzzkAuthUrlResponse> {
+  const res = await apiClient.get<ChzzkAuthUrlResponse>(`${AUTH_BASE}/chzzk`);
+  return res.data;
+}
+
+/**
+ * 치지직 연동 상태 조회
+ * - GET /api/v1/auth/chzzk/status (백엔드 추가 요청 중)
+ * - linked=false 이거나 refreshToken 만료 시 재연동 필요
+ */
+export async function getChzzkStatus(): Promise<ChzzkStatusResponse> {
+  const res = await apiClient.get<ChzzkStatusResponse>(`${AUTH_BASE}/chzzk/status`);
+  return res.data;
+}
+
+/**
+ * 치지직 연동 해제
+ * - DELETE /api/v1/auth/chzzk (백엔드 추가 요청 중)
+ * - 백엔드 AuthService.revokeChzzkTokens() 호출 → chzzk revoke + User 엔티티 토큰 정리
+ */
+export async function disconnectChzzk(): Promise<void> {
+  await apiClient.delete(`${AUTH_BASE}/chzzk`);
 }

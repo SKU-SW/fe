@@ -73,7 +73,8 @@ function toConfig(data?: CharacterPreset | null): CharacterConfig {
             : "dramatic",
     personality: data.info.personality,
     // Persona와 BroadcastPreset이 동일한 키 체계를 쓰므로 직접 매핑
-    broadcastPreset: data.info.persona,
+    // custom은 UI에서 제거되었으므로 null로 정규화
+    broadcastPreset: data.info.persona === "custom" ? null : data.info.persona,
   };
 }
 

@@ -177,6 +177,8 @@ export interface VoiceTypeResDto {
   gender: Gender;
   ageGroup: AgeGroup;
   testUrl: string;
+  /** TTS 엔진 식별자 (PERSONA_VOICE_MAP 매핑용) — 프론트에서만 사용 */
+  ttsId?: string;
 }
 
 /**

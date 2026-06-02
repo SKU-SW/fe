@@ -11,3 +11,16 @@
  * - 백엔드에서 강제하지 않으므로 프론트에서 방어적으로 제한
  */
 export const MAX_CHARACTERS_PER_USER = 10;
+
+/**
+ * 페르소나 + 성별 → TTS 음성 이름 매핑
+ * - presets 5개에 대해 남성/여성 음성 이름을 정의
+ * - custom은 제외 (매핑하지 않음)
+ */
+export const PERSONA_VOICE_MAP: Record<string, { male: string; female: string }> = {
+  neighbor: { male: "Zubenelgenubi", female: "Sulafat" },
+  high_tension: { male: "Sadachbia", female: "Fenrir" },
+  teaser: { male: "Puck", female: "Zephyr" },
+  manager: { male: "Charon", female: "Erinome" },
+  immersive: { male: "Algenib", female: "Gacrux" },
+};

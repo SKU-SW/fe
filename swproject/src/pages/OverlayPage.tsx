@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Eye, EyeOff, Minus, Plus } from "lucide-react";
 import { useOverlayStore } from "@/shared/stores/overlayStore";
+import { useEmotionImagePreload } from "@/shared/hooks/useEmotionImagePreload";
 import {
   readOverlayStateServer,
   readOverlayBridgeState,
@@ -183,6 +184,7 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
   const [displayTranscript, setDisplayTranscript] = useState(previewRuntime.transcript);
   const [displayEmotion, setDisplayEmotion] = useState<StreamEmotion>(previewRuntime.emotion);
   const [bubbleVisible, setBubbleVisible] = useState(Boolean(previewRuntime.transcript));
+  useEmotionImagePreload(previewRuntime.emotionImageMap);
 
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;

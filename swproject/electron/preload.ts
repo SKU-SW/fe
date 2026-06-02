@@ -93,7 +93,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     // 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독
     onGlobalPtt: (callback: (payload: GlobalPttPayload) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: GlobalPttPayload) => callback(payload);
+      const listener = (_event: Electron.IpcRendererEvent, payload: GlobalPttPayload) => {
+        console.info('[ptt][preload] received', payload);
+        callback(payload);
+      };
       ipcRenderer.on('stt:global-ptt', listener);
       return () => ipcRenderer.removeListener('stt:global-ptt', listener);
     },

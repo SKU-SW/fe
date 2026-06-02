@@ -21,6 +21,7 @@ import GamePage from './pages/GamePage';
 import SafetyPage from './pages/SafetyPage';
 import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
+import StatsHistoryPage from './pages/StatsHistoryPage';
 
 // Standalone Pages
 import OverlayPage from './pages/OverlayPage';
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/safety" element={<SafetyPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/stats" element={<StatsPage />} />
+        <Route path="/stats/history" element={<StatsHistoryPage />} />
       </Route>
 
       {/* Overlay (standalone, transparent) */}

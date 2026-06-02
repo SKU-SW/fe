@@ -16,13 +16,12 @@
  *   - 그 외엔 빈 상태 (캐릭터 페이지로 가는 CTA)
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, Mic, MicOff, Users, MessageSquare, Sparkles } from "lucide-react";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
-import { useOverlayStore } from "@/shared/stores/overlayStore";
 import { useCharacter } from "@/features/character/hooks";
-import { useStreamInfo, useStreamWS, useTTSPlayer, useViewerChatPolling } from "@/features/broadcast/hooks";
+import { useBroadcastWSState, useStreamInfo } from "@/features/broadcast/hooks";
 import { useSTT } from "@/features/stt/hooks";
 import { resolveAssetUrl } from "@/shared/lib/utils";
 import {
@@ -84,9 +83,6 @@ const SPEAKER_MAP: Record<StreamDialogue["speaker"], ConversationSpeaker> = {
 // 페이지 컴포넌트
 // ============================================================
 
-/** VOICE_CHUNK 누적 중인 임시 AI dialogue 의 id. turn_complete 시 제거됨. */
-const STREAMING_AI_DIALOGUE_ID = "streaming-ai-pending";
-
 export default function DashboardPage() {
   const mode = useAIModeStore((s) => s.mode);
   const stats = useAIModeStore((s) => s.stats);
@@ -97,16 +93,11 @@ export default function DashboardPage() {
   const togglePause = useAIModeStore((s) => s.togglePause);
   const dialogues = useAIModeStore((s) => s.dialogues);
   const activityLogs = useAIModeStore((s) => s.activityLogs);
-  const upsertDialogues = useAIModeStore((s) => s.upsertDialogues);
-  const removeDialogue = useAIModeStore((s) => s.removeDialogue);
-  const setCurrentTranscript = useAIModeStore((s) => s.setCurrentTranscript);
-  const setEmotion = useAIModeStore((s) => s.setEmotion);
 
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const { character } = useCharacter(selectedCharacterId);
   const overlayCharacterName = character?.characterName ?? "AI";
   const overlayCharacterImageUrl = resolveAssetUrl(character?.characterImageUrl);
-  const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
 
   // 대시보드 진입 시 채팅 화면은 비우고, 현재 방송 정보만 확인한다.
   // 이후 새 dialogue 는 STT/WebSocket 응답과 viewer polling 으로 아래부터 쌓인다.
@@ -115,14 +106,11 @@ export default function DashboardPage() {
     error: streamInfoError,
     refetch: refetchStreamInfo,
   } = useStreamInfo({ size: 1 });
-
-  // 대시보드에 머무는 동안 SOOP/RDS에서 서버로 적재된 VIEWER 채팅을 주기적으로 반영
-  useViewerChatPolling({ size: 100, intervalMs: 3000 });
-
-  // TTS 오디오 재생 큐 (TTS 토글 ON 일 때만)
-  const { enqueue: enqueueTTS, isPlaying: isTtsPlaying } = useTTSPlayer(toggles.ttsEnabled);
+  const {
+    isConnected: wsConnected,
+    error: wsError,
+  } = useBroadcastWSState();
   const streamCharacterImageUrl = resolveAssetUrl(characterInfo?.characterImageUrl);
-  const effectiveCharacterName = characterInfo?.characterName ?? overlayCharacterName;
   const effectiveCharacterImageUrl = streamCharacterImageUrl || overlayCharacterImageUrl;
   const effectiveEmotionImageMap = useMemo(
     () => buildEmotionImageMap(effectiveCharacterImageUrl),
@@ -130,218 +118,11 @@ export default function DashboardPage() {
   );
   useEmotionImagePreload(effectiveEmotionImageMap);
 
-  useEffect(() => {
-    updateOverlayRuntime({ isSpeaking: isTtsPlaying });
-  }, [isTtsPlaying, updateOverlayRuntime]);
-
-  useEffect(() => {
-    if (!effectiveCharacterImageUrl) return;
-
-    updateOverlayRuntime({
-      characterName: effectiveCharacterName,
-      characterImageUrl: effectiveCharacterImageUrl,
-      emotionImageMap: effectiveEmotionImageMap,
-    });
-  }, [
-    effectiveCharacterImageUrl,
-    effectiveCharacterName,
-    effectiveEmotionImageMap,
-    updateOverlayRuntime,
-  ]);
-
-  // BE Notion 스펙: VOICE_CHUNK (binary 페어, 부분 자막) / VOICE_TURN_COMPLETE (확정 cursorId, 누적 텍스트) / VOICE_EMOTION (감정 단독)
-  // 청크: TTS 재생 + 부분 자막 누적 (overlay transcript 갱신) + 채팅창 임시 dialogue 갱신(타이핑 효과).
-  // voiceText 는 null 가능 — 누적 시 빈 문자열로 폴백.
-  /** 현재 턴 동안 청크 voiceText 만 누적해 임시 dialogue 텍스트로 사용. turn_complete 시 리셋. */
-  const streamingDialogueTextRef = useRef("");
-  const handleVoiceChunk = useCallback(
-    ({ audio, voiceText, emotion }: { audio: Blob; voiceText: string | null; emotion: import("@/shared/types/stream").StreamEmotion }) => {
-      const safeText = voiceText ?? "";
-      // 부분 자막은 누적/덮어쓰기 — 현재는 단순 덮어쓰기 (BE 가 한 청크에 부분 텍스트만 보냄)
-      const prev = useAIModeStore.getState().currentTranscript;
-      const next = prev ? `${prev}${safeText}` : safeText;
-      setCurrentTranscript(next);
-      setEmotion(emotion);
-      updateOverlayRuntime({
-        isBroadcasting: true,
-        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
-        characterName: effectiveCharacterName,
-        characterImageUrl: effectiveCharacterImageUrl,
-        emotionImageMap: effectiveEmotionImageMap,
-        transcript: next,
-        emotion,
-      });
-      enqueueTTS(audio);
-
-      // 채팅창에 ChatGPT 식 타이핑 효과: 누적 텍스트가 있을 때만 임시 dialogue upsert.
-      streamingDialogueTextRef.current += safeText;
-      if (streamingDialogueTextRef.current.length > 0) {
-        upsertDialogues(
-          [
-            {
-              id: STREAMING_AI_DIALOGUE_ID,
-              cursorId: null,
-              speaker: "ai",
-              text: streamingDialogueTextRef.current,
-              emotion,
-              timestamp: new Date().toISOString(),
-            },
-          ],
-          null
-        );
-      }
-    },
-    [
-      effectiveCharacterImageUrl,
-      effectiveCharacterName,
-      effectiveEmotionImageMap,
-      enqueueTTS,
-      setCurrentTranscript,
-      setEmotion,
-      updateOverlayRuntime,
-      upsertDialogues,
-    ]
-  );
-
-  // 턴 종료: 누적 voiceText + 최종 cursorId 로 dialogue 확정 + 자막 리셋
-  const handleVoiceTurnComplete = useCallback(
-    ({ voiceText, emotion, cursorId }: { voiceText: string; emotion: import("@/shared/types/stream").StreamEmotion; cursorId: number }) => {
-      // 스트리밍 중이던 임시 dialogue 제거 후 정식 dialogue 로 교체.
-      removeDialogue(STREAMING_AI_DIALOGUE_ID);
-      streamingDialogueTextRef.current = "";
-      upsertDialogues(
-        [
-          {
-            id: String(cursorId),
-            cursorId,
-            speaker: "ai",
-            text: voiceText,
-            emotion,
-            // BE metadata 에 timestamp 가 없어 클라 도착 시각 사용 (ISO).
-            timestamp: new Date().toISOString(),
-          },
-        ],
-        cursorId
-      );
-      setEmotion(emotion);
-      // 턴 종료 시 자막은 최종 텍스트로 확정 (다음 턴까지 유지)
-      setCurrentTranscript(voiceText);
-      updateOverlayRuntime({
-        isBroadcasting: true,
-        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
-        characterName: effectiveCharacterName,
-        characterImageUrl: effectiveCharacterImageUrl,
-        emotionImageMap: effectiveEmotionImageMap,
-        transcript: voiceText,
-        emotion,
-      });
-    },
-    [
-      effectiveCharacterImageUrl,
-      effectiveCharacterName,
-      effectiveEmotionImageMap,
-      removeDialogue,
-      setCurrentTranscript,
-      setEmotion,
-      updateOverlayRuntime,
-      upsertDialogues,
-    ]
-  );
-
-  // 감정 단독 알림 (VOICE_EMOTION) — UI/오버레이만 갱신
-  const handleEmotionChange = useCallback(
-    (emotion: import("@/shared/types/stream").StreamEmotion) => {
-      setEmotion(emotion);
-      updateOverlayRuntime({
-        isBroadcasting: true,
-        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
-        characterName: effectiveCharacterName,
-        characterImageUrl: effectiveCharacterImageUrl,
-        emotionImageMap: effectiveEmotionImageMap,
-        emotion,
-      });
-    },
-    [
-      effectiveCharacterImageUrl,
-      effectiveCharacterName,
-      effectiveEmotionImageMap,
-      setEmotion,
-      updateOverlayRuntime,
-    ]
-  );
-
-  // 방송 WebSocket — broadcastStreamId + accessToken 둘 다 있을 때만 연결
-  const {
-    isConnected: wsConnected,
-    error: wsError,
-    sendChat,
-  } = useStreamWS({
-    onVoiceChunk: handleVoiceChunk,
-    onVoiceTurnComplete: handleVoiceTurnComplete,
-    onEmotionChange: handleEmotionChange,
-    onError: (msg, code) =>
-      console.error("[stream-ws] server error:", code ? `[${code}]` : "", msg),
-  });
-
-  /**
-   * 스트리머 발화를 BE 로 보내고, 동시에 ConversationStream 에 즉시 표시 (optimistic).
-   * BE 는 STREAMER 발화를 Redis 에 저장하지만 그 메시지를 WS 로 다시 push 하지 않으므로
-   * (오직 AI_CHARACTER 응답만 push), FE 에서 직접 추가해야 화면에 보임.
-   *
-   * - cursorId 는 null — store sort 가 가장 마지막(최신) 위치로 배치
-   * - id 는 timestamp+random 으로 충돌 방지
-   * - sendChat 실패 시 optimistic 추가도 안 함 (실제로 BE 에 반영 안 됐으니)
-   */
-  const sendStreamerMessage = useCallback(
-    (text: string): { ok: boolean; reason?: string } => {
-      const trimmed = text.trim();
-      if (!trimmed) return { ok: false, reason: "빈 메시지" };
-
-      const result = sendChat(trimmed);
-      if (!result.ok) return result;
-
-      upsertDialogues(
-        [
-          {
-            id: `local-streamer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            cursorId: null,
-            speaker: "streamer",
-            text: trimmed,
-            emotion: "DEFAULT",
-            timestamp: new Date().toISOString(),
-          },
-        ],
-        null
-      );
-      return { ok: true };
-    },
-    [sendChat, upsertDialogues]
-  );
-
-  const handleFinalTranscript = useCallback(
-    async (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      if (!toggles.sttEnabled) {
-        throw new Error("음성인식이 꺼져 있습니다. 토글을 다시 켜주세요.");
-      }
-      const result = sendStreamerMessage(trimmed);
-      if (!result.ok) {
-        throw new Error(result.reason ?? "LLM 전송에 실패했습니다. 잠시 후 다시 시도해주세요.");
-      }
-    },
-    [sendStreamerMessage, toggles.sttEnabled]
-  );
-
   // 마이크 입력 → 로컬 STT (Faster Whisper 데몬)
   const {
     isListening,
-    isSupported,
     error: sttError,
-    startListening,
-    stopListening,
-    cancelListening,
-  } = useSTT({ onFinalTranscript: handleFinalTranscript });
+  } = useSTT();
 
   // 로컬 UI 상태
   const [logOpen, setLogOpen] = useState(false);
@@ -358,101 +139,7 @@ export default function DashboardPage() {
     }
   }, [toggles.sttEnabled]);
 
-  useEffect(() => {
-    if (!toggles.sttEnabled && isListening) {
-      void cancelListening();
-    }
-  }, [cancelListening, isListening, toggles.sttEnabled]);
-
-  /**
-   * Push-to-Talk: Ctrl/Cmd+Shift+M 누른 동안만 마이크 ON, 떼면 즉시 종료 + 변환.
-   * - keydown: Ctrl/Cmd+Shift+M 콤보 감지 → startListening (한 번만, repeat 무시)
-   * - keyup: M 또는 Ctrl 떼면 stopListening
-   * - 방송 중 + STT 토글 ON 일 때만 활성
-   * - 입력 필드 포커스 중에는 무시 (사용자 타이핑 방해 방지)
-   */
   const isBroadcasting = mode === "broadcasting";
-  useEffect(() => {
-    updateOverlayRuntime({
-      isBroadcasting,
-      broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
-      isSpeaking: isTtsPlaying,
-      characterName: effectiveCharacterName,
-      characterImageUrl: effectiveCharacterImageUrl,
-      emotionImageMap: effectiveEmotionImageMap,
-      transcript: isBroadcasting ? useAIModeStore.getState().currentTranscript : "",
-      emotion: isBroadcasting ? useAIModeStore.getState().currentEmotion : "DEFAULT",
-    });
-  }, [
-    effectiveCharacterImageUrl,
-    effectiveCharacterName,
-    effectiveEmotionImageMap,
-    isBroadcasting,
-    isTtsPlaying,
-    updateOverlayRuntime,
-  ]);
-
-  useEffect(() => {
-    if (!isBroadcasting || !toggles.sttEnabled || !isSupported) return;
-
-    let pttHeld = false;
-
-    const isEditableTarget = (target: EventTarget | null): boolean => {
-      if (!(target instanceof HTMLElement)) return false;
-      const tag = target.tagName;
-      return (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        target.isContentEditable
-      );
-    };
-
-    const isPttCombo = (e: KeyboardEvent) =>
-      (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "m";
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isPttCombo(e)) return;
-      if (isEditableTarget(e.target)) return;
-      e.preventDefault();
-      if (e.repeat || pttHeld) return;
-      pttHeld = true;
-      void startListening();
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (!pttHeld) return;
-      const key = e.key.toLowerCase();
-      // M 또는 Ctrl 둘 중 하나라도 떼면 종료
-      if (key === "m" || key === "control" || key === "meta") {
-        pttHeld = false;
-        void stopListening();
-      }
-    };
-
-    // 창 포커스 잃었을 때 hold 상태가 lock 되지 않도록 안전망
-    const handleBlur = () => {
-      if (pttHeld) {
-        pttHeld = false;
-        void cancelListening();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("blur", handleBlur);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", handleBlur);
-    };
-  }, [
-    isBroadcasting,
-    toggles.sttEnabled,
-    isSupported,
-    startListening,
-    stopListening,
-    cancelListening,
-  ]);
 
   // store.dialogues (BE 진실의 근원) → ConversationStream 의 통합 메시지 모델로 변환
   const conversationMessages = useMemo<ConversationMessage[]>(
@@ -471,7 +158,6 @@ export default function DashboardPage() {
   if (!isBroadcasting) {
     return (
       <div className="px-0 py-0">
-        <PageHeader />
         <DashboardEmptyState />
       </div>
     );
@@ -480,8 +166,6 @@ export default function DashboardPage() {
   // 방송 중일 때
   return (
     <div className="flex flex-col gap-6 px-0 py-0">
-      <PageHeader />
-
       <BroadcastHeader logOpen={logOpen} onToggleLog={() => setLogOpen((v) => !v)} />
 
       {!toggles.sttEnabled && !micNoticeDismissed && (
@@ -575,14 +259,6 @@ export default function DashboardPage() {
 // ============================================================
 // 보조 컴포넌트 (페이지 내부)
 // ============================================================
-
-function PageHeader() {
-  return (
-    <div className="space-y-1">
-      <h1 className="text-2xl font-bold text-content-primary">대시보드</h1>
-    </div>
-  );
-}
 
 /**
  * Push-to-Talk 안내 인디케이터 (Ctrl/Cmd+Shift+M Hold)

@@ -4,7 +4,7 @@
  */
 
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, MessageSquareText, Gamepad2, ShieldAlert, BarChart3, Settings, Moon, Sun } from 'lucide-react';
+import { Bell, LayoutDashboard, Users, MessageSquareText, Gamepad2, ShieldAlert, BarChart3, Settings, Moon, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { isDarkTheme, useThemeStore } from '@/shared/stores/themeStore';
 
@@ -17,10 +17,11 @@ interface PageInfo {
 const PAGE_INFO: Record<string, PageInfo> = {
   '/dashboard': { icon: LayoutDashboard, title: '대시보드', description: '실시간 방송 제어 및 모니터링' },
   '/character': { icon: Users, title: 'AI 캐릭터', description: '캐릭터 페르소나 관리' },
-  '/chat-analysis': { icon: MessageSquareText, title: '채팅 분석', description: '실시간 채팅 감정·반응 분석' },
+  '/chat-analysis': { icon: MessageSquareText, title: '채팅 분석', description: '실시간 채팅 감정·LLM 판단·키워드 모니터링' },
   '/game': { icon: Gamepad2, title: '게임 연동', description: '게임 이벤트 기반 AI 반응' },
   '/safety': { icon: ShieldAlert, title: '안전관리', description: 'LLM 유해 단어 필터 설정' },
-  '/stats': { icon: BarChart3, title: '방송 통계', description: '방송 성과 및 시청자 분석' },
+  '/stats': { icon: BarChart3, title: '방송 통계', description: '종료된 방송의 집계 데이터 및 AI 피드백' },
+  '/stats/history': { icon: BarChart3, title: '날짜별 방송 통계', description: '지난 방송 통계 기록' },
   '/settings': { icon: Settings, title: '설정', description: '앱 환경설정' },
 };
 
@@ -67,19 +68,13 @@ export default function DashboardHeader() {
 
         <button
           type="button"
-          className="relative transition-colors hover:text-content-primary"
+          // TODO: 알림 패널 연동 시 onClick 연결
+          className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border-strong bg-surface-panel text-content-muted transition-colors hover:bg-surface-hover hover:text-content-primary"
           aria-label="알림"
+          title="알림"
         >
-          알림
-          <span className="absolute -top-1 -right-2.5 h-2 w-2 rounded-full bg-status-danger" />
-        </button>
-
-        <button
-          type="button"
-          className="transition-colors hover:text-content-primary"
-          aria-label="설정"
-        >
-          설정
+          <Bell className="h-4 w-4" />
+          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-status-danger" />
         </button>
       </div>
     </header>

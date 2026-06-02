@@ -31,6 +31,7 @@ let sttListening = false;
 let overlayServer: http.Server | null = null;
 let isQuitting = false;
 let isGlobalPttHeld = false;
+const pressedKeycodes = new Set<number>();
 let tray: Tray | null = null;
 const obsManager = new OBSManager();
 
@@ -143,38 +144,75 @@ function sendSttResult(payload: { text: string; isFinal: boolean }) {
 }
 
 function sendGlobalPttEvent(type: 'start' | 'stop') {
+  // 검증된 흐름:
+  // main(uiohook) → preload(onGlobalPtt) → renderer(sttBackgroundService).
+  // 실제 런타임 로그에서 START/STOP trigger와 preload/service 수신이 모두 확인되었고,
+  // 숨김/백그라운드 상태에서도 전역 PTT 이벤트 자체는 이 채널로 전달된다.
+  console.info('[ptt][main] sendGlobalPttEvent', type, { hasWindow: !!mainWindow });
   mainWindow?.webContents.send('stt:global-ptt', { type });
 }
 
 function isGlobalPttCombo(event: UiohookKeyboardEvent): boolean {
+  void event;
   const { ctrlOrCmd, shift, alt, key } = appSettings.pttShortcut;
   const keycode = UiohookKey[key as keyof typeof UiohookKey];
-  const hasRequiredPrimaryModifier = ctrlOrCmd ? (event.ctrlKey || event.metaKey) : true;
-  const hasRequiredShift = shift ? event.shiftKey : true;
-  const hasRequiredAlt = alt ? event.altKey : true;
-  return Boolean(keycode) && hasRequiredPrimaryModifier && hasRequiredShift && hasRequiredAlt && event.keycode === keycode;
+  if (!keycode) return false;
+
+  const hasPrimaryModifier = ctrlOrCmd
+    ? pressedKeycodes.has(UiohookKey.Ctrl)
+      || pressedKeycodes.has(UiohookKey.CtrlRight)
+      || pressedKeycodes.has(UiohookKey.Meta)
+      || pressedKeycodes.has(UiohookKey.MetaRight)
+    : true;
+
+  const hasShift = shift
+    ? pressedKeycodes.has(UiohookKey.Shift) || pressedKeycodes.has(UiohookKey.ShiftRight)
+    : true;
+
+  const hasAlt = alt
+    ? pressedKeycodes.has(UiohookKey.Alt) || pressedKeycodes.has(UiohookKey.AltRight)
+    : true;
+
+  return hasPrimaryModifier && hasShift && hasAlt && pressedKeycodes.has(keycode);
 }
 
 function startGlobalPttHook() {
   uIOhook.on('keydown', (event) => {
+    pressedKeycodes.add(event.keycode);
+    console.info('[ptt][main] keydown', {
+      keycode: event.keycode,
+      ctrl: event.ctrlKey,
+      meta: event.metaKey,
+      shift: event.shiftKey,
+      alt: event.altKey,
+      held: [...pressedKeycodes],
+    });
+    // macOS에서 modifier 플래그(ctrl/meta/shift)가 항상 안정적으로 보이지 않을 수 있어
+    // event의 불리언 플래그보다 pressedKeycodes 집합을 기준으로 조합을 판정한다.
     if (!isGlobalPttCombo(event) || isGlobalPttHeld) return;
     isGlobalPttHeld = true;
+    console.info('[ptt][main] START trigger');
     sendGlobalPttEvent('start');
   });
 
   uIOhook.on('keyup', (event) => {
+    pressedKeycodes.delete(event.keycode);
+    console.info('[ptt][main] keyup', {
+      keycode: event.keycode,
+      ctrl: event.ctrlKey,
+      meta: event.metaKey,
+      shift: event.shiftKey,
+      alt: event.altKey,
+      held: [...pressedKeycodes],
+    });
     if (!isGlobalPttHeld) return;
 
-    const isModifierRelease = event.keycode === UiohookKey.Ctrl
-      || event.keycode === UiohookKey.CtrlRight
-      || event.keycode === UiohookKey.Meta
-      || event.keycode === UiohookKey.MetaRight
-      || event.keycode === UiohookKey.Shift
-      || event.keycode === UiohookKey.ShiftRight;
-
-    if (event.keycode !== UiohookKey.M && !isModifierRelease) return;
+    // hold-to-talk 이므로 조합이 깨지는 첫 keyup에서만 STOP을 보낸다.
+    // 실제 검증에서도 Cmd/Shift/M 중 어떤 키를 먼저 떼더라도 STOP 경로가 정상 동작했다.
+    if (isGlobalPttCombo(event)) return;
 
     isGlobalPttHeld = false;
+    console.info('[ptt][main] STOP trigger');
     sendGlobalPttEvent('stop');
   });
 
@@ -463,6 +501,8 @@ function getAudioExtension(mimeType: string): string {
 
 type TranscribeResult = { ok: boolean; text?: string; error?: string };
 
+const STT_REQUEST_TIMEOUT_MS = 25_000;
+
 interface PendingRequest {
   id: string;
   audioPath: string;
@@ -498,6 +538,9 @@ class STTManager {
     this.child.stderr.on('data', (chunk: string) => {
       // 디버그용 stderr — Hugging Face 다운로드 진행 표시 등이 여기 옴
       console.warn('[stt-stderr]', chunk.trimEnd());
+    });
+    this.child.stdin.on('error', (err) => {
+      console.error('[stt] stdin error:', err);
     });
 
     this.child.on('exit', (code, signal) => {
@@ -599,13 +642,56 @@ class STTManager {
       req.resolve({ ok: false, error: 'STT 데몬이 실행 중이 아닙니다.' });
       return;
     }
-    this.inFlight.set(req.id, req);
+
+    // 실제 장애 원인 중 하나가 "renderer는 transcribe request를 찍었는데 응답이 영원히 오지 않음"이었기 때문에
+    // main 프로세스에서도 요청 단위 timeout을 둬 inFlight가 영구 고착되지 않게 한다.
+    let settled = false;
+    const timer = setTimeout(() => {
+      finish({ ok: false, error: `STT 응답이 ${STT_REQUEST_TIMEOUT_MS / 1000}초 내에 오지 않았습니다.` });
+    }, STT_REQUEST_TIMEOUT_MS);
+
+    const finish = (result: TranscribeResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      this.inFlight.delete(req.id);
+      req.resolve(result);
+    };
+
+    const pending: PendingRequest = {
+      ...req,
+      resolve: finish,
+    };
+
+    this.inFlight.set(req.id, pending);
     const payload = JSON.stringify({ id: req.id, audio_path: req.audioPath }) + '\n';
-    this.child.stdin.write(payload);
+
+    try {
+      const accepted = this.child.stdin.write(payload, (err?: Error | null) => {
+        if (err) {
+          finish({ ok: false, error: `STT 요청 전송 실패: ${err.message}` });
+        }
+      });
+
+      if (!accepted) {
+        console.warn('[stt] stdin backpressure', {
+          requestId: req.id,
+          inFlight: this.inFlight.size,
+        });
+      }
+    } catch (err) {
+      finish({
+        ok: false,
+        error: err instanceof Error ? `STT 요청 전송 실패: ${err.message}` : 'STT 요청 전송 실패',
+      });
+    }
   }
 
   async transcribe(audioBuffer: ArrayBuffer, mimeType: string): Promise<TranscribeResult> {
     // temp 파일 작성 (데몬은 path 로 받음 — IPC 페이로드를 가볍게 유지)
+    // 검증된 흐름:
+    // renderer MediaRecorder(webm/opus) → main temp file → python sidecar(Faster Whisper) → 응답 JSON.
+    // 이 경로에서 실제로 빈 transcript(너무 짧은 발화)와 정상 transcript 둘 다 확인되었다.
     const ext = getAudioExtension(mimeType);
     const tempPath = path.join(os.tmpdir(), `sku-sw-stt-${Date.now()}-${this.nextSeq}.${ext}`);
     await fs.writeFile(tempPath, Buffer.from(audioBuffer));
@@ -696,6 +782,10 @@ function createWindow() {
     mainWindow?.show();
   });
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.info('[window] renderer finished load');
+  });
+
   mainWindow.on('close', (event) => {
     if (isQuitting || !mainWindow) return;
     if (!appSettings.closeToTray) return;
@@ -714,40 +804,6 @@ function createWindow() {
 // ============================================================
 
 app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    if (permission === 'media') {
-      callback(true);
-      return;
-    }
-    callback(false);
-  });
-
-  // STT 데몬 사전 부팅 — 사용자 첫 발화 전 모델 로딩 끝내두기
-  sttManager.start();
-  startOverlayStateServer();
-  createTray();
-
-  // macOS: 손쉬운 사용 권한 확인 및 요청
-  // 전역 키 훅이 다른 앱 포커스 중에도 동작하려면 이 권한이 필요함
-  // 개발 모드에서는 "Electron", 패키징 후에는 앱 이름으로 목록에 표시됨
-  if (process.platform === 'darwin') {
-    const trusted = systemPreferences.isTrustedAccessibilityClient(false);
-    if (!trusted) {
-      // prompt=true → 시스템 설정 열기 안내 다이얼로그 자동 표시
-      systemPreferences.isTrustedAccessibilityClient(true);
-      dialog.showMessageBox({
-        type: 'info',
-        title: '손쉬운 사용 권한 필요',
-        message: '전역 PTT(Cmd/Ctrl+Shift+M)를 사용하려면 손쉬운 사용 권한이 필요합니다.',
-        detail: '시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서\n"Electron" (개발 중) 또는 앱 이름을 활성화한 뒤 앱을 재시작해주세요.',
-        buttons: ['확인'],
-      });
-    }
-  }
-
-  startGlobalPttHook();
-  console.info('[shortcut] 전역 PTT 후킹 시작: Ctrl/Cmd+Shift+M (hold)');
-
   // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
@@ -785,7 +841,17 @@ app.whenReady().then(async () => {
     return { ok: true };
   });
   ipcMain.handle('stt:transcribe', async (_event, audioBuffer: ArrayBuffer, mimeType: string) => {
+    const startedAt = Date.now();
+    console.info('[stt] ipc transcribe request', {
+      bytes: audioBuffer.byteLength,
+      mimeType,
+    });
     const result = await sttManager.transcribe(audioBuffer, mimeType);
+    console.info('[stt] ipc transcribe response', {
+      ok: result.ok,
+      error: result.error,
+      durationMs: Date.now() - startedAt,
+    });
     if (result.ok) {
       sendSttResult({ text: result.text ?? '', isFinal: true });
     }
@@ -798,6 +864,40 @@ app.whenReady().then(async () => {
     sendSttResult({ text, isFinal: true });
     return { ok: true };
   });
+
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'media') {
+      callback(true);
+      return;
+    }
+    callback(false);
+  });
+
+  // STT 데몬 사전 부팅 — 사용자 첫 발화 전 모델 로딩 끝내두기
+  sttManager.start();
+  startOverlayStateServer();
+  createTray();
+
+  // macOS: 손쉬운 사용 권한 확인 및 요청
+  // 전역 키 훅이 다른 앱 포커스 중에도 동작하려면 이 권한이 필요함
+  // 개발 모드에서는 "Electron", 패키징 후에는 앱 이름으로 목록에 표시됨
+  if (process.platform === 'darwin') {
+    const trusted = systemPreferences.isTrustedAccessibilityClient(false);
+    if (!trusted) {
+      // prompt=true → 시스템 설정 열기 안내 다이얼로그 자동 표시
+      systemPreferences.isTrustedAccessibilityClient(true);
+      dialog.showMessageBox({
+        type: 'info',
+        title: '손쉬운 사용 권한 필요',
+        message: '전역 PTT(Cmd/Ctrl+Shift+M)를 사용하려면 손쉬운 사용 권한이 필요합니다.',
+        detail: '시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서\n"Electron" (개발 중) 또는 앱 이름을 활성화한 뒤 앱을 재시작해주세요.',
+        buttons: ['확인'],
+      });
+    }
+  }
+
+  startGlobalPttHook();
+  console.info('[shortcut] 전역 PTT 후킹 시작: Ctrl/Cmd+Shift+M (hold)');
 
   createWindow();
 
