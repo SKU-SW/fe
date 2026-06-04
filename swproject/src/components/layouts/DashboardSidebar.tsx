@@ -126,7 +126,7 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
           title={isCollapsed ? '대시보드로 이동' : undefined}
         >
           <img 
-            src="/logo.png" 
+            src="/icon.png" 
             alt="Logo" 
             className="w-7 h-7 rounded-md object-cover shadow-sm group-hover:scale-105 transition-transform shrink-0" 
           />

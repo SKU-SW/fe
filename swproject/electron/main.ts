@@ -246,7 +246,7 @@ function sanitizeAppSettings(value: unknown): AppSettingsPayload {
 function createTray() {
   if (tray) return;
 
-  const iconPath = path.join(app.getAppPath(), 'public', 'logo.png');
+  const iconPath = path.join(app.getAppPath(), 'public', 'icon.png');
   const fallbackIcon = nativeImage.createFromNamedImage('NSStatusAvailable', [16, 16]);
   const trayIcon = existsSync(iconPath)
     ? nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 })
@@ -756,12 +756,31 @@ const sttManager = new STTManager();
 // BrowserWindow
 // ============================================================
 
+function resolveAppIconPath(): string | null {
+  // dev 모드: __dirname = .../swproject/dist-electron, 한 단계 위에서 build/public 탐색
+  // prod 모드: app.getAppPath() 기준으로도 탐색 (asar 안의 dist/icon.png 등)
+  const candidates = [
+    path.join(__dirname, '..', 'build', 'icon.png'),
+    path.join(__dirname, '..', 'public', 'icon.png'),
+    path.join(__dirname, '..', 'dist', 'icon.png'),
+    path.join(app.getAppPath(), 'build', 'icon.png'),
+    path.join(app.getAppPath(), 'public', 'icon.png'),
+    path.join(app.getAppPath(), 'dist', 'icon.png'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 function createWindow() {
+  const iconPath = resolveAppIconPath();
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
     minHeight: 768,
+    icon: iconPath ?? undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -804,6 +823,21 @@ function createWindow() {
 // ============================================================
 
 app.whenReady().then(async () => {
+  // macOS dev 모드에서 dock 아이콘을 앱 로고로 교체.
+  // 패키지 빌드에서는 build/icon.icns 가 Info.plist 경유로 자동 적용되므로
+  // 여기서는 dev 환경에서의 기본 Electron 아이콘만 덮어쓴다.
+  console.info('[dock-icon] platform=%s isDev=%s hasDock=%s', process.platform, isDev, Boolean(app.dock));
+  if (process.platform === 'darwin' && isDev && app.dock) {
+    const iconPath = resolveAppIconPath();
+    console.info('[dock-icon] iconPath=%s', iconPath);
+    if (iconPath) {
+      const img = nativeImage.createFromPath(iconPath);
+      console.info('[dock-icon] image empty=%s size=%j', img.isEmpty(), img.getSize());
+      app.dock.setIcon(img);
+      console.info('[dock-icon] setIcon called');
+    }
+  }
+
   // === IPC 핸들러 ===
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
