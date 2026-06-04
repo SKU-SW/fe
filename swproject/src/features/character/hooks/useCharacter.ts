@@ -54,6 +54,7 @@ export function useCharacter(characterId: number | null): UseCharacterReturn {
   const [error, setError] = useState<string | null>(null);
   const setSelectedCharacter = useCharacterStore((s) => s.setSelectedCharacter);
   const setCharacterDetail = useCharacterStore((s) => s.setCharacterDetail);
+  const setSelectedCharacterId = useCharacterStore((s) => s.setSelectedCharacterId);
 
   const fetchCharacter = useCallback(async () => {
     if (characterId === null) return;
@@ -73,20 +74,28 @@ export function useCharacter(characterId: number | null): UseCharacterReturn {
       }
     } catch (err: unknown) {
       const message = getAxiosErrorMessage(err, '캐릭터 정보를 불러오지 못했습니다.');
+      const axiosErr = err as AxiosError;
+      const status = axiosErr.response?.status;
       if (import.meta.env.DEV) {
-        const axiosErr = err as AxiosError;
         console.error('[useCharacter] GET /api/v1/characters/:id 실패', {
           characterId,
-          status: axiosErr.response?.status,
+          status,
           data: axiosErr.response?.data,
           message,
         });
+      }
+      if (status === 404) {
+        setCharacter(null);
+        if (useCharacterStore.getState().selectedCharacterId === characterId) {
+          setSelectedCharacter(null);
+          setSelectedCharacterId(null);
+        }
       }
       setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [characterId, setSelectedCharacter]);
+  }, [characterId, setSelectedCharacter, setSelectedCharacterId]);
 
   // characterId 변경 시 자동 조회
   useEffect(() => {

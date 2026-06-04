@@ -59,6 +59,7 @@ export function useCharacters(): UseCharactersReturn {
   const characters = useCharacterStore((s) => s.characters);
   const setCharacters = useCharacterStore((s) => s.setCharacters);
   const setCharacterDetail = useCharacterStore((s) => s.setCharacterDetail);
+  const reset = useCharacterStore((s) => s.reset);
 
   const fetchCharacters = useCallback(async () => {
     setIsLoading(true);
@@ -85,19 +86,24 @@ export function useCharacters(): UseCharactersReturn {
       );
     } catch (err: unknown) {
       const message = getAxiosErrorMessage(err, '캐릭터 목록을 불러오지 못했습니다.');
+      const axiosErr = err as AxiosError;
+      const status = axiosErr.response?.status;
       if (import.meta.env.DEV) {
-        const axiosErr = err as AxiosError;
         console.error('[useCharacters] GET /api/v1/characters 실패', {
-          status: axiosErr.response?.status,
+          status,
           data: axiosErr.response?.data,
           message,
         });
+      }
+      if (status && status >= 400) {
+        reset();
+        setHasNext(false);
       }
       setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [setCharacters]);
+  }, [reset, setCharacters]);
 
   // 마운트 시 자동 조회
   useEffect(() => {

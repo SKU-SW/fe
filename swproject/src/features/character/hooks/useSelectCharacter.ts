@@ -51,6 +51,7 @@ export function useSelectCharacter(): UseSelectCharacterReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setSelectedCharacterId = useCharacterStore((s) => s.setSelectedCharacterId);
+  const setSelectedCharacter = useCharacterStore((s) => s.setSelectedCharacter);
 
   const select = useCallback(
     async (characterId: number, isSelected: boolean) => {
@@ -77,15 +78,20 @@ export function useSelectCharacter(): UseSelectCharacterReturn {
         return result;
       } catch (err: unknown) {
         const message = getAxiosErrorMessage(err, '캐릭터 선택에 실패했습니다.');
+        const axiosErr = err as AxiosError;
+        const status = axiosErr.response?.status;
         if (import.meta.env.DEV) {
-          const axiosErr = err as AxiosError;
           console.error('[useSelectCharacter] PATCH /api/v1/characters/:id 실패', {
             characterId,
             isSelected,
-            status: axiosErr.response?.status,
+            status,
             data: axiosErr.response?.data,
             message,
           });
+        }
+        if (status === 404 && useCharacterStore.getState().selectedCharacterId === characterId) {
+          setSelectedCharacterId(null);
+          setSelectedCharacter(null);
         }
         setError(message);
         return null;
@@ -93,7 +99,7 @@ export function useSelectCharacter(): UseSelectCharacterReturn {
         setIsPending(false);
       }
     },
-    [setSelectedCharacterId]
+    [setSelectedCharacter, setSelectedCharacterId]
   );
 
   return { select, isPending, error };

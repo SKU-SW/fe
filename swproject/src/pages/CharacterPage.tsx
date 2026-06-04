@@ -231,7 +231,7 @@ export default function CharacterPage() {
   const { create, isPending: isCreating, error: createError } = useCreateCharacter();
   const { update, isPending: isUpdating, error: updateError } = useUpdateCharacter();
   const { remove, isPending: isDeleting } = useDeleteCharacter();
-  const { select, isPending: isSelecting } = useSelectCharacter();
+  const { select, isPending: isSelecting, error: selectError } = useSelectCharacter();
   const { start: startBroadcastApi, isPending: isStartingBroadcast, error: startBroadcastError } = useStartBroadcast();
   const { terminate: terminateBroadcastApi, isPending: isTerminatingBroadcast, error: terminateBroadcastError } = useTerminateBroadcast();
   const { obsStatus, obsError, obsDiagnostics, launchObs, resetObsStatus } = useObsLaunch();
@@ -250,6 +250,11 @@ export default function CharacterPage() {
       setPageNotice({ tone: "error", message: terminateBroadcastError });
     }
   }, [terminateBroadcastError]);
+  useEffect(() => {
+    if (selectError) {
+      setPageNotice({ tone: "error", message: selectError });
+    }
+  }, [selectError]);
   // API 응답을 UI CharacterPreset으로 변환
   // 우선순위: storedSelectedCharacter > characterDetailsMap > toCharacterPreset(목록 폴백)
   const characters = useMemo(
@@ -403,7 +408,8 @@ export default function CharacterPage() {
    */
    const performStart = useCallback(
      async (cid: number) => {
-       await select(cid, true);
+       const selected = await select(cid, true);
+       if (!selected) return;
        const started = await startBroadcastApi(cid);
        if (!started) return;
      },
@@ -432,7 +438,8 @@ export default function CharacterPage() {
     const chzzkReady = await ensureChzzkReady(cid);
     if (!chzzkReady) return;
 
-    await select(cid, true);
+    const selected = await select(cid, true);
+    if (!selected) return;
     setObsGatePending(cid);
     void launchObs(overlayUrl);
   }, [ensureChzzkReady, launchObs, overlayUrl, select]);
