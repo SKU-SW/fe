@@ -20,6 +20,9 @@
 # production
 /build
 
+# sibling backend repository cloned for local reference only
+/be/
+
 # misc
 .DS_Store
 *.pem
