@@ -44,6 +44,18 @@ export default function AppInitializer() {
       throw new Error("음성인식이 꺼져 있습니다. 토글을 다시 켜주세요.");
     }
 
+    const { mode, broadcastStreamId } = useAIModeStore.getState();
+    if (mode !== "broadcasting" || !broadcastStreamId) {
+      useAIModeStore.getState().addActivityLog({
+        id: `stt-skip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: "system",
+        message: "방송 채널이 활성화되지 않아 음성 전송을 건너뜁니다.",
+        timestamp: new Date(),
+        level: "warning",
+      });
+      return;
+    }
+
     // 2단계 resident 경로:
     // global PTT → STT 완료 → 여기서 WS 전송 + optimistic streamer dialogue 추가.
     // 백엔드 계약은 그대로 두고, 페이지 언마운트와 무관하게 프론트 런타임만 상주화한다.
@@ -73,7 +85,14 @@ export default function AppInitializer() {
 
     const sendResult = broadcastWSBackgroundService.sendChat(trimmed);
     if (!sendResult.ok) {
-      throw new Error(sendResult.reason ?? "LLM 전송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      useAIModeStore.getState().addActivityLog({
+        id: `stt-send-fail-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: "system",
+        message: sendResult.reason ?? "LLM 전송에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        timestamp: new Date(),
+        level: "warning",
+      });
+      return;
     }
 
     useAIModeStore.getState().upsertDialogues(

@@ -491,6 +491,17 @@ class BroadcastWSBackgroundService {
     if (!parsed || typeof parsed !== "object") return;
     const obj = parsed as Record<string, unknown>;
 
+    if (typeof obj.status === "string" && typeof obj.message === "string") {
+      const status = obj.status;
+      const message = obj.message;
+      this.diagnosticRef = `${status}: ${message}`;
+      if (status === "GEMINI_CONNECTING") {
+        this.errorRef = null;
+      }
+      this.notifyStateChange();
+      return;
+    }
+
     // 에러 frame
     if (obj.error === "ERROR" && typeof obj.message === "string") {
       this.clearResponseTimer();
@@ -728,8 +739,13 @@ class BroadcastWSBackgroundService {
         return;
       }
 
-      if (event.code === 1000 || event.code === 1008) {
+      if (event.code === 1000 || event.code === 1008 || event.code === 1011) {
         this.shouldReconnectRef = false;
+        if (event.code === 1011) {
+          this.errorRef = event.reason || "서버 내부 오류로 방송 채널이 종료되었습니다.";
+          this.diagnosticRef = `재연결 중단: 서버 내부 오류(code=1011, reason=${event.reason || "(없음)"})`;
+          this.notifyStateChange();
+        }
         return;
       }
 

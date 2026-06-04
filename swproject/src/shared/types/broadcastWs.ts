@@ -109,6 +109,12 @@ export interface StreamWsErrorPayload {
   message: string;
 }
 
+/** 서버 상태 알림 (예: Gemini bootstrap 진행 상태) */
+export interface StreamWsStatusPayload {
+  status: string;
+  message: string;
+}
+
 // ============================================================
 // FE 내부 페어링 결과
 // ============================================================
