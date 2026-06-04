@@ -24,8 +24,7 @@ export type PresetType =
   | "HIGH_TENSION"
   | "PLAYFUL_TEASER"
   | "PROFESSIONAL_MANAGER"
-  | "ROLEPLAY_EXPERT"
-  | "CUSTOM";
+  | "ROLEPLAY_EXPERT";
 
 /**
  * 말투 스타일 (backend)
@@ -55,8 +54,6 @@ export type AgeGroup = "SENIOR" | "MIDDLE_AGED" | "YOUNG_ADULT" | "TEENAGER";
  */
 export interface CharacterPersonaReqDto {
   presetType: PresetType;
-  speechStyle: SpeechStyle;
-  personality: Personality;
 }
 
 /**
@@ -64,8 +61,6 @@ export interface CharacterPersonaReqDto {
  */
 export interface CharacterPersonaResDto {
   presetType: PresetType;
-  speechStyle: SpeechStyle;
-  personality: Personality;
 }
 
 // ============================================================
@@ -81,7 +76,6 @@ export interface CharacterDetailResDto {
   characterName: string;
   triggerWords: string[];
   gender: Gender;
-  voiceTypeId: number;
   characterImageUrl: string;
   characterPersona: CharacterPersonaResDto;
   isSelected: boolean;
@@ -95,7 +89,6 @@ export interface CharacterListItemResDto {
   characterName: string;
   triggerWords: string[];
   gender: Gender;
-  voiceTypeId: number;
   characterImageUrl: string;
   characterPersona?: CharacterPersonaResDto;
   isSelected: boolean;
@@ -127,7 +120,6 @@ export interface CharacterCreateReqDto {
   characterName: string;
   triggerWords: string[];
   gender: Gender;
-  voiceTypeId: number;
   characterImageId: number;
   characterPersona: CharacterPersonaReqDto;
 }
@@ -140,7 +132,6 @@ export interface CharacterUpdateReqDto {
   characterName: string;
   triggerWords: string[];
   gender: Gender;
-  voiceTypeId: number;
   characterImageId: number;
   characterPersona: CharacterPersonaReqDto;
 }
@@ -167,19 +158,6 @@ export interface CharacterSelectResDto {
 // ============================================================
 // Character Settings
 // ============================================================
-
-/**
- * 음성 타입 응답
- */
-export interface VoiceTypeResDto {
-  voiceTypeId: number;
-  label: string | null;
-  gender: Gender;
-  ageGroup: AgeGroup;
-  testUrl: string;
-  /** TTS 엔진 식별자 (PERSONA_VOICE_MAP 매핑용) — 프론트에서만 사용 */
-  ttsId?: string;
-}
 
 /**
  * 캐릭터 이미지 응답
@@ -214,11 +192,8 @@ export interface CharacterImageResDto {
  * - backend CharacterSettingsResDto 매칭
  */
 export interface CharacterSettingsResDto {
-  voiceTypes: VoiceTypeResDto[];
   characterImages: CharacterImageResDto[];
-  presetTypes: string[];
-  speechStyles: string[];
-  personalities: string[];
+  presetTypes: PresetType[];
 }
 
 // ============================================================

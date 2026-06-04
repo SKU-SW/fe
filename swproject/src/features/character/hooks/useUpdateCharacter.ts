@@ -1,7 +1,7 @@
 /**
  * @file 캐릭터 수정 훅 - useUpdateCharacter
  * @created Sprint 1 - Character 훅 구현
- * @updated Backend Swagger spec alignment - PUT /api/v1/characters/:id 이 CharacterDetailResDto 를 반환하므로 재조회 제거
+ * @updated Backend Swagger spec alignment - PUT /api/v1/characters/:id 이 CharacterDetailResDto 를 반환
  * @dependsOn src/features/character/api/characterApi.ts (updateCharacter)
  * @dependsOn src/shared/stores/characterStore.ts (updateCharacter)
  * @usedBy src/pages/CharacterPage.tsx
@@ -51,7 +51,6 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
           characterName: character.characterName,
           triggerWords: character.triggerWords,
           gender: character.gender,
-          voiceTypeId: character.voiceTypeId,
           characterImageUrl: character.characterImageUrl,
           characterPersona: character.characterPersona,
           isSelected: character.isSelected,
@@ -74,7 +73,7 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
         setIsPending(false);
       }
     },
-    [setSelectedCharacter, updateCharacterInStore]
+    [setCharacterDetail, setSelectedCharacter, updateCharacterInStore]
   );
 
   return { update, isPending, error };
