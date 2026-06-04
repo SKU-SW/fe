@@ -93,7 +93,7 @@ export interface ChzzkAuthUrlResponse {
 
 /**
  * 치지직 연동 상태 응답
- * - GET /api/v1/auth/chzzk/status (Swagger 명세 기준)
+ * - GET /api/v1/user/chzzk (Swagger 명세 기준)
  * - authorized: 전체 연동 상태 (true/false)
  * - accessTokenExpired: 액세스 토큰 만료 여부
  * - refreshTokenExpired: 리프레시 토큰 만료 여부

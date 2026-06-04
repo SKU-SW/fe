@@ -5,7 +5,7 @@
  * @dependsOn src/features/auth/api/authApi.ts (getChzzkStatus)
  * @usedBy src/pages/SettingsPage.tsx, src/features/auth/components/ChzzkStatusBadge.tsx
  *
- * GET /api/v1/auth/chzzk/status 를 조회해
+ * GET /api/v1/user/chzzk 를 조회해
  * authorized (연동 여부), accessTokenExpired, refreshTokenExpired 상태를 반환한다.
  */
 

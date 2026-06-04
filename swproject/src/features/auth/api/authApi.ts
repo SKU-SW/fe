@@ -20,6 +20,7 @@ import type {
 } from '@/shared/types/auth';
 
 const AUTH_BASE = '/api/v1/auth';
+const USER_BASE = '/api/v1/user';
 
 /**
  * 이메일 회원가입
@@ -79,11 +80,11 @@ export async function getChzzkAuthUrl(): Promise<ChzzkAuthUrlResponse> {
 
 /**
  * 치지직 연동 상태 조회
- * - GET /api/v1/auth/chzzk/status (백엔드 추가 요청 중)
- * - linked=false 이거나 refreshToken 만료 시 재연동 필요
+ * - GET /api/v1/user/chzzk
+ * - authorized=false 이거나 refreshTokenExpired=true 시 재연동 필요
  */
 export async function getChzzkStatus(): Promise<ChzzkStatusResponse> {
-  const res = await apiClient.get<ChzzkStatusResponse>(`${AUTH_BASE}/chzzk/status`);
+  const res = await apiClient.get<ChzzkStatusResponse>(`${USER_BASE}/chzzk`);
   return res.data;
 }
 
