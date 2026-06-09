@@ -94,8 +94,11 @@ interface OverlayRuntimeState {
   isBroadcasting: boolean;
   broadcastStreamId: string | null;
   isSpeaking: boolean;
+  modelType: '2D' | '3D';
   characterName: string;
   characterImageUrl: string;
+  vrmUrl: string;
+  vrmThumbnailUrl: string;
   emotionImageMap: Partial<Record<StreamEmotion, string>>;
   transcript: string;
   emotion: StreamEmotion;
@@ -118,8 +121,11 @@ const DEFAULT_OVERLAY_STATE: OverlayBridgeState = {
     isBroadcasting: false,
     broadcastStreamId: null,
     isSpeaking: false,
+    modelType: '2D',
     characterName: 'AI',
     characterImageUrl: '',
+    vrmUrl: '',
+    vrmThumbnailUrl: '',
     emotionImageMap: {},
     transcript: '',
     emotion: 'DEFAULT',
@@ -253,7 +259,7 @@ function createTray() {
     : fallbackIcon;
 
   tray = new Tray(trayIcon);
-  tray.setToolTip('SKU-SW');
+  tray.setToolTip('Live Buddy');
 
   const openApp = () => {
     if (!mainWindow) {
@@ -330,12 +336,21 @@ function sanitizeOverlayState(value: unknown): OverlayBridgeState {
       isSpeaking: typeof runtimeCandidate.isSpeaking === 'boolean'
         ? runtimeCandidate.isSpeaking
         : DEFAULT_OVERLAY_STATE.runtime.isSpeaking,
+      modelType: runtimeCandidate.modelType === '3D' || runtimeCandidate.modelType === '2D'
+        ? runtimeCandidate.modelType
+        : DEFAULT_OVERLAY_STATE.runtime.modelType,
       characterName: typeof runtimeCandidate.characterName === 'string'
         ? runtimeCandidate.characterName
         : DEFAULT_OVERLAY_STATE.runtime.characterName,
       characterImageUrl: typeof runtimeCandidate.characterImageUrl === 'string'
         ? runtimeCandidate.characterImageUrl
         : DEFAULT_OVERLAY_STATE.runtime.characterImageUrl,
+      vrmUrl: typeof runtimeCandidate.vrmUrl === 'string'
+        ? runtimeCandidate.vrmUrl
+        : DEFAULT_OVERLAY_STATE.runtime.vrmUrl,
+      vrmThumbnailUrl: typeof runtimeCandidate.vrmThumbnailUrl === 'string'
+        ? runtimeCandidate.vrmThumbnailUrl
+        : DEFAULT_OVERLAY_STATE.runtime.vrmThumbnailUrl,
       emotionImageMap: isEmotionImageMap(runtimeCandidate.emotionImageMap)
         ? runtimeCandidate.emotionImageMap
         : DEFAULT_OVERLAY_STATE.runtime.emotionImageMap,
@@ -805,9 +820,31 @@ function createWindow() {
     console.info('[window] renderer finished load');
   });
 
+  // Cmd/Ctrl+R, F5 등 페이지 새로고침 단축키 차단 — 방송 중 WebSocket 연결이 끊겨 방송이 종료되는 것 방지
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const isReload =
+      (input.key === 'r' && (input.control || input.meta)) ||
+      input.key === 'F5' ||
+      (input.key === 'R' && (input.control || input.meta));
+    if (isReload) {
+      event.preventDefault();
+      console.info('[window] reload shortcut blocked');
+    }
+  });
+
   mainWindow.on('close', (event) => {
     if (isQuitting || !mainWindow) return;
-    if (!appSettings.closeToTray) return;
+    if (!appSettings.closeToTray) {
+      // 트레이 상주 모드가 아닐 때 실제 종료가 시도됨.
+      // 방송 중이라면 renderer 에 확인을 요청하고 종료를 보류한다.
+      if (overlayState.runtime?.isBroadcasting) {
+        event.preventDefault();
+        mainWindow.webContents.send('broadcast:confirm-quit');
+        return;
+      }
+      return;
+    }
     // 트레이 상주 모드에서는 창을 실제로 닫지 않고 숨긴다.
     event.preventDefault();
     mainWindow.hide();
@@ -863,6 +900,14 @@ app.whenReady().then(async () => {
   ipcMain.handle('overlay:set-state', (_event, state: unknown) => {
     overlayState = sanitizeOverlayState(state);
     return { ok: true, state: overlayState };
+  });
+  // renderer 가 방송 종료 후 실제 종료를 허용하도록 신호를 보냄
+  ipcMain.on('app:quit-confirmed', () => {
+    isQuitting = true;
+    app.quit();
+  });
+  ipcMain.on('app:quit-cancelled', () => {
+    // 사용자가 종료 확인 모달에서 취소를 누름 — 아무것도 안 함 (창 유지)
   });
   ipcMain.handle('stt:start', () => {
     sttListening = true;

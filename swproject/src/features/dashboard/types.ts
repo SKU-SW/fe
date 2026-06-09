@@ -6,10 +6,14 @@
 /** 대화 스트림 메시지의 화자 타입 */
 export type ConversationSpeaker = "streamer" | "ai" | "chat";
 
+/** 원본 방송 dialogue subject 를 UI 친화형으로 보존 */
+export type ConversationSubject = "streamer" | "ai" | "viewer" | "donation" | "game_event" | "system_summary";
+
 /** 대화 스트림 단일 메시지 */
 export interface ConversationMessage {
   id: string;
   speaker: ConversationSpeaker;
+  subject: ConversationSubject;
   /** 채팅(viewer)의 경우 닉네임, AI/스트리머는 비워둠 */
   username?: string;
   text: string;

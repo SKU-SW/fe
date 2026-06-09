@@ -41,23 +41,12 @@ export type CharacterPresetType =
   | "HIGH_TENSION"
   | "PLAYFUL_TEASER"
   | "PROFESSIONAL_MANAGER"
-  | "ROLEPLAY_EXPERT"
-  | "CUSTOM";
-
-export type CharacterSpeechStyle =
-  | "FRIENDLY_INFORMAL"
-  | "POLITE_FORMAL"
-  | "PLAYFUL_INFORMAL"
-  | "BROADCAST_EXAGGERATED";
-
-export type CharacterPersonality = "ACTIVE" | "CALM" | "HUMOROUS" | "SERIOUS";
+  | "ROLEPLAY_EXPERT";
 
 export type CharacterGender = "MALE" | "FEMALE";
 
 export interface CharacterPersonaInfoResDto {
   presetType: CharacterPresetType;
-  speechStyle: CharacterSpeechStyle;
-  personality: CharacterPersonality;
 }
 
 export interface BroadcastCharacterInfoResDto {
@@ -65,8 +54,7 @@ export interface BroadcastCharacterInfoResDto {
   characterName: string;
   triggerWords: string[];
   gender: CharacterGender;
-  voiceTypeId: number;
-  characterImageUrl: string;
+  characterImageUrl: string | null;
   characterPersona: CharacterPersonaInfoResDto;
 }
 

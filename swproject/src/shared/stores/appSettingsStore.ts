@@ -108,6 +108,7 @@ function persistAndSync(settings: AppSettingsPayload) {
 
 interface AppSettingsStore extends AppSettingsPayload {
   setCloseToTray: (enabled: boolean) => void;
+  setPttShortcut: (shortcut: PttShortcutSettings) => void;
   updatePttShortcut: (patch: Partial<PttShortcutSettings>) => void;
   resetPttShortcut: () => void;
   syncToElectron: () => void;
@@ -119,6 +120,12 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => ({
     const next = { ...get(), closeToTray: enabled };
     persistAndSync(next);
     set({ closeToTray: enabled });
+  },
+  setPttShortcut: (shortcut) => {
+    const nextShortcut = sanitizeShortcut(shortcut);
+    const next = { ...get(), pttShortcut: nextShortcut };
+    persistAndSync(next);
+    set({ pttShortcut: nextShortcut });
   },
   updatePttShortcut: (patch) => {
     const nextShortcut = sanitizeShortcut({ ...get().pttShortcut, ...patch });

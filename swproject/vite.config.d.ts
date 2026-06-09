@@ -6,5 +6,5 @@
  * @change Next.js dev 서버(3000) → Vite dev 서버(5173)
  * @fix Tailwind v3 + PostCSS 방식으로 변경 (@tailwindcss/vite 제거)
  */
-declare const _default: import("vite").UserConfig;
+declare const _default: import("vite").UserConfigFnObject;
 export default _default;

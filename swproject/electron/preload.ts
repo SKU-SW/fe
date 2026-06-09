@@ -27,8 +27,11 @@ interface OverlayBridgeState {
     isBroadcasting: boolean;
     broadcastStreamId: string | null;
     isSpeaking: boolean;
+    modelType: '2D' | '3D';
     characterName: string;
     characterImageUrl: string;
+    vrmUrl: string;
+    vrmThumbnailUrl: string;
     emotionImageMap: Partial<Record<StreamEmotion, string>>;
     transcript: string;
     emotion: StreamEmotion;
@@ -100,5 +103,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('stt:global-ptt', listener);
       return () => ipcRenderer.removeListener('stt:global-ptt', listener);
     },
+  },
+  // 방송 중 앱 종료 확인 — main 이 close 시점에 전송, renderer 가 모달 표시 후 응답
+  broadcast: {
+    onConfirmQuit: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('broadcast:confirm-quit', listener);
+      return () => ipcRenderer.removeListener('broadcast:confirm-quit', listener);
+    },
+    confirmQuit: () => ipcRenderer.send('app:quit-confirmed'),
+    cancelQuit: () => ipcRenderer.send('app:quit-cancelled'),
   },
 });

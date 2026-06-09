@@ -31,6 +31,11 @@ import { ObsGateModal } from "@/features/broadcast/components";
 import { useObsLaunch, useStartBroadcast, useTerminateBroadcast } from "@/features/broadcast/hooks";
 import { getChzzkStatus } from "@/features/auth/api/authApi";
 import {
+  isChzzkAuthExpiredMessage,
+  isChzzkExpired,
+  isChzzkLinked,
+} from "@/features/auth/lib/chzzkStatus";
+import {
   ChzzkConnectModal,
   type ChzzkConnectModalMode,
 } from "@/features/auth/components/ChzzkConnectModal";
@@ -39,20 +44,24 @@ import { useBroadcastNoticeStore } from "@/shared/stores/broadcastNoticeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useOverlayStore } from "@/shared/stores/overlayStore";
+import { useAlarmStore } from "@/shared/stores/alarmStore";
+import { useCharacterAppearanceStore } from "@/shared/stores/characterAppearanceStore";
 import { MAX_CHARACTERS_PER_USER } from "@/shared/constants/character";
 import { resolveAssetUrl } from "@/shared/lib/utils";
-import type {
-  CharacterConfig,
-  CharacterPreset,
-  CharacterListItemResDto,
-  CharacterDetailResDto,
-  CharacterCreateReqDto,
-  CharacterUpdateReqDto,
-  CharacterSettingsResDto,
-  Persona,
-  PresetType,
-  Gender,
-  BroadcastPreset,
+import {
+  toBackendAppearance,
+  type CharacterConfig,
+  type CharacterPreset,
+  type CharacterListItemResDto,
+  type CharacterDetailResDto,
+  type CharacterCreateReqDto,
+  type CharacterUpdateReqDto,
+  type CharacterSettingsResDto,
+  type CharacterModelType,
+  type Persona,
+  type PresetType,
+  type Gender,
+  type BroadcastPreset,
 } from "@/shared/types/character";
 
 type CharacterView = "dashboard" | "create" | "edit";
@@ -80,41 +89,55 @@ function mapUiGenderToBackend(g: "male" | "female"): Gender {
 /**
  * 문자열을 양의 정수로 안전 변환
  * - "1", "2" 등 숫자 문자열 → 숫자
- * - "undefined", "null", "" 등 비숫자 → fallback
- * - NaN/0/음수 → fallback
+ * - "undefined", "null", "" 등 비숫자 → null
+ * - NaN/0/음수 → null
  */
-function toPositiveIntOrFallback(value: string | undefined | null, fallback: number): number {
-  if (value == null || value === "") return fallback;
+function toPositiveInt(value: string | undefined | null): number | null {
+  if (value == null || value === "") return null;
   const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** CharacterConfig → CharacterCreateReqDto */
+function modelTypeOf(modelType: CharacterModelType | undefined): CharacterModelType {
+  return modelType === "3D" ? "3D" : "2D";
+}
+
+/**
+ * CharacterConfig → CharacterCreateReqDto (Swagger 스키마)
+ * - characterAppearanceType: "TWO_D" | "THREE_D"
+ * - targetId: 2D 면 imageId, 3D 면 characterVrmId 통합 송신
+ */
 function toBackendCreatePayload(config: CharacterConfig): CharacterCreateReqDto {
   const triggerWords = normalizeTriggerWords(config.callWords);
+  const modelType = modelTypeOf(config.modelType);
+  const targetId =
+    modelType === "3D"
+      ? toPositiveInt(config.model3D.presetId)
+      : toPositiveInt(config.model2D.presetId);
+
+  if (!targetId) {
+    throw new Error(
+      modelType === "3D"
+        ? "3D VRM 프리셋을 다시 선택해주세요."
+        : "2D 외모를 다시 선택해주세요."
+    );
+  }
+
   return {
+    characterAppearanceType: toBackendAppearance(modelType),
     characterName: config.name.trim() || "새 AI 캐릭터",
     triggerWords,
     gender: mapUiGenderToBackend(config.gender),
-    characterImageId: toPositiveIntOrFallback(config.model2D.presetId, 1),
+    targetId,
     characterPersona: {
       presetType: mapBroadcastPresetToPresetType(config.broadcastPreset),
     },
   };
 }
 
-/** CharacterConfig → CharacterUpdateReqDto */
+/** CharacterConfig → CharacterUpdateReqDto (생성과 동일 스키마) */
 function toBackendUpdatePayload(config: CharacterConfig): CharacterUpdateReqDto {
-  const triggerWords = normalizeTriggerWords(config.callWords);
-  return {
-    characterName: config.name.trim() || "새 AI 캐릭터",
-    triggerWords,
-    gender: mapUiGenderToBackend(config.gender),
-    characterImageId: toPositiveIntOrFallback(config.model2D.presetId, 1),
-    characterPersona: {
-      presetType: mapBroadcastPresetToPresetType(config.broadcastPreset),
-    },
-  };
+  return toBackendCreatePayload(config);
 }
 
 // ============================================================
@@ -132,22 +155,82 @@ function mapBackendPersonaToUi(presetType: string): Persona {
   }
 }
 
+function findMatchedImage(
+  settings: CharacterSettingsResDto | null,
+  imageId: number | null | undefined,
+  imageUrl: string | null | undefined,
+  gender: "MALE" | "FEMALE"
+) {
+  const images = settings?.characterImages ?? [];
+  if (imageId) {
+    const matchedById = images.find((image) => image.imageId === imageId);
+    if (matchedById) return matchedById;
+  }
+
+  const resolvedImageUrl = resolveAssetUrl(imageUrl);
+  if (resolvedImageUrl) {
+    const matchedByUrl = images.find((image) => resolveAssetUrl(image.imageUrl) === resolvedImageUrl);
+    if (matchedByUrl) return matchedByUrl;
+  }
+
+  return images.find((image) => image.gender === gender && image.name?.toLowerCase() === "default")
+    ?? images.find((image) => image.gender === gender)
+    ?? null;
+}
+
+function findMatchedVrm(
+  settings: CharacterSettingsResDto | null,
+  vrmPresetId: number | null | undefined,
+  vrmUrl: string | null | undefined
+) {
+  const presets = settings?.vrmPresets ?? [];
+  if (vrmPresetId) {
+    const matchedById = presets.find((preset) => preset.presetId === vrmPresetId || preset.characterVrmId === vrmPresetId);
+    if (matchedById) return matchedById;
+  }
+
+  const resolvedVrmUrl = resolveAssetUrl(vrmUrl);
+  if (resolvedVrmUrl) {
+    const matchedByUrl = presets.find((preset) => resolveAssetUrl(preset.vrmUrl) === resolvedVrmUrl);
+    if (matchedByUrl) return matchedByUrl;
+  }
+
+  return presets[0] ?? null;
+}
+
 /** UI CharacterPreset으로 변환 (목록 표시용) */
-function toCharacterPreset(item: CharacterListItemResDto): CharacterPreset {
+function toCharacterPreset(item: CharacterListItemResDto, settings: CharacterSettingsResDto | null): CharacterPreset {
   // 원본 배열 — triggerWords 로 보존하여 수정/저장 시 손실 방지
   const triggerWords = normalizeTriggerWords(item.triggerWords);
   const persona = item.characterPersona;
+  const modelType = modelTypeOf(item.modelType);
+  const matchedImage = findMatchedImage(settings, item.characterImageId, item.characterImageUrl, item.gender);
+  const matchedVrm = findMatchedVrm(settings, item.vrmPresetId, item.vrmUrl);
   return {
     id: String(item.characterId),
     name: item.characterName,
     info: {
+      modelType,
       gender: item.gender === "MALE" ? "male" : "female",
       name: item.characterName,
       // callSign 은 표시용 합본. 원본은 triggerWords 에서 가져갈 것
       callSign: triggerWords.join(", ") || "AI",
       triggerWords,
-      appearancePresetId: "",
-      imageUrl: item.characterImageUrl,
+      appearancePresetId: item.characterImageId
+        ? String(item.characterImageId)
+        : matchedImage
+          ? String(matchedImage.imageId)
+          : "",
+      imageUrl: modelType === "2D"
+        ? (matchedImage?.imageUrl ?? item.characterImageUrl ?? "")
+        : (item.vrmThumbnailUrl ?? matchedVrm?.thumbnailUrl ?? ""),
+      vrmPresetId: item.vrmPresetId
+        ? String(item.vrmPresetId)
+        : matchedVrm
+          ? String(matchedVrm.presetId ?? matchedVrm.characterVrmId)
+          : "",
+      vrmUrl: item.vrmUrl ?? undefined,
+      vrmThumbnailUrl: item.vrmThumbnailUrl ?? matchedVrm?.thumbnailUrl ?? undefined,
       voicePresetId: "",
       speechStyle: "friendly_informal",
       personality: "energetic",
@@ -168,21 +251,33 @@ function detailToPreset(detail: CharacterDetailResDto, settings: CharacterSettin
   const persona = detail.characterPersona;
   // 상세 API 도 triggerWords 가 배열로 옴 — 첫 원소만 쓰지 말고 전체 보존
   const triggerWords = normalizeTriggerWords(detail.triggerWords);
-  const detailImageUrl = resolveAssetUrl(detail.characterImageUrl);
-  const matchedImage = settings?.characterImages.find((image) => {
-    const imageUrl = resolveAssetUrl(image.imageUrl1 ?? image.imageUrl);
-    return imageUrl === detailImageUrl;
-  });
+  const modelType = modelTypeOf(detail.modelType);
+  const matchedImage = findMatchedImage(settings, detail.characterImageId, detail.characterImageUrl, detail.gender);
+  const matchedVrm = findMatchedVrm(settings, detail.vrmPresetId, detail.vrmUrl);
   return {
     id: String(detail.characterId),
     name: detail.characterName,
     info: {
+      modelType,
       gender: detail.gender === "MALE" ? "male" : "female",
       name: detail.characterName,
       callSign: triggerWords.join(", ") || "AI",
       triggerWords,
-      appearancePresetId: matchedImage ? String(matchedImage.imageId) : "",
-      imageUrl: detail.characterImageUrl,
+      appearancePresetId: detail.characterImageId
+        ? String(detail.characterImageId)
+        : matchedImage
+          ? String(matchedImage.imageId)
+          : "",
+      imageUrl: modelType === "2D"
+        ? (matchedImage?.imageUrl ?? detail.characterImageUrl ?? "")
+        : (detail.vrmThumbnailUrl ?? matchedVrm?.thumbnailUrl ?? ""),
+      vrmPresetId: detail.vrmPresetId
+        ? String(detail.vrmPresetId)
+        : matchedVrm
+          ? String(matchedVrm.presetId)
+          : "",
+      vrmUrl: detail.vrmUrl ?? matchedVrm?.vrmUrl ?? undefined,
+      vrmThumbnailUrl: detail.vrmThumbnailUrl ?? matchedVrm?.thumbnailUrl ?? undefined,
       voicePresetId: "",
       speechStyle: "friendly_informal",
       personality: "energetic",
@@ -210,11 +305,14 @@ export default function CharacterPage() {
   const [chzzkGatePending, setChzzkGatePending] = useState<number | null>(null);
   const [chzzkGateMode, setChzzkGateMode] = useState<ChzzkConnectModalMode | null>(null);
   const [pageNotice, setPageNotice] = useState<{ tone: "error" | "info"; message: string } | null>(null);
+  const pushAlarm = useAlarmStore((s) => s.push);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const shouldSkipBroadcastNotice = useBroadcastNoticeStore((s) => s.shouldSkipNotice);
   const skipNoticeForCharacter = useBroadcastNoticeStore((s) => s.skipNoticeForCharacter);
   const aiMode = useAIModeStore((s) => s.mode);
   const clearOverlayRuntime = useOverlayStore((s) => s.clearRuntime);
+  const setAppearance = useCharacterAppearanceStore((s) => s.setAppearance);
+  const removeAppearance = useCharacterAppearanceStore((s) => s.removeAppearance);
   const storedSelectedCharacter = useCharacterStore((s) => s.selectedCharacter);
   const characterDetailsMap = useCharacterStore((s) => s.characterDetailsMap);
 
@@ -232,7 +330,12 @@ export default function CharacterPage() {
   const { update, isPending: isUpdating, error: updateError } = useUpdateCharacter();
   const { remove, isPending: isDeleting } = useDeleteCharacter();
   const { select, isPending: isSelecting, error: selectError } = useSelectCharacter();
-  const { start: startBroadcastApi, isPending: isStartingBroadcast, error: startBroadcastError } = useStartBroadcast();
+  const {
+    start: startBroadcastApi,
+    isPending: isStartingBroadcast,
+    error: startBroadcastError,
+    chzzkAuthUrl,
+  } = useStartBroadcast();
   const { terminate: terminateBroadcastApi, isPending: isTerminatingBroadcast, error: terminateBroadcastError } = useTerminateBroadcast();
   const { obsStatus, obsError, obsDiagnostics, launchObs, resetObsStatus } = useObsLaunch();
   const overlayUrl = useMemo(() => {
@@ -242,9 +345,15 @@ export default function CharacterPage() {
 
   useEffect(() => {
     if (startBroadcastError) {
+      if (isChzzkAuthExpiredMessage(startBroadcastError)) {
+        if (selectedCharacterId) {
+          setChzzkGatePending(selectedCharacterId);
+        }
+        setChzzkGateMode("gate-expired");
+      }
       setPageNotice({ tone: "error", message: startBroadcastError });
     }
-  }, [startBroadcastError]);
+  }, [selectedCharacterId, startBroadcastError]);
   useEffect(() => {
     if (terminateBroadcastError) {
       setPageNotice({ tone: "error", message: terminateBroadcastError });
@@ -256,17 +365,19 @@ export default function CharacterPage() {
     }
   }, [selectError]);
   // API 응답을 UI CharacterPreset으로 변환
-  // 우선순위: storedSelectedCharacter > characterDetailsMap > toCharacterPreset(목록 폴백)
+  // 우선순위: characterDetailsMap > storedSelectedCharacter > toCharacterPreset(목록 폴백)
+  // - storedSelectedCharacter 는 persist 잔재/직전 update 응답으로 stale 할 수 있음
+  // - 상세 캐시가 있으면 그 값을 우선 사용해 3D→2D 전환 직후 표시 불일치 방지
   const characters = useMemo(
     () => apiCharacters.map((item) => {
-      if (storedSelectedCharacter && storedSelectedCharacter.characterId === item.characterId) {
-        return detailToPreset(storedSelectedCharacter, settings as CharacterSettingsResDto | null);
-      }
       const cachedDetail = characterDetailsMap[item.characterId];
       if (cachedDetail) {
         return detailToPreset(cachedDetail, settings as CharacterSettingsResDto | null);
       }
-      return toCharacterPreset(item);
+      if (storedSelectedCharacter && storedSelectedCharacter.characterId === item.characterId) {
+        return detailToPreset(storedSelectedCharacter, settings as CharacterSettingsResDto | null);
+      }
+      return toCharacterPreset(item, settings as CharacterSettingsResDto | null);
     }),
     [apiCharacters, characterDetailsMap, settings, storedSelectedCharacter]
   );
@@ -281,6 +392,32 @@ export default function CharacterPage() {
     }
     return characters.find((item) => item.id === String(targetId)) ?? null;
   }, [apiCharacter, characters, editingCharacterId, selectedCharacterId, settings, view]);
+
+  const resolveAppearanceRecord = useCallback((config: CharacterConfig) => {
+    const modelType = modelTypeOf(config.modelType);
+    const targetId =
+      modelType === "3D"
+        ? toPositiveInt(config.model3D.presetId)
+        : toPositiveInt(config.model2D.presetId);
+
+    if (!targetId) return null;
+
+    const matchedVrm =
+      modelType === "3D"
+        ? settings?.vrmPresets?.find((preset) => {
+            const presetId = preset.characterVrmId ?? preset.presetId;
+            return Number(presetId) === targetId;
+          })
+        : undefined;
+
+    return {
+      modelType,
+      targetId,
+      vrmUrl: modelType === "3D" ? (matchedVrm?.vrmUrl ?? config.model3D.vrmUrl ?? null) : null,
+      vrmThumbnailUrl: modelType === "3D" ? (matchedVrm?.thumbnailUrl ?? config.model3D.thumbnailUrl ?? null) : null,
+      updatedAt: Date.now(),
+    };
+  }, [settings?.vrmPresets]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -339,16 +476,21 @@ export default function CharacterPage() {
       }
       const payload = toBackendCreatePayload(config);
       try {
-        await create(payload);
+        const created = await create(payload);
+        const appearance = resolveAppearanceRecord(config);
+        if (appearance) {
+          setAppearance(created.characterId, appearance);
+        }
         await refetch(); // 목록 새로고침: 생성된 캐릭터 포함 전체 목록 재조회
         setEditingCharacterId(null);
         setView("dashboard");
-      } catch {
-        // Error is already handled by useCreateCharacter hook and displayed via createError
-        // No additional error handling needed here
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setPageNotice({ tone: "error", message: err.message });
+        }
       }
     },
-    [apiCharacters.length, create, refetch, settings]
+    [apiCharacters.length, create, refetch, resolveAppearanceRecord, setAppearance, settings]
   );
 
   const handleUpdate = useCallback(
@@ -374,15 +516,21 @@ export default function CharacterPage() {
       const payload = toBackendUpdatePayload(config);
       try {
         await update(targetCharacterId, payload);
+        const appearance = resolveAppearanceRecord(config);
+        if (appearance) {
+          setAppearance(targetCharacterId, appearance);
+        }
         await refetch(); // 수정 후 목록 새로고침
         setEditingCharacterId(null);
         setView("dashboard");
-      } catch {
-        // Error is already handled by useUpdateCharacter hook and displayed via updateError
-        // No additional error handling needed here
+        window.location.reload();
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setPageNotice({ tone: "error", message: err.message });
+        }
       }
     },
-    [editingCharacterId, selectedCharacterId, update, refetch, settings]
+    [editingCharacterId, refetch, resolveAppearanceRecord, selectedCharacterId, setAppearance, settings, update]
   );
 
   const handleDelete = useCallback(
@@ -390,10 +538,11 @@ export default function CharacterPage() {
       const id = Number(characterId);
       const deleted = await remove(id);
       if (deleted) {
+        removeAppearance(id);
         await refetch();
       }
     },
-    [remove, refetch]
+    [refetch, remove, removeAppearance]
   );
 
   // === 방송 시작/종료 ===
@@ -419,9 +568,14 @@ export default function CharacterPage() {
    const ensureChzzkReady = useCallback(async (cid: number): Promise<boolean> => {
      try {
        const status = await getChzzkStatus();
-       if (!status.authorized) {
+       if (!isChzzkLinked(status)) {
          setChzzkGatePending(cid);
          setChzzkGateMode("gate-not-linked");
+         return false;
+       }
+       if (isChzzkExpired(status)) {
+         setChzzkGatePending(cid);
+         setChzzkGateMode("gate-expired");
          return false;
        }
        return true;
@@ -479,6 +633,25 @@ export default function CharacterPage() {
     setObsGatePending(null);
     void performStart(cid);
   }, [obsGatePending, obsStatus, performStart]);
+
+  useEffect(() => {
+    if (obsGatePending === null) return;
+    if (obsStatus === "idle" || obsStatus === "connecting" || obsStatus === "setup_ok") return;
+
+    if (obsStatus === "not_found") {
+      pushAlarm("broadcast.start_failed.obs");
+      return;
+    }
+
+    if (
+      obsStatus === "auth_required" ||
+      obsStatus === "timeout" ||
+      obsStatus === "setup_failed" ||
+      obsStatus === "error"
+    ) {
+      pushAlarm("obs.disconnected");
+    }
+  }, [obsGatePending, obsStatus, pushAlarm]);
 
   /** 모달에서 시작 버튼 확정 */
   const handleBroadcastConfirm = useCallback(
@@ -662,6 +835,7 @@ export default function CharacterPage() {
       {chzzkGateMode && (
         <ChzzkConnectModal
           mode={chzzkGateMode}
+          authUrlOverride={chzzkGateMode === "gate-expired" ? chzzkAuthUrl ?? undefined : undefined}
           onSuccess={handleChzzkGateSuccess}
           onCancel={handleChzzkGateCancel}
         />

@@ -21,9 +21,13 @@ import { Activity, Mic, MicOff, Users, MessageSquare, Sparkles } from "lucide-re
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useCharacter } from "@/features/character/hooks";
-import { useBroadcastWSState, useStreamInfo } from "@/features/broadcast/hooks";
+import { resolveVrmRuntime } from "@/shared/lib/vrmRuntime";
+import { useCharacterAppearanceStore } from "@/shared/stores/characterAppearanceStore";
+import { useCharacterSettingsStore } from "@/shared/stores/characterSettingsStore";
+import { useBroadcastWSState, useStreamDialoguesPagination, useStreamInfo } from "@/features/broadcast/hooks";
 import { useSTT } from "@/features/stt/hooks";
 import { resolveAssetUrl } from "@/shared/lib/utils";
+import { formatPttShortcut, useAppSettingsStore } from "@/shared/stores/appSettingsStore";
 import {
   ActivityLogPanel,
   BroadcastControls,
@@ -39,6 +43,9 @@ import type {
   ConversationSpeaker,
 } from "@/features/dashboard/types";
 import type { StreamDialogue } from "@/shared/types/stream";
+import type { CharacterModelType } from "@/shared/types/character";
+import { useChatAnalysis } from "@/features/stats/hooks/useChatAnalysis";
+import type { PublicOpinion } from "@/features/stats/types";
 
 // ============================================================
 // 헬퍼 — BE DTO 표현을 UI 모델로 변환
@@ -67,16 +74,30 @@ function parseDialogueTimestamp(s: string): Date {
   return Number.isNaN(fallback.getTime()) ? new Date() : fallback;
 }
 
-/**
- * StreamDialogue.speaker(4종) → ConversationStream 컴포넌트가 받는 ConversationSpeaker(3종) 매핑.
- * - SYSTEM_SUMMARY 는 AI 측 발화의 일종으로 간주해 'ai' 로 매핑.
- *   향후 별도 system 카테고리가 필요하면 ConversationSpeaker 자체를 확장.
- */
+/** StreamDialogue.speaker → ConversationStream 컴포넌트 표시 타입 매핑 */
 const SPEAKER_MAP: Record<StreamDialogue["speaker"], ConversationSpeaker> = {
   streamer: "streamer",
   ai: "ai",
   viewer: "chat",
-  system: "ai",
+  system: "chat",
+  system_summary: "ai",
+};
+
+const SUBJECT_MAP: Record<StreamDialogue["speaker"], ConversationMessage["subject"]> = {
+  streamer: "streamer",
+  ai: "ai",
+  viewer: "viewer",
+  system: "donation",
+  system_summary: "system_summary",
+};
+
+const SUBJECT_KIND_TO_CONVERSATION: Record<StreamDialogue["subject"], ConversationMessage["subject"]> = {
+  STREAMER: "streamer",
+  AI_CHARACTER: "ai",
+  VIEWER: "viewer",
+  DONATION: "donation",
+  GAME_EVENT: "game_event",
+  SYSTEM_SUMMARY: "system_summary",
 };
 
 // ============================================================
@@ -86,6 +107,7 @@ const SPEAKER_MAP: Record<StreamDialogue["speaker"], ConversationSpeaker> = {
 export default function DashboardPage() {
   const mode = useAIModeStore((s) => s.mode);
   const stats = useAIModeStore((s) => s.stats);
+  const currentEmotion = useAIModeStore((s) => s.currentEmotion);
   const toggles = useAIModeStore((s) => s.toggles);
   // selector 로 isPaused 를 구독해야 토글 변경 시 BroadcastControls 가 리렌더됨
   const isPaused = useAIModeStore((s) => s.isPaused);
@@ -93,24 +115,41 @@ export default function DashboardPage() {
   const togglePause = useAIModeStore((s) => s.togglePause);
   const dialogues = useAIModeStore((s) => s.dialogues);
   const activityLogs = useAIModeStore((s) => s.activityLogs);
-
-  const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
-  const { character } = useCharacter(selectedCharacterId);
-  const overlayCharacterName = character?.characterName ?? "AI";
-  const overlayCharacterImageUrl = resolveAssetUrl(character?.characterImageUrl);
-
-  // 대시보드 진입 시 채팅 화면은 비우고, 현재 방송 정보만 확인한다.
-  // 이후 새 dialogue 는 STT/WebSocket 응답과 viewer polling 으로 아래부터 쌓인다.
   const {
     characterInfo,
     error: streamInfoError,
     refetch: refetchStreamInfo,
-  } = useStreamInfo({ size: 1 });
+  } = useStreamInfo({ size: 30 });
+  const characterSettings = useCharacterSettingsStore((s) => s.settings);
+
+  const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
+  const { character } = useCharacter(selectedCharacterId);
+  const appearance = useCharacterAppearanceStore((s) =>
+    characterInfo?.characterId
+      ? s.getAppearance(characterInfo.characterId)
+      : character?.characterId
+        ? s.getAppearance(character.characterId)
+        : undefined
+  );
+  const overlayCharacterName = character?.characterName ?? "AI";
+  const resolvedVrmRuntime = resolveVrmRuntime({
+    appearance,
+    character,
+    broadcastCharacter: characterInfo,
+    settings: characterSettings,
+  });
+  const overlayCharacterImageUrl = resolvedVrmRuntime.characterImageUrl || resolveAssetUrl(character?.characterImageUrl);
+  const overlayCharacterModelType = resolvedVrmRuntime.modelType;
+  const overlayCharacterVrmUrl = resolvedVrmRuntime.vrmUrl;
+
   const {
     isConnected: wsConnected,
     error: wsError,
+    isPlayingTTS,
   } = useBroadcastWSState();
   const streamCharacterImageUrl = resolveAssetUrl(characterInfo?.characterImageUrl);
+  const effectiveCharacterVrmUrl = overlayCharacterVrmUrl;
+  const effectiveModelType: CharacterModelType = overlayCharacterModelType;
   const effectiveCharacterImageUrl = streamCharacterImageUrl || overlayCharacterImageUrl;
   const effectiveEmotionImageMap = useMemo(
     () => buildEmotionImageMap(effectiveCharacterImageUrl),
@@ -131,6 +170,14 @@ export default function DashboardPage() {
     ai: true,
     chat: true,
   });
+  const { hasNext, isLoading: isLoadingMore, loadMore } = useStreamDialoguesPagination({
+    subjectFilters: {
+      ai: filter.ai,
+      streamer: filter.streamer,
+      viewer: filter.chat,
+    },
+    pageSize: 30,
+  });
   const [micNoticeDismissed, setMicNoticeDismissed] = useState(false);
 
   useEffect(() => {
@@ -147,6 +194,7 @@ export default function DashboardPage() {
       dialogues.map((d) => ({
         id: d.id,
         speaker: SPEAKER_MAP[d.speaker],
+        subject: SUBJECT_KIND_TO_CONVERSATION[d.subject] ?? SUBJECT_MAP[d.speaker],
         text: d.text,
         timestamp: parseDialogueTimestamp(d.timestamp),
         // username: BE BroadcastDialogueCursorItemResDto 에 viewer 닉네임 필드 없음 → undefined
@@ -219,8 +267,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(320px,400px)_1fr]">
         <CharacterPortrait
           imageUrl={overlayCharacterImageUrl}
+          vrmUrl={effectiveModelType === "3D" ? effectiveCharacterVrmUrl : null}
           name={overlayCharacterName}
-          speakingState={isListening ? "listening" : "idle"}
+          speakingState={isPlayingTTS ? "speaking" : isListening ? "listening" : "idle"}
+          emotion={currentEmotion}
+          isSpeaking={isPlayingTTS}
         />
 
         <div className="h-[420px] flex flex-col lg:h-[500px]">
@@ -230,6 +281,9 @@ export default function DashboardPage() {
             messages={conversationMessages}
             filter={filter}
             onFilterChange={setFilter}
+            hasMore={hasNext}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={() => void loadMore()}
           />
         </div>
       </div>
@@ -261,11 +315,11 @@ export default function DashboardPage() {
 // ============================================================
 
 /**
- * Push-to-Talk 안내 인디케이터 (Ctrl/Cmd+Shift+M Hold)
+ * Push-to-Talk 안내 인디케이터
  * - sttEnabled OFF: 표시 안 함 (사용자가 일부러 끈 상태)
  * - WS 연결 중: "연결 대기" 회색
  * - 듣는 중: 빨간 펄스
- * - 평상시: "Ctrl/Cmd+Shift+M 누르고 말하기" 안내
+ * - 평상시: 현재 설정된 단축키 안내
  */
 function PttIndicator({
   sttEnabled,
@@ -276,6 +330,8 @@ function PttIndicator({
   wsConnected: boolean;
   isListening: boolean;
 }) {
+  const pttShortcut = useAppSettingsStore((s) => s.pttShortcut);
+
   if (!sttEnabled) return null;
 
   if (isListening) {
@@ -312,7 +368,7 @@ function PttIndicator({
     >
       <Mic className="h-3.5 w-3.5" />
       <kbd className="rounded border border-border-strong bg-surface-active px-1.5 py-0.5 font-mono text-xs text-content-primary">
-        Ctrl/Cmd + Shift + M
+        {formatPttShortcut(pttShortcut)}
       </kbd>
       <span>을 누르고 있는 동안 말하면 AI 캐릭터에게 전달됩니다.</span>
     </div>
@@ -357,28 +413,60 @@ function MicWarningBanner({ onEnable, onDismiss }: { onEnable: () => void; onDis
   );
 }
 
+// ============================================================
+// 헬퍼 — 채팅 분석 KPI 표시 변환
+// ============================================================
+
+function formatDominantSentiment(
+  opinion: PublicOpinion,
+): { value: string; hint: string } {
+  const entries: [string, number][] = [
+    ["긍정", opinion.positiveRatio],
+    ["중립", opinion.neutralRatio],
+    ["부정", opinion.negativeRatio],
+  ];
+  const dominant = entries.reduce((best, curr) =>
+    curr[1] > best[1] ? curr : best,
+  );
+  return {
+    value: `${dominant[0]} ${Math.round(dominant[1])}%`,
+    hint: `최근 10분 · 총 ${opinion.totalChatCount.toLocaleString()}건`,
+  };
+}
+
+function formatChatSpeed(
+  opinion: PublicOpinion,
+): { value: string; hint: string } {
+  const perMinute = Math.round(opinion.totalChatCount / 10);
+  return {
+    value: `${perMinute}개/분`,
+    hint: `최근 10분 · 총 ${opinion.totalChatCount.toLocaleString()}건`,
+  };
+}
+
+function resolveFallback(
+  isLoading: boolean,
+  isBroadcastInactive: boolean,
+  hasError: boolean,
+): { value: string; hint: string } {
+  if (isBroadcastInactive) return { value: "—", hint: "방송 대기 중" };
+  if (hasError) return { value: "—", hint: "데이터를 불러올 수 없습니다" };
+  if (isLoading) return { value: "—", hint: "불러오는 중..." };
+  return { value: "—", hint: "—" };
+}
+
 function KpiGrid({ stats }: { stats: ReturnType<typeof useAIModeStore.getState>["stats"] }) {
-  // 감정 비율에서 가장 큰 항목 도출 (KPI 카드용 요약)
-  const dominantEmotion = useMemo(() => {
-    const ratios = stats.emotionRatios;
-    let bestKey: keyof typeof ratios = "neutral";
-    let bestValue = -1;
-    (Object.keys(ratios) as Array<keyof typeof ratios>).forEach((k) => {
-      if (ratios[k] > bestValue) {
-        bestValue = ratios[k];
-        bestKey = k;
-      }
-    });
-    const labels: Record<keyof typeof ratios, string> = {
-      joy: "긍정",
-      anger: "분노",
-      sadness: "슬픔",
-      fear: "공포",
-      surprise: "놀람",
-      neutral: "중립",
-    };
-    return { label: labels[bestKey], value: Math.round(bestValue) };
-  }, [stats.emotionRatios]);
+  const {
+    data: chatStats,
+    isLoading: isChatStatsLoading,
+    isBroadcastInactive: isChatStatsInactive,
+    error: chatStatsError,
+  } = useChatAnalysis();
+
+  const opinion = chatStats?.publicOpinion ?? null;
+  const fallback = resolveFallback(isChatStatsLoading, isChatStatsInactive, Boolean(chatStatsError));
+  const chatSpeedDisplay = opinion ? formatChatSpeed(opinion) : fallback;
+  const sentimentDisplay = opinion ? formatDominantSentiment(opinion) : fallback;
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -399,16 +487,16 @@ function KpiGrid({ stats }: { stats: ReturnType<typeof useAIModeStore.getState>[
       <KpiCard
         icon={MessageSquare}
         label="채팅 속도"
-        value={`${stats.chatSpeed}개/분`}
-        hint="—"
+        value={chatSpeedDisplay.value}
+        hint={chatSpeedDisplay.hint}
         tag="리그오브레전드"
         tone="indigo"
       />
       <KpiCard
         icon={Sparkles}
         label="실시간 감정 비율"
-        value={`${dominantEmotion.label} ${dominantEmotion.value}%`}
-        hint="—"
+        value={sentimentDisplay.value}
+        hint={sentimentDisplay.hint}
         tone="rose"
       />
     </div>

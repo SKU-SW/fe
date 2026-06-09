@@ -1,29 +1,39 @@
 /**
- * @file 대시보드 진입 시 현재 방송 정보만 확인하고 채팅 화면은 비우는 훅
+ * @file 대시보드 진입 시 현재 방송 정보와 최신 대화를 가져오는 훅
  * @dependsOn src/features/broadcast/api/streamApi.ts (getStreamInfo, adaptDialogue)
- * @dependsOn src/shared/stores/aiModeStore.ts (clearDialogues)
+ * @dependsOn src/shared/stores/aiModeStore.ts (clearDialogues, setDialogues)
  * @usedBy src/pages/DashboardPage.tsx
  *
  * 동작:
  *   1) mode === 'broadcasting' 으로 전환되면 채팅 화면을 비움
- *   2) GET /stream/info?size=1 로 현재 방송 정보만 확인
- *   3) 응답의 broadcastCharacterInfo 는 로컬 state 로 노출 (AI 캐릭터 사이드 정보 표시용)
- *   4) refetch 함수 제공 — 폴링 또는 사용자 수동 새로고침 가능
+ *   2) GET /stream/info?size=30 으로 현재 방송 정보 + 최신 대화 가져오기
+ *   3) 응답의 content 를 store.dialogues 에 반영하고 nextCursor / hasNext 를 저장
+ *   4) broadcastCharacterInfo 는 로컬 state 로 노출 (AI 캐릭터 사이드 정보 표시용)
+ *   5) refetch 함수 제공 — 폴링 또는 사용자 수동 새로고침 가능
  *
  * 비고:
  *   - 새 dialogue 의 실시간 push 는 WebSocket 채널이 배포되면 그쪽 hook 에서 처리.
- *   - 404 (진행 중 방송 없음) 는 정상 케이스 — 로컬 방송 상태도 idle 로 정리.
+ *   - 404 (진행 중 방송 없음) 는 서버 조회 불일치 가능성이 있어 UI 에러 없이 무시.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import type { AxiosError } from "axios";
-import { getStreamInfo } from "@/features/broadcast/api/streamApi";
+import { adaptDialogue, getStreamInfo } from "@/features/broadcast/api/streamApi";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { normalizeCharacterImageUrlToDefault } from "@/shared/lib/characterEmotionImages";
 import type { BroadcastCharacterInfoResDto } from "@/shared/types/broadcast";
 
+const STREAM_INFO_NOT_FOUND_RETRY_COUNT = 3;
+const STREAM_INFO_NOT_FOUND_RETRY_DELAY_MS = 1000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 interface UseStreamInfoOptions {
-  /** 현재 방송 정보 확인용 조회 크기. API 안전성을 위해 default 1. 채팅 화면은 별도로 비워둔다. */
+  /** 현재 방송 정보 + 최신 대화 조회 크기. Swagger 기본은 10, FE 기본은 30. */
   size?: number;
 }
 
@@ -58,13 +68,21 @@ function statusOf(err: unknown): number | undefined {
   return (err as AxiosError)?.response?.status;
 }
 
+function adaptBroadcastCharacterInfo(raw: BroadcastCharacterInfoResDto): BroadcastCharacterInfoResDto {
+  return {
+    ...raw,
+    characterImageUrl: normalizeCharacterImageUrlToDefault(raw.characterImageUrl),
+  };
+}
+
 export function useStreamInfo(options: UseStreamInfoOptions = {}): UseStreamInfoReturn {
-  const { size = 1 } = options;
+  const { size = 30 } = options;
   const isBroadcasting = useAIModeStore((s) => s.mode === "broadcasting");
   /** broadcastStreamId 도 watch — 캐릭터 전환으로 streamId 가 바뀌면 새 방송 정보를 다시 fetch */
   const broadcastStreamId = useAIModeStore((s) => s.broadcastStreamId);
+  const broadcastStartedAt = useAIModeStore((s) => s.broadcastStartedAt);
   const clearDialogues = useAIModeStore((s) => s.clearDialogues);
-  const clearBroadcast = useAIModeStore((s) => s.clearBroadcast);
+  const setDialogues = useAIModeStore((s) => s.setDialogues);
 
   const [characterInfo, setCharacterInfo] = useState<BroadcastCharacterInfoResDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,26 +92,50 @@ export function useStreamInfo(options: UseStreamInfoOptions = {}): UseStreamInfo
     setIsLoading(true);
     setError(null);
     try {
-      const res = await getStreamInfo(size);
-      // BE 가 stream info 응답에서 잘못된 감정 파일명을 줄 때 Default 로 정규화 (useCharacter 와 동일 처리)
-      const info = res.broadcastCharacterInfo;
-      setCharacterInfo(
-        info
-          ? { ...info, characterImageUrl: normalizeCharacterImageUrlToDefault(info.characterImageUrl) }
-          : null,
-      );
-    } catch (err: unknown) {
-      if (statusOf(err) === 404) {
-        // 서버 기준 진행 중 방송이 없으면 stale local broadcasting 상태를 정리한다.
-        setCharacterInfo(null);
-        clearBroadcast();
+      for (let attempt = 0; attempt <= STREAM_INFO_NOT_FOUND_RETRY_COUNT; attempt += 1) {
+        try {
+          const res = await getStreamInfo(size);
+          const info = res.broadcastCharacterInfo ? adaptBroadcastCharacterInfo(res.broadcastCharacterInfo) : null;
+          const dialogues = res.content
+            .map(adaptDialogue)
+            .sort((a, b) => (a.cursorId ?? 0) - (b.cursorId ?? 0));
+
+          setDialogues(dialogues, res.nextCursor, res.hasNext);
+          setCharacterInfo(
+            info
+              ? {
+                ...info,
+                  characterImageUrl: normalizeCharacterImageUrlToDefault(info.characterImageUrl),
+                }
+              : null,
+          );
+          return;
+        } catch (err: unknown) {
+          const isNotFound = statusOf(err) === 404;
+          const shouldRetry404 =
+            isNotFound &&
+            attempt < STREAM_INFO_NOT_FOUND_RETRY_COUNT &&
+            useAIModeStore.getState().mode === "broadcasting" &&
+            useAIModeStore.getState().broadcastStreamId === broadcastStreamId;
+
+          if (shouldRetry404) {
+            await delay(STREAM_INFO_NOT_FOUND_RETRY_DELAY_MS);
+            continue;
+          }
+
+          if (isNotFound) {
+            setCharacterInfo(null);
+            clearDialogues();
+          }
+          const msg = deriveMessage(err);
+          if (msg) setError(msg);
+          return;
+        }
       }
-      const msg = deriveMessage(err);
-      if (msg) setError(msg);
     } finally {
       setIsLoading(false);
     }
-  }, [clearBroadcast, size]);
+  }, [broadcastStreamId, broadcastStartedAt, clearDialogues, setDialogues, size]);
 
   useEffect(() => {
     if (!isBroadcasting || !broadcastStreamId) {

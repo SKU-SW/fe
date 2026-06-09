@@ -26,14 +26,23 @@
 import { useCallback, useState } from "react";
 import type { AxiosError } from "axios";
 import { startBroadcast, terminateBroadcast } from "@/features/broadcast/api/broadcastApi";
+import { useAlarmStore } from "@/shared/stores/alarmStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import type { BroadcastStartResDto } from "@/shared/types/broadcast";
+
+interface StartBroadcastErrorData {
+  authUrl?: string;
+  data?: {
+    authUrl?: string;
+  };
+}
 
 interface UseStartBroadcastReturn {
   /** 성공 시 응답 DTO, 실패 시 null. 에러는 error 필드로도 확인 가능 */
   start: (characterId: number) => Promise<BroadcastStartResDto | null>;
   isPending: boolean;
   error: string | null;
+  chzzkAuthUrl: string | null;
 }
 
 function statusOf(err: unknown): number | undefined {
@@ -81,15 +90,19 @@ async function tryTerminateLeftover(): Promise<void> {
 export function useStartBroadcast(): UseStartBroadcastReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chzzkAuthUrl, setChzzkAuthUrl] = useState<string | null>(null);
   const setBroadcast = useAIModeStore((s) => s.setBroadcast);
+  const pushAlarm = useAlarmStore((s) => s.push);
 
   const start = useCallback(
     async (characterId: number): Promise<BroadcastStartResDto | null> => {
       setIsPending(true);
       setError(null);
+      setChzzkAuthUrl(null);
       try {
         const res = await startBroadcast(characterId);
         setBroadcast(res.broadcastStreamId, res.broadcastStartedAt);
+        pushAlarm("broadcast.started");
         return res;
       } catch (err: unknown) {
         // 400 = "이미 방송 중" 추정. 자동 복구 1회만 시도.
@@ -98,6 +111,7 @@ export function useStartBroadcast(): UseStartBroadcastReturn {
             await tryTerminateLeftover();
             const retryRes = await startBroadcast(characterId);
             setBroadcast(retryRes.broadcastStreamId, retryRes.broadcastStartedAt);
+            pushAlarm("broadcast.started");
             // 복구 성공 — 사용자에게 에러 표시하지 않음
             return retryRes;
           } catch (retryErr: unknown) {
@@ -110,14 +124,17 @@ export function useStartBroadcast(): UseStartBroadcastReturn {
           }
         }
 
+        const errorData = (err as AxiosError<StartBroadcastErrorData>)?.response?.data;
+        const authUrl = errorData?.authUrl ?? errorData?.data?.authUrl ?? null;
+        setChzzkAuthUrl(authUrl);
         setError(deriveMessage(err));
         return null;
       } finally {
         setIsPending(false);
       }
     },
-    [setBroadcast]
+    [pushAlarm, setBroadcast]
   );
 
-  return { start, isPending, error };
+  return { start, isPending, error, chzzkAuthUrl };
 }

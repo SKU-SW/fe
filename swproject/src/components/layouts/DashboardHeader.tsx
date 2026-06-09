@@ -1,11 +1,16 @@
 /**
  * @file 대시보드 상단 헤더 및 테마 토글
+ * @dependsOn src/features/alarm/components/AlarmPanel.tsx
+ * @dependsOn src/shared/stores/alarmStore.ts
  * @usedBy src/components/layouts/DashboardLayout.tsx
  */
 
+import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Bell, LayoutDashboard, Users, MessageSquareText, Gamepad2, ShieldAlert, BarChart3, Settings, Moon, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { AlarmPanel } from '@/features/alarm/components/AlarmPanel';
+import { useAlarmStore } from '@/shared/stores/alarmStore';
 import { isDarkTheme, useThemeStore } from '@/shared/stores/themeStore';
 
 interface PageInfo {
@@ -40,9 +45,20 @@ export default function DashboardHeader() {
   const { icon: Icon, title, description } = resolvePageInfo(pathname);
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const unreadCount = useAlarmStore((s) => s.entries.filter((entry) => !entry.read).length);
+  const markAllRead = useAlarmStore((s) => s.markAllRead);
   const isDark = isDarkTheme(theme);
   const ThemeIcon = isDark ? Sun : Moon;
   const nextThemeLabel = isDark ? '라이트 모드로 전환' : '다크 모드로 전환';
+  const [isAlarmOpen, setIsAlarmOpen] = useState(false);
+  const alarmButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const closeAlarmPanel = () => {
+    setIsAlarmOpen(false);
+    if (unreadCount > 0) {
+      markAllRead();
+    }
+  };
 
   return (
     <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-border-strong bg-surface-raised px-4 shadow-sm transition-colors">
@@ -66,16 +82,34 @@ export default function DashboardHeader() {
           <ThemeIcon className="h-4 w-4" />
         </button>
 
-        <button
-          type="button"
-          // TODO: 알림 패널 연동 시 onClick 연결
-          className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border-strong bg-surface-panel text-content-muted transition-colors hover:bg-surface-hover hover:text-content-primary"
-          aria-label="알림"
-          title="알림"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-status-danger" />
-        </button>
+        <div className="relative">
+          <button
+            ref={alarmButtonRef}
+            type="button"
+            onClick={() => {
+              if (isAlarmOpen) {
+                closeAlarmPanel();
+                return;
+              }
+              setIsAlarmOpen(true);
+            }}
+            className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border-strong bg-surface-panel text-content-muted transition-colors hover:bg-surface-hover hover:text-content-primary"
+            aria-label="알림"
+            title="알림"
+            aria-expanded={isAlarmOpen}
+          >
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-status-danger" />
+            )}
+          </button>
+          {isAlarmOpen && (
+            <AlarmPanel
+              triggerRef={alarmButtonRef}
+              onClose={closeAlarmPanel}
+            />
+          )}
+        </div>
       </div>
     </header>
   );

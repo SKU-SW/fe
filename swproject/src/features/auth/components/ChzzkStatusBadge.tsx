@@ -14,9 +14,10 @@
  */
 
 import { useMemo } from "react";
+import { isChzzkExpired, isChzzkLinked } from "@/features/auth/lib/chzzkStatus";
 import { useChzzkStatus } from "@/features/auth/hooks/useChzzkStatus";
 
-type BadgeStatus = "linked" | "not_linked" | "loading";
+type BadgeStatus = "linked" | "expired" | "not_linked" | "loading";
 
 interface ChzzkStatusBadgeProps {
   variant: "icon" | "compact" | "full";
@@ -33,7 +34,8 @@ export function ChzzkStatusBadge({ variant, showCTA = false, onConnectClick }: C
 
   const badgeStatus: BadgeStatus = useMemo(() => {
     if (isLoading || !status) return "loading";
-    if (status.authorized) return "linked";
+    if (isChzzkExpired(status)) return "expired";
+    if (isChzzkLinked(status)) return "linked";
     return "not_linked";
   }, [isLoading, status]);
 
@@ -96,13 +98,13 @@ export function ChzzkStatusBadge({ variant, showCTA = false, onConnectClick }: C
           <p className="truncate text-xs text-content-muted">{config.fullDescription}</p>
         )}
       </div>
-      {showCTA && badgeStatus === "not_linked" && onConnectClick && (
+      {showCTA && (badgeStatus === "not_linked" || badgeStatus === "expired") && onConnectClick && (
         <button
           type="button"
           onClick={onConnectClick}
           className="shrink-0 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-content-inverse transition-colors hover:bg-brand-hover"
         >
-          연동하기
+          {badgeStatus === "expired" ? "재연동" : "연동하기"}
         </button>
       )}
     </div>
@@ -129,6 +131,17 @@ const STATUS_CONFIG: Record<BadgeStatus, {
     compactTextClass: "text-status-success",
     fullBorderClass: "border-status-success/30 bg-status-success/5",
     fullLabelClass: "text-status-success",
+  },
+  expired: {
+    label: "인증 만료",
+    compactLabel: "만료",
+    iconOpacity: "opacity-100",
+    dotClass: "bg-status-warning",
+    compactBgClass: "bg-status-warning/15",
+    compactTextClass: "text-status-warning",
+    fullBorderClass: "border-status-warning/30 bg-status-warning/5",
+    fullLabelClass: "text-status-warning",
+    fullDescription: "치지직 인증이 만료되어 재연동이 필요합니다.",
   },
   not_linked: {
     label: "미연동",

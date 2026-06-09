@@ -51,7 +51,13 @@ export function useUpdateCharacter(): UseUpdateCharacterReturn {
           characterName: character.characterName,
           triggerWords: character.triggerWords,
           gender: character.gender,
+          characterAppearanceType: character.characterAppearanceType,
+          modelType: character.modelType,
+          characterImageId: character.characterImageId,
           characterImageUrl: character.characterImageUrl,
+          vrmPresetId: character.vrmPresetId,
+          vrmUrl: character.vrmUrl,
+          vrmThumbnailUrl: character.vrmThumbnailUrl,
           characterPersona: character.characterPersona,
           isSelected: character.isSelected,
         };

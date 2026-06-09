@@ -1,7 +1,7 @@
 /**
- * @file 방송 통계 감정 흐름 Line chart
+ * @file 채팅 분석 — 감정 흐름 Line chart (긍/중/부 3개 시계열)
  * @dependsOn chart.js, react-chartjs-2, src/features/stats/types.ts
- * @usedBy src/pages/StatsPage.tsx
+ * @usedBy src/pages/ChatAnalysisPage.tsx
  */
 
 import { useMemo } from "react";
@@ -15,25 +15,26 @@ import {
   PointElement,
   Tooltip,
 } from "chart.js";
-import type { ChartOptions, Plugin } from "chart.js";
+import type { ChartOptions } from "chart.js";
 import { Line } from "react-chartjs-2";
-import type { SentimentFlowPoint } from "@/features/stats/types";
+import type {
+  SentimentFlowPoint,
+  BroadcastChatStatsFilter,
+} from "@/features/stats/types";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
 interface SentimentFlowChartProps {
   points: SentimentFlowPoint[];
+  filter: BroadcastChatStatsFilter;
+  onChangeFilter: (next: Partial<BroadcastChatStatsFilter>) => void;
 }
-
-const MODE_COLOR = {
-  cheer: "#2563eb",
-  criticism: "#ef4444",
-  silence: "#94a3b8",
-};
 
 const CHART_COLORS = {
   positive: "#2563eb",
   positiveFill: "rgba(37, 99, 235, 0.16)",
+  neutral: "#94a3b8",
+  neutralFill: "rgba(148, 163, 184, 0.16)",
   negative: "#ef4444",
   negativeFill: "rgba(239, 68, 68, 0.10)",
   pointBorder: "#f8fafc",
@@ -45,82 +46,59 @@ const CHART_COLORS = {
   tooltipBody: "#334155",
 };
 
-const transitionMarkerPlugin: Plugin<"line"> = {
-  id: "transitionMarkerPlugin",
-  afterDatasetsDraw(chart) {
-    const { ctx, chartArea, scales } = chart;
-    const points = chart.data.datasets[0]?.data.map((_, index) => {
-      const raw = chart.data.labels?.[index];
-      return typeof raw === "string" ? raw : String(raw ?? "");
-    }) ?? [];
-    const transitions = (chart.options.plugins as { transitionPoints?: SentimentFlowPoint[] })?.transitionPoints ?? [];
+const CRITERIA_LABEL: Record<number, string> = { 1: "1분", 5: "5분", 10: "10분" };
+const RANGE_LABEL: Record<number, string> = { 1: "1시간 이전", 3: "3시간 이전", 0: "전체 방송 시간" };
 
-    ctx.save();
-    transitions.forEach((point) => {
-      if (!point.modeTransition) return;
-      const index = points.indexOf(point.timestamp);
-      if (index < 0) return;
-      const x = scales.x.getPixelForValue(index);
-      const color = MODE_COLOR[point.modeTransition];
-
-      ctx.beginPath();
-      ctx.setLineDash([4, 5]);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      ctx.moveTo(x, chartArea.top + 6);
-      ctx.lineTo(x, chartArea.bottom - 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.beginPath();
-      ctx.fillStyle = color;
-      ctx.arc(x, chartArea.top + 10, 4, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.restore();
-  },
-};
-
-export function SentimentFlowChart({ points }: SentimentFlowChartProps) {
+export function SentimentFlowChart({ points, filter, onChangeFilter }: SentimentFlowChartProps) {
   const chartData = useMemo(() => ({
-    labels: points.map((point) => point.timestamp),
+    labels: points.map((p) => p.timeLabel),
     datasets: [
       {
         label: "긍정",
-        data: points.map((point) => point.positivePercent),
+        data: points.map((p) => p.positiveRatio),
         borderColor: CHART_COLORS.positive,
         backgroundColor: CHART_COLORS.positiveFill,
         pointBackgroundColor: CHART_COLORS.positive,
         pointBorderColor: CHART_COLORS.pointBorder,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        segment: { borderColor: CHART_COLORS.positive },
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        tension: 0.38,
+        fill: true,
+      },
+      {
+        label: "중립",
+        data: points.map((p) => p.neutralRatio),
+        borderColor: CHART_COLORS.neutral,
+        backgroundColor: CHART_COLORS.neutralFill,
+        pointBackgroundColor: CHART_COLORS.neutral,
+        pointBorderColor: CHART_COLORS.pointBorder,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        borderDash: [4, 3],
         tension: 0.38,
         fill: true,
       },
       {
         label: "부정",
-        data: points.map((point) => point.negativePercent),
+        data: points.map((p) => p.negativeRatio),
         borderColor: CHART_COLORS.negative,
         backgroundColor: CHART_COLORS.negativeFill,
         pointBackgroundColor: CHART_COLORS.negative,
         pointBorderColor: CHART_COLORS.pointBorder,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        segment: { borderColor: CHART_COLORS.negative },
+        pointRadius: 2,
+        pointHoverRadius: 4,
         tension: 0.38,
         fill: true,
       },
     ],
   }), [points]);
 
-  const options = useMemo<ChartOptions<"line"> & { plugins: { transitionPoints: SentimentFlowPoint[] } }>(() => ({
+  const options = useMemo<ChartOptions<"line">>(() => ({
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 420 },
     interaction: { mode: "index", intersect: false },
     plugins: {
-      transitionPoints: points,
       legend: { display: false },
       tooltip: {
         backgroundColor: CHART_COLORS.tooltipBg,
@@ -143,25 +121,49 @@ export function SentimentFlowChart({ points }: SentimentFlowChartProps) {
         ticks: { color: CHART_COLORS.tick, stepSize: 20 },
       },
     },
-  }), [points]);
+  }), []);
 
   return (
     <section className="rounded-2xl border border-border-strong bg-surface-panel p-5 shadow-sm transition-colors">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-extrabold text-content-primary">감정 흐름 그래프</h2>
-          <p className="mt-1 text-sm text-content-muted">5분 단위 여론 추이를 mock 데이터로 표시합니다.</p>
+          <p className="mt-1 text-sm text-content-muted">
+            {CRITERIA_LABEL[filter.statsCriteria]} 단위 · {RANGE_LABEL[filter.timeRange]} 범위
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-bold text-content-muted">
-          <span className="text-blue-600">● 긍정</span>
-          <span className="text-red-500">● 부정</span>
-          <span className="text-border-strong">|</span>
-          <span>모드 전환</span>
+
+        <div className="flex items-center gap-2 text-xs">
+          <select
+            value={filter.statsCriteria}
+            onChange={(e) => onChangeFilter({ statsCriteria: Number(e.target.value) as 1 | 5 | 10 })}
+            className="rounded-md border border-border-default bg-surface-base px-2 py-1.5 text-content-primary focus:border-brand focus:outline-none"
+          >
+            <option value={1}>1분 간격</option>
+            <option value={5}>5분 간격</option>
+            <option value={10}>10분 간격</option>
+          </select>
+
+          <select
+            value={filter.timeRange}
+            onChange={(e) => onChangeFilter({ timeRange: Number(e.target.value) as 1 | 3 | 0 })}
+            className="rounded-md border border-border-default bg-surface-base px-2 py-1.5 text-content-primary focus:border-brand focus:outline-none"
+          >
+            <option value={1}>1시간 이전</option>
+            <option value={3}>3시간 이전</option>
+            <option value={0}>전체 방송 시간</option>
+          </select>
         </div>
       </div>
 
       <div className="h-[320px] rounded-xl border border-border-default bg-surface-base p-4">
-        <Line data={chartData} options={options} plugins={[transitionMarkerPlugin]} />
+        <Line data={chartData} options={options} />
+      </div>
+
+      <div className="mt-3 flex items-center gap-3 text-xs font-bold text-content-muted">
+        <span className="text-blue-600">● 긍정</span>
+        <span className="text-slate-400">─ 중립</span>
+        <span className="text-red-500">● 부정</span>
       </div>
     </section>
   );

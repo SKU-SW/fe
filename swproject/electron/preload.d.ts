@@ -85,6 +85,12 @@ interface ElectronAPI {
     /** 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독. 반환값은 cleanup 함수. */
     onGlobalPtt: (callback: (payload: { type: 'start' | 'stop' }) => void) => () => void;
   };
+  /** 방송 중 앱 종료 확인 — main 이 close 시점에 전송, renderer 가 모달 표시 후 응답 */
+  broadcast: {
+    onConfirmQuit: (callback: () => void) => () => void;
+    confirmQuit: () => void;
+    cancelQuit: () => void;
+  };
 }
 
 /**

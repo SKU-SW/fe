@@ -8,19 +8,95 @@
  */
 
 import apiClient from '@/shared/lib/axios';
-import type {
-  CharacterDetailResDto,
-  CharacterListItemResDto,
-  CharacterCreateReqDto,
-  CharacterUpdateReqDto,
-  CharacterSelectReqDto,
-  CharacterSelectResDto,
-  CharacterSettingsResDto,
-  SliceResponse,
+import { useCharacterAppearanceStore } from '@/shared/stores/characterAppearanceStore';
+import {
+  fromBackendAppearance,
+  type CharacterDetailResDto,
+  type CharacterListItemResDto,
+  type CharacterCreateReqDto,
+  type CharacterUpdateReqDto,
+  type CharacterSelectReqDto,
+  type CharacterSelectResDto,
+  type CharacterSettingsResDto,
+  type SliceResponse,
+  type VrmPresetResDto,
 } from '@/shared/types/character';
 
 const CHAR_BASE = '/api/v1/characters';
 const IS_DEV = import.meta.env.DEV;
+
+// ============================================================
+// 응답 어댑터 — 백엔드 raw → 프론트 친화 형태
+// ============================================================
+
+function adaptCharacterDetail(raw: CharacterDetailResDto): CharacterDetailResDto {
+  const appearance = raw.characterAppearanceType;
+  if (appearance) {
+    return {
+      ...raw,
+      modelType: fromBackendAppearance(appearance),
+    };
+  }
+  const fallback = useCharacterAppearanceStore.getState().getAppearance(raw.characterId);
+  if (fallback) {
+    return {
+      ...raw,
+      modelType: fallback.modelType,
+      characterAppearanceType: fallback.modelType === '3D' ? 'THREE_D' : 'TWO_D',
+      characterImageId: fallback.modelType === '2D' ? fallback.targetId : null,
+      vrmPresetId: fallback.modelType === '3D' ? fallback.targetId : null,
+      vrmUrl: fallback.vrmUrl ?? null,
+      vrmThumbnailUrl: fallback.vrmThumbnailUrl ?? null,
+    };
+  }
+  return {
+    ...raw,
+    modelType: raw.modelType ?? '2D',
+  };
+}
+
+function adaptCharacterListItem(raw: CharacterListItemResDto): CharacterListItemResDto {
+  const appearance = raw.characterAppearanceType;
+  if (appearance) {
+    return {
+      ...raw,
+      modelType: fromBackendAppearance(appearance),
+    };
+  }
+  const fallback = useCharacterAppearanceStore.getState().getAppearance(raw.characterId);
+  if (fallback) {
+    return {
+      ...raw,
+      modelType: fallback.modelType,
+      characterAppearanceType: fallback.modelType === '3D' ? 'THREE_D' : 'TWO_D',
+      characterImageId: fallback.modelType === '2D' ? fallback.targetId : null,
+      vrmPresetId: fallback.modelType === '3D' ? fallback.targetId : null,
+      vrmUrl: fallback.vrmUrl ?? null,
+      vrmThumbnailUrl: fallback.vrmThumbnailUrl ?? null,
+    };
+  }
+  return {
+    ...raw,
+    modelType: raw.modelType ?? '2D',
+  };
+}
+
+function adaptVrmPreset(raw: VrmPresetResDto): VrmPresetResDto {
+  return {
+    ...raw,
+    presetId: raw.presetId ?? raw.characterVrmId,
+  };
+}
+
+function adaptSettings(raw: CharacterSettingsResDto): CharacterSettingsResDto {
+  const vrmPresets = raw.vrmPresets?.map(adaptVrmPreset);
+  return {
+    ...raw,
+    vrmPresets,
+    presetTypes: raw.personaPresetTypes ?? raw.presetTypes,
+    availableModelTypes: (vrmPresets ?? []).length > 0 ? ['2D', '3D'] : ['2D'],
+  };
+}
 
 /**
  * 캐릭터 생성
@@ -30,7 +106,7 @@ const IS_DEV = import.meta.env.DEV;
  */
 export async function createCharacter(data: CharacterCreateReqDto): Promise<CharacterDetailResDto> {
   const res = await apiClient.post<CharacterDetailResDto>(CHAR_BASE, data);
-  return res.data;
+  return adaptCharacterDetail(res.data);
 }
 
 /**
@@ -54,7 +130,10 @@ export async function getCharacters(page: number = 1, size: number = 10): Promis
       }))
     });
   }
-  return res.data;
+  return {
+    ...res.data,
+    content: res.data.content.map(adaptCharacterListItem),
+  };
 }
 
 /**
@@ -71,7 +150,7 @@ export async function getCharacter(characterId: number): Promise<CharacterDetail
       characterPersona: res.data.characterPersona,
     });
   }
-  return res.data;
+  return adaptCharacterDetail(res.data);
 }
 
 /**
@@ -100,7 +179,7 @@ export async function updateCharacter(
       characterPersona: res.data.characterPersona,
     });
   }
-  return res.data;
+  return adaptCharacterDetail(res.data);
 }
 
 /**
@@ -134,5 +213,5 @@ export async function selectCharacter(
  */
 export async function getCharacterSettings(): Promise<CharacterSettingsResDto> {
   const res = await apiClient.get<CharacterSettingsResDto>(`${CHAR_BASE}/settings`);
-  return res.data;
+  return adaptSettings(res.data);
 }

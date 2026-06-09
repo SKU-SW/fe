@@ -4,10 +4,17 @@
  * @dependsOn src/shared/lib/overlayBridge.ts
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Eye, EyeOff, Minus, Plus } from "lucide-react";
 import { useOverlayStore } from "@/shared/stores/overlayStore";
 import { useEmotionImagePreload } from "@/shared/hooks/useEmotionImagePreload";
+import {
+  applyBackendEmotion,
+  setMouthOpen,
+  setupVrmScene,
+  startRenderLoop,
+  type VrmSceneRefs,
+} from "@/shared/lib/vrmController";
 import {
   readOverlayStateServer,
   readOverlayBridgeState,
@@ -66,8 +73,11 @@ function createDefaultBridgeState(settings: OverlaySettings): OverlayBridgeState
       isBroadcasting: false,
       broadcastStreamId: null,
       isSpeaking: false,
+      modelType: "2D",
       characterName: "AI",
       characterImageUrl: "",
+      vrmUrl: "",
+      vrmThumbnailUrl: "",
       emotionImageMap: {},
       transcript: "",
       emotion: "DEFAULT",
@@ -184,7 +194,7 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
   const [displayTranscript, setDisplayTranscript] = useState(previewRuntime.transcript);
   const [displayEmotion, setDisplayEmotion] = useState<StreamEmotion>(previewRuntime.emotion);
   const [bubbleVisible, setBubbleVisible] = useState(Boolean(previewRuntime.transcript));
-  useEmotionImagePreload(previewRuntime.emotionImageMap);
+  useEmotionImagePreload(previewRuntime.modelType === "2D" ? previewRuntime.emotionImageMap : {});
 
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -230,6 +240,30 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
     transcript: displayTranscript,
     emotion: displayEmotion,
   };
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log("[OverlayPage] runtime", {
+      preview,
+      isBroadcasting: displayRuntime.isBroadcasting,
+      modelType: displayRuntime.modelType,
+      characterName: displayRuntime.characterName,
+      characterImageUrl: displayRuntime.characterImageUrl,
+      vrmUrl: displayRuntime.vrmUrl,
+      vrmThumbnailUrl: displayRuntime.vrmThumbnailUrl,
+      updatedAt: displayRuntime.updatedAt,
+    });
+  }, [
+    displayRuntime.characterImageUrl,
+    displayRuntime.characterName,
+    displayRuntime.isBroadcasting,
+    displayRuntime.modelType,
+    displayRuntime.updatedAt,
+    displayRuntime.vrmThumbnailUrl,
+    displayRuntime.vrmUrl,
+    preview,
+  ]);
+
   const shouldShow = settings.enabled && previewRuntime.isBroadcasting;
   const resolvedCharacterImage = resolveCharacterImage(displayRuntime);
   const hasCharacterImage = resolvedCharacterImage.length > 0;
@@ -270,7 +304,13 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
             )}
 
             <div className="relative flex h-[420px] w-[320px] shrink-0 items-end justify-center">
-              {hasCharacterImage ? (
+              {displayRuntime.modelType === "3D" && displayRuntime.vrmUrl ? (
+                <OverlayVrmCanvas
+                  vrmUrl={displayRuntime.vrmUrl}
+                  emotion={displayEmotion}
+                  isSpeaking={displayRuntime.isSpeaking}
+                />
+              ) : hasCharacterImage ? (
                 <img
                   src={resolvedCharacterImage}
                   alt={previewRuntime.characterName}
@@ -302,6 +342,87 @@ function resolveCharacterImage(runtime: OverlayRuntimeState): string {
   }
 
   return map.DEFAULT ?? runtime.characterImageUrl ?? "";
+}
+
+function OverlayVrmCanvas({
+  vrmUrl,
+  emotion,
+  isSpeaking,
+}: {
+  vrmUrl: string;
+  emotion: StreamEmotion;
+  isSpeaking: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const refsRef = useRef<VrmSceneRefs | null>(null);
+  const stopLoopRef = useRef<(() => void) | null>(null);
+  const [ready, setReady] = useState(false);
+
+  // VRM 씬 셋업 (vrmUrl 변경 시 재로드)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let mounted = true;
+    setReady(false);
+
+    setupVrmScene(canvas, vrmUrl)
+      .then((refs) => {
+        if (!mounted) {
+          refs.dispose();
+          return;
+        }
+        refsRef.current = refs;
+        stopLoopRef.current = startRenderLoop(refs);
+        setReady(true);
+      })
+      .catch((err: unknown) => {
+        console.error("[Overlay] VRM 로드 실패:", err);
+      });
+
+    return () => {
+      mounted = false;
+      stopLoopRef.current?.();
+      refsRef.current?.dispose();
+      refsRef.current = null;
+    };
+  }, [vrmUrl]);
+
+  // 백엔드 emotion → 표정 적용
+  useEffect(() => {
+    if (!ready || !refsRef.current) return;
+    applyBackendEmotion(refsRef.current, emotion);
+  }, [emotion, ready]);
+
+  // TTS 재생 중 → 입 모양 sine 애니메이션, 종료 시 0
+  useEffect(() => {
+    if (!ready) return;
+    if (!isSpeaking) {
+      if (refsRef.current) setMouthOpen(refsRef.current, 0);
+      return;
+    }
+    let raf = 0;
+    const tick = (now: number) => {
+      if (refsRef.current) {
+        // 약 8Hz 의 입 벌림 패턴 (0~0.7 범위)
+        const value = Math.max(0, Math.sin(now / 60) * 0.5 + 0.3);
+        setMouthOpen(refsRef.current, value);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (refsRef.current) setMouthOpen(refsRef.current, 0);
+    };
+  }, [isSpeaking, ready]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="h-full w-full"
+      style={{ background: "transparent" }}
+    />
+  );
 }
 
 function transformOriginFor(position: OverlayPosition): string {

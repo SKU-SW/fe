@@ -25,9 +25,12 @@ export interface OverlayRuntimeState {
   broadcastStreamId: string | null;
   /** TTS 재생 중 여부 — 오버레이 페이드 타이머 제어용 */
   isSpeaking: boolean;
+  modelType: "2D" | "3D";
   characterName: string;
   /** 기본(DEFAULT) 이미지 — emotionImageMap 미존재 시 폴백 */
   characterImageUrl: string;
+  vrmUrl: string;
+  vrmThumbnailUrl: string;
   /**
    * 감정별 캐릭터 이미지 매핑 (Phase 2).
    * - 비어 있는 키는 characterImageUrl 로 폴백.

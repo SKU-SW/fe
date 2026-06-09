@@ -13,8 +13,9 @@ interface UseViewerChatPollingOptions {
   intervalMs?: number;
 }
 
-export function useViewerChatPolling(_options: UseViewerChatPollingOptions = {}) {
+export function useViewerChatPolling(options: UseViewerChatPollingOptions = {}) {
   useEffect(() => {
+    void options;
     return () => undefined;
-  }, []);
+  }, [options]);
 }

@@ -16,7 +16,9 @@ const DEFAULT_CONFIG: CharacterConfig = {
   callWords: [],
   gender: "female",
   voiceId: undefined,
+  modelType: "2D",
   model2D: { presetId: null },
+  model3D: { presetId: null, vrmUrl: null, thumbnailUrl: null },
   speechStyle: "casual",
   personality: "energetic",
   broadcastPreset: null,
@@ -62,7 +64,13 @@ function toConfig(data?: CharacterPreset | null): CharacterConfig {
     callWords,
     gender: data.info.gender,
     voiceId: data.info.voicePresetId,
+    modelType: data.info.modelType ?? "2D",
     model2D: { presetId: data.info.appearancePresetId || null },
+    model3D: {
+      presetId: data.info.vrmPresetId || null,
+      vrmUrl: data.info.vrmUrl ?? null,
+      thumbnailUrl: data.info.vrmThumbnailUrl ?? null,
+    },
     speechStyle:
       data.info.speechStyle === "friendly_informal"
         ? "casual"

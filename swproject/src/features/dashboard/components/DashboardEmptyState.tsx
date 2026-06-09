@@ -8,11 +8,12 @@ import { Radio, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { ChzzkStatusBadge } from "@/features/auth/components/ChzzkStatusBadge";
 import { ChzzkConnectModal } from "@/features/auth/components/ChzzkConnectModal";
+import { getChzzkModalMode } from "@/features/auth/lib/chzzkStatus";
 import { useChzzkStatus } from "@/features/auth/hooks/useChzzkStatus";
 
 export function DashboardEmptyState() {
   const [showChzzkModal, setShowChzzkModal] = useState(false);
-  const { refetch } = useChzzkStatus();
+  const { status, refetch } = useChzzkStatus();
 
   return (
     <div className="flex min-h-[480px] flex-col items-center justify-center px-6 text-center">
@@ -43,7 +44,7 @@ export function DashboardEmptyState() {
 
       {showChzzkModal && (
         <ChzzkConnectModal
-          mode="connect"
+          mode={getChzzkModalMode(status)}
           onSuccess={() => {
             setShowChzzkModal(false);
             void refetch();

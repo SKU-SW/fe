@@ -14,6 +14,7 @@
 import { useCallback, useState } from "react";
 import type { AxiosError } from "axios";
 import { terminateBroadcast } from "@/features/broadcast/api/broadcastApi";
+import { useAlarmStore } from "@/shared/stores/alarmStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import type { BroadcastTerminateResDto } from "@/shared/types/broadcast";
 
@@ -45,6 +46,7 @@ export function useTerminateBroadcast(): UseTerminateBroadcastReturn {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clearBroadcast = useAIModeStore((s) => s.clearBroadcast);
+  const pushAlarm = useAlarmStore((s) => s.push);
 
   const terminate = useCallback(async (): Promise<BroadcastTerminateResDto | null> => {
     setIsPending(true);
@@ -52,6 +54,7 @@ export function useTerminateBroadcast(): UseTerminateBroadcastReturn {
     try {
       const res = await terminateBroadcast();
       clearBroadcast();
+      pushAlarm("broadcast.ended");
       return res;
     } catch (err: unknown) {
       const status = (err as AxiosError)?.response?.status;
@@ -66,7 +69,7 @@ export function useTerminateBroadcast(): UseTerminateBroadcastReturn {
     } finally {
       setIsPending(false);
     }
-  }, [clearBroadcast]);
+  }, [clearBroadcast, pushAlarm]);
 
   return { terminate, isPending, error };
 }

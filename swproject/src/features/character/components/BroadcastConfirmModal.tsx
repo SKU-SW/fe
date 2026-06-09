@@ -2,11 +2,13 @@
  * @file 방송 시작 전 주의사항 동의 모달
  * @created Sprint 4 - 방송 시작 동의 플로우
  * @dependsOn lucide-react
+ * @dependsOn src/shared/stores/appSettingsStore.ts
  * @usedBy src/pages/CharacterPage.tsx
  */
 
 import { useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
+import { formatPttShortcut, useAppSettingsStore } from "@/shared/stores/appSettingsStore";
 
 interface BroadcastConfirmModalProps {
   characterName: string;
@@ -25,6 +27,7 @@ export function BroadcastConfirmModal({
   onCancel,
 }: BroadcastConfirmModalProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const pttShortcut = useAppSettingsStore((s) => s.pttShortcut);
 
   return (
     <div
@@ -65,7 +68,7 @@ export function BroadcastConfirmModal({
 
           <div className="rounded-lg border border-border-default bg-surface-base p-3 transition-colors">
             <p className="text-xs leading-relaxed text-content-muted">
-              <span className="font-medium text-content-secondary">Ctrl/Cmd + Shift + M</span> 단축키를 눌러 마이크를 켜고/끄면
+              <span className="font-medium text-content-secondary">{formatPttShortcut(pttShortcut)}</span> 단축키를 눌러 마이크를 켜고/끄면
               AI 캐릭터는 당신의 목소리를 들을 수 없습니다.
             </p>
           </div>

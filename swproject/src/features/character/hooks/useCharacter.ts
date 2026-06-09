@@ -65,7 +65,10 @@ export function useCharacter(characterId: number | null): UseCharacterReturn {
       // BE 가 단일 조회 응답에서 잘못된 감정 파일명(Angry.png 등) 을 줄 때 Default 로 정규화
       const normalized: CharacterDetailResDto = {
         ...data,
-        characterImageUrl: normalizeCharacterImageUrlToDefault(data.characterImageUrl),
+        characterImageUrl:
+          data.modelType === "3D"
+            ? data.characterImageUrl
+            : normalizeCharacterImageUrlToDefault(data.characterImageUrl),
       };
       setCharacter(normalized);
       setCharacterDetail(normalized);

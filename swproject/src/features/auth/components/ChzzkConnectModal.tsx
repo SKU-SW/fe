@@ -3,7 +3,7 @@
  * @created Sprint Chzzk - 치지직 연동 UI
  * @dependsOn src/features/auth/hooks/useChzzkConnect.ts
  * @usedBy src/pages/SettingsPage.tsx, src/pages/DashboardPage.tsx(방송 시작 게이트)
- * TODO: 백엔드 callback 응답이 HTML/redirect 로 변경되면 JSON 안내 카피를 정리하세요.
+ * 백엔드 callback 이 chzzk-success.html 로 redirect 되도록 변경된 상태를 가정합니다.
  *
  * mode:
  * - "connect": SettingsPage에서 직접 "연동하기" 클릭 시
@@ -21,9 +21,10 @@ interface ChzzkConnectModalProps {
   mode: ChzzkConnectModalMode;
   onSuccess: () => void;
   onCancel: () => void;
+  authUrlOverride?: string;
 }
 
-export function ChzzkConnectModal({ mode, onSuccess, onCancel }: ChzzkConnectModalProps) {
+export function ChzzkConnectModal({ mode, onSuccess, onCancel, authUrlOverride }: ChzzkConnectModalProps) {
   const { connect, cancel, isConnecting, isWaitingForUser, error } = useChzzkConnect({
     onConnected: onSuccess,
   });
@@ -33,7 +34,7 @@ export function ChzzkConnectModal({ mode, onSuccess, onCancel }: ChzzkConnectMod
       return {
         title: "방송을 시작하려면 치지직 연동이 필요해요",
         message:
-          "SKU-SW가 방송 정보와 채팅을 읽으려면 치지직 계정 연동이 필요합니다. " +
+          "Live Buddy가 방송 정보와 채팅을 읽으려면 치지직 계정 연동이 필요합니다. " +
           "아래 버튼을 누르면 시스템 브라우저에서 치지직 인증창이 열립니다.",
       };
     }
@@ -95,9 +96,9 @@ export function ChzzkConnectModal({ mode, onSuccess, onCancel }: ChzzkConnectMod
                 <div className="text-sm leading-6 text-content-secondary">
                   <p className="font-semibold text-content-primary">치지직 인증 대기 중</p>
                   <p className="mt-1 text-xs text-content-muted">
-                    브라우저에서 치지직 로그인을 완료하면 결과 화면이 표시됩니다.<br />
-                    JSON 같은 텍스트가 보여도 인증은 정상 완료된 상태입니다.<br />
-                    이 창은 잠시 후 자동으로 닫힙니다.
+                    치지직 인증을 마치면 브라우저에 "연동 완료" 페이지가 표시됩니다.<br />
+                    그 페이지를 본 뒤 이 창으로 돌아오세요.<br />
+                    연동 상태는 자동으로 반영되며, 브라우저 창은 잠시 후 자동으로 닫힐 수 있습니다.
                   </p>
                 </div>
               </div>
@@ -116,7 +117,7 @@ export function ChzzkConnectModal({ mode, onSuccess, onCancel }: ChzzkConnectMod
           <div className="rounded-lg border border-border-default bg-surface-base p-4 text-xs leading-5 text-content-muted transition-colors">
             <p className="flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-status-success" />
-              연동 후에도 SKU-SW 계정으로 계속 로그인합니다. 치지직 정보는 방송 시작 시에만 사용됩니다.
+              연동 후에도 Live Buddy 계정으로 계속 로그인합니다. 치지직 정보는 방송 시작 시에만 사용됩니다.
             </p>
             <p className="mt-2 text-content-muted">
               · Access Token 1일 / Refresh Token 30일 자동 관리<br />
@@ -135,7 +136,7 @@ export function ChzzkConnectModal({ mode, onSuccess, onCancel }: ChzzkConnectMod
           </button>
           <button
             type="button"
-            onClick={() => void connect()}
+            onClick={() => void connect(authUrlOverride)}
             disabled={isConnecting}
             className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-content-inverse transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >

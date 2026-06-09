@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Gamepad2,
   Settings,
+  Sparkles,
   ChevronLeft,
   ChevronRight,
   Mic,
@@ -41,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/stats', label: '방송 통계', group: 'main', icon: BarChart3 },
   { href: '/safety', label: '안전 관리', group: 'settings', icon: ShieldAlert },
   { href: '/game', label: '게임 연동', group: 'settings', icon: Gamepad2 },
+  { href: '/vrm-test', label: '3D 캐릭터 테스트', group: 'settings', icon: Sparkles },
   { href: '/settings', label: '설정', group: 'settings', icon: Settings },
 ];
 
@@ -128,11 +130,11 @@ export default function DashboardSidebar({ isCollapsed, onToggleCollapse }: { is
           <img 
             src="/icon.png" 
             alt="Logo" 
-            className="w-7 h-7 rounded-md object-cover shadow-sm group-hover:scale-105 transition-transform shrink-0" 
+            className="h-10 w-10 rounded-lg object-cover shadow-sm transition-transform shrink-0 group-hover:scale-105" 
           />
           {!isCollapsed && (
             <span className="whitespace-nowrap text-[15.5px] font-extrabold tracking-tight text-content-primary">
-              AI streamer partner
+              Live Buddy
             </span>
           )}
         </Link>

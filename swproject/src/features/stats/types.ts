@@ -1,50 +1,56 @@
 /**
- * @file 방송 통계 mock 데이터 모델
+ * @file 방송 채팅 분석 데이터 모델 (REST API 기반)
  * @dependsOn 없음
- * @usedBy src/features/stats/lib/statsMockService.ts, src/features/stats/components/*
+ * @usedBy src/features/stats/api/chatAnalysisApi.ts, src/features/stats/components/*
  */
 
-export type ReactionMode = "cheer" | "criticism" | "silence";
-
-export interface SentimentSnapshot {
-  positivePercent: number;
-  negativePercent: number;
-  currentMode: ReactionMode;
+/** 여론 집계 */
+export interface PublicOpinion {
+  positiveChatCount: number;
+  neutralChatCount: number;
+  negativeChatCount: number;
+  totalChatCount: number;
+  positiveRatio: number;
+  neutralRatio: number;
+  negativeRatio: number;
 }
 
-export interface DecisionState {
-  mode: ReactionMode;
-  isAuto: boolean;
-}
+/** AI 파트너 편향 성향 */
+export type AiTendency = "POSITIVE" | "NEUTRAL" | "NEGATIVE";
 
-export interface OutputState {
-  ttsReady: boolean;
-  nextLine: string;
-  targetEmotion: string;
-  confidencePercent: number;
-  nextReactionSeconds: number;
-}
-
+/** 감정 흐름 시계열 포인트 */
 export interface SentimentFlowPoint {
-  timestamp: string;
-  positivePercent: number;
-  negativePercent: number;
-  modeTransition: ReactionMode | null;
+  timeLabel: string;
+  positiveRatio: number;
+  neutralRatio: number;
+  negativeRatio: number;
 }
 
-export interface KeywordEntry {
-  rank: number;
-  keyword: string;
-  trend: "up" | "down" | "flat";
-  change: number;
-  count: number;
-}
-
-export interface StatsSnapshot {
-  sentiment: SentimentSnapshot;
-  decision: DecisionState;
-  output: OutputState;
+/** 채팅 분석 스냅샷 (GET /api/v1/stream/chat/stats 응답) */
+export interface BroadcastChatStatsResDto {
+  publicOpinion: PublicOpinion;
+  aiPartnerTendency: AiTendency;
   sentimentFlow: SentimentFlowPoint[];
-  keywords: KeywordEntry[];
-  updatedAt: number;
+  topKeywords: string[];
+}
+
+/** 채팅 분석 필터 */
+export interface BroadcastChatStatsFilter {
+  statsCriteria: 1 | 5 | 10;
+  timeRange: 1 | 3 | 0;
+}
+
+/** 성향 제어 버전 (AUTO: AI 자동 / MANUAL: 수동 지정) */
+export type TendencyVersion = "AUTO" | "MANUAL";
+
+/** 성향 수동 변경 요청 DTO */
+export interface BroadcastTendencyUpdateReqDto {
+  version: TendencyVersion;
+  tendency?: AiTendency;
+}
+
+/** 성향 수동 변경 응답 DTO */
+export interface BroadcastTendencyUpdateResDto {
+  prevVersion: TendencyVersion;
+  prevTendency: AiTendency;
 }

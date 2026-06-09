@@ -26,8 +26,10 @@ export type StreamEmotion =
   | "SAD"
   | "FEAR";
 
-/** UI 에서 다루는 화자 종류 — 백엔드 4종 subject 와 1:1 매핑 (대소문자만 다름) */
-export type DialogueSpeaker = "streamer" | "ai" | "viewer" | "system";
+/** UI 에서 다루는 화자 종류 — 백엔드 subject 를 화면 친화형으로 매핑 */
+export type DialogueSpeaker = "streamer" | "ai" | "viewer" | "system" | "system_summary";
+
+export type DialogueSubjectKind = "STREAMER" | "AI_CHARACTER" | "VIEWER" | "DONATION" | "GAME_EVENT" | "SYSTEM_SUMMARY";
 
 export interface StreamDialogue {
   /** dedup 키 — 백엔드 cursorId 기반 (`String(cursorId)`) */
@@ -35,6 +37,7 @@ export interface StreamDialogue {
   /** 정렬·페이징 기준. 백엔드 응답이면 항상 number, 로컬 임시 삽입 시 null */
   cursorId: number | null;
   speaker: DialogueSpeaker;
+  subject: DialogueSubjectKind;
   text: string;
   /** 향후 WebSocket emotion 채널로 채워질 예정. 현재는 'default' */
   emotion: StreamEmotion;

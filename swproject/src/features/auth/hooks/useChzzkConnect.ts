@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AxiosError } from 'axios';
 import { getChzzkAuthUrl, getChzzkStatus } from '@/features/auth/api/authApi';
+import { isChzzkReady } from '@/features/auth/lib/chzzkStatus';
 
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
@@ -28,7 +29,7 @@ interface UseChzzkConnectOptions {
 
 interface UseChzzkConnectReturn {
   /** 연동 시작 — chzzk URL 받고 외부 브라우저에 열기 + polling 시작 */
-  connect: () => Promise<void>;
+  connect: (authUrlOverride?: string) => Promise<void>;
   /** 진행 중인 polling 중단 (사용자가 모달을 닫는 등) */
   cancel: () => void;
   /** chzzk URL 요청 또는 polling 중 */
@@ -75,13 +76,13 @@ export function useChzzkConnect(options?: UseChzzkConnectOptions): UseChzzkConne
     };
   }, []);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (authUrlOverride?: string) => {
     setIsConnecting(true);
     setError(null);
 
     try {
       // 1. 백엔드에서 chzzk OAuth URL 받기
-      const { authUrl } = await getChzzkAuthUrl();
+      const authUrl = authUrlOverride ?? (await getChzzkAuthUrl()).authUrl;
 
       // 2. 외부 브라우저로 열기 (Electron shell.openExternal)
       const electronAPI = window.electronAPI;
@@ -104,7 +105,7 @@ export function useChzzkConnect(options?: UseChzzkConnectOptions): UseChzzkConne
 
         try {
           const status = await getChzzkStatus();
-          if (status.authorized) {
+          if (isChzzkReady(status)) {
             stopPolling();
             setIsConnecting(false);
             onConnectedRef.current?.();

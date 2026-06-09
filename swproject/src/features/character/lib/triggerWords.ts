@@ -35,6 +35,29 @@ export function normalizeTriggerWords(words?: string[] | null, fallbackCallSign?
   return [...new Set(normalized)];
 }
 
+function normalizeForTriggerMatch(value: string): string {
+  return value
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~，。！？、]/g, "");
+}
+
+/**
+ * STT 결과가 현재 호출어 중 하나를 포함하는지 검사한다.
+ * - 공백/일반 문장부호 차이는 무시
+ * - "형준아?", "형준 아" 같은 변형도 최대한 허용
+ */
+export function containsTriggerWord(text: string, words?: string[] | null): boolean {
+  const normalizedWords = normalizeTriggerWords(words).map(normalizeForTriggerMatch);
+  if (normalizedWords.length === 0) return true;
+
+  const normalizedText = normalizeForTriggerMatch(text);
+  if (!normalizedText) return false;
+
+  return normalizedWords.some((word) => !!word && normalizedText.includes(word));
+}
+
 function findConflictingWord(words: string[]): string | null {
   for (let i = 0; i < words.length; i += 1) {
     for (let j = i + 1; j < words.length; j += 1) {

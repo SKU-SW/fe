@@ -1,24 +1,16 @@
 /**
- * @file 방송 통계 LLM 판단 현황 - 감지 카드
+ * @file 채팅 분석 — 여론 감지 카드 (긍/중/부 3분할 막대 + 집계)
  * @dependsOn src/features/stats/types.ts
  * @usedBy src/features/stats/components/LlmJudgmentPanel.tsx
  */
 
-import type { SentimentSnapshot } from "@/features/stats/types";
+import type { PublicOpinion } from "@/features/stats/types";
 
 interface DetectionCardProps {
-  sentiment: SentimentSnapshot;
+  opinion: PublicOpinion;
 }
 
-const MODE_LABEL = {
-  cheer: "응원",
-  criticism: "비판",
-  silence: "침묵",
-};
-
-export function DetectionCard({ sentiment }: DetectionCardProps) {
-  const markerLeft = `${sentiment.positivePercent}%`;
-
+export function DetectionCard({ opinion }: DetectionCardProps) {
   return (
     <div className="rounded-xl border border-border-default bg-surface-base p-5 shadow-sm transition-colors">
       <div className="mb-4 flex items-center gap-2">
@@ -26,43 +18,57 @@ export function DetectionCard({ sentiment }: DetectionCardProps) {
           ①
         </span>
         <div>
-          <p className="text-sm font-bold text-content-primary">감지 (Detection)</p>
-          <p className="text-xs text-content-muted">현재 여론 방향</p>
+          <p className="text-sm font-bold text-content-primary">여론 감지</p>
+          <p className="text-xs text-content-muted">전체 채팅 {opinion.totalChatCount.toLocaleString()}개</p>
         </div>
       </div>
 
-      <div className="relative pt-7">
-        <div
-          className="absolute top-0 -translate-x-1/2 rounded-full border border-brand/30 bg-surface-raised px-2.5 py-1 text-xs font-bold text-brand shadow-sm"
-          style={{ left: markerLeft }}
-        >
-          {MODE_LABEL[sentiment.currentMode]}
-        </div>
-        <div className="relative h-4 overflow-hidden rounded-full bg-surface-raised">
+      {/* 3분할 막대 */}
+      <div className="relative h-5 overflow-hidden rounded-full bg-surface-raised">
+        {opinion.positiveRatio > 0 && (
           <div
             className="absolute inset-y-0 left-0"
             style={{
-              width: `${sentiment.positivePercent}%`,
+              width: `${opinion.positiveRatio}%`,
               background: "linear-gradient(90deg, #4f46e5 0%, #2563eb 65%, #60a5fa 100%)",
             }}
           />
+        )}
+        {opinion.neutralRatio > 0 && (
           <div
-            className="absolute inset-y-0 right-0"
+            className="absolute inset-y-0"
             style={{
-              width: `${sentiment.negativePercent}%`,
-              background: "linear-gradient(90deg, #fca5a5 0%, #ef4444 100%)",
+              left: `${opinion.positiveRatio}%`,
+              width: `${opinion.neutralRatio}%`,
+              background: "linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%)",
             }}
           />
-          <div
-            className="absolute inset-y-0 w-px bg-content-inverse/80 shadow-[0_0_0_1px_rgba(15,23,42,0.14)]"
-            style={{ left: `${sentiment.positivePercent}%` }}
-          />
-        </div>
+        )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm font-bold">
-        <span className="text-brand">긍정 {sentiment.positivePercent}%</span>
-        <span className="text-status-danger">부정 {sentiment.negativePercent}%</span>
+      {/* 범례 + 수치 */}
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+        <div>
+          <span className="text-blue-600">● 긍정</span>
+          <p className="mt-0.5 text-content-primary">
+            {opinion.positiveRatio.toFixed(1)}%
+          </p>
+          <p className="text-content-muted">{opinion.positiveChatCount.toLocaleString()}개</p>
+        </div>
+        <div>
+          <span className="text-slate-400">● 중립</span>
+          <p className="mt-0.5 text-content-primary">
+            {opinion.neutralRatio.toFixed(1)}%
+          </p>
+          <p className="text-content-muted">{opinion.neutralChatCount.toLocaleString()}개</p>
+        </div>
+        <div>
+          <span className="text-red-500">● 부정</span>
+          <p className="mt-0.5 text-content-primary">
+            {opinion.negativeRatio.toFixed(1)}%
+          </p>
+          <p className="text-content-muted">{opinion.negativeChatCount.toLocaleString()}개</p>
+        </div>
       </div>
     </div>
   );

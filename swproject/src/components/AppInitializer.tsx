@@ -5,21 +5,31 @@
  * @dependsOn src/shared/stores/aiModeStore.ts
  * @dependsOn src/shared/stores/characterStore.ts
  * @dependsOn src/shared/stores/overlayStore.ts
+ * @dependsOn src/shared/stores/alarmStore.ts
  * @usedBy src/main.tsx
  */
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBroadcastWSState, useStreamInfo } from "@/features/broadcast/hooks";
 import { useCharacter } from "@/features/character/hooks/useCharacter";
+import { containsTriggerWord, normalizeTriggerWords } from "@/features/character/lib/triggerWords";
 import { sttBackgroundService } from "@/services/sttBackgroundService";
 import { broadcastWSBackgroundService } from "@/services/broadcastWSBackgroundService";
 import { buildEmotionImageMap } from "@/shared/lib/characterEmotionImages";
-import { resolveAssetUrl } from "@/shared/lib/utils";
+import { resolveVrmRuntime } from "@/shared/lib/vrmRuntime";
+import { useAlarmStore } from "@/shared/stores/alarmStore";
+import { useCharacterAppearanceStore } from "@/shared/stores/characterAppearanceStore";
+import { useCharacterSettingsStore } from "@/shared/stores/characterSettingsStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useOverlayStore } from "@/shared/stores/overlayStore";
+import { BroadcastQuitConfirmModal } from "@/components/BroadcastQuitConfirmModal";
 
 const STREAMING_AI_DIALOGUE_ID = "streaming-ai-pending";
+
+// 호출어 매칭 후 이 시간 동안 들어오는 STT 발화는 호출어 없이도 통과시킨다.
+// 매 발화마다 카운트가 갱신되며, 침묵이 길어지면 세션이 만료되어 다시 호출어가 필요해진다.
+const ACTIVATION_TIMEOUT_MS = 30_000;
 
 export default function AppInitializer() {
   const sttEnabled = useAIModeStore((s) => s.toggles.sttEnabled);
@@ -29,13 +39,90 @@ export default function AppInitializer() {
   const currentEmotion = useAIModeStore((s) => s.currentEmotion);
   const isBroadcasting = useAIModeStore((s) => s.mode === "broadcasting");
   const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
-  const { isPlayingTTS } = useBroadcastWSState();
+  const { isConnected, error: wsError, isPlayingTTS } = useBroadcastWSState();
+  const pushAlarm = useAlarmStore((s) => s.push);
   const { characterInfo } = useStreamInfo({ size: 1 });
+  const characterSettings = useCharacterSettingsStore((s) => s.settings);
+  const appearance = useCharacterAppearanceStore((s) =>
+    characterInfo?.characterId
+      ? s.getAppearance(characterInfo.characterId)
+      : character?.characterId
+        ? s.getAppearance(character.characterId)
+        : undefined
+  );
+  const prevWsConnectedRef = useRef<boolean | null>(null);
+  const prevWsErrorRef = useRef<string | null>(null);
+  const [quitConfirmOpen, setQuitConfirmOpen] = useState(false);
+  const [networkDisconnectOpen, setNetworkDisconnectOpen] = useState(false);
+
+  // Electron main 이 방송 중 창 닫기를 시도하면 모달을 연다.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.electronAPI?.broadcast?.onConfirmQuit) return;
+    const unsubscribe = window.electronAPI.broadcast.onConfirmQuit(() => {
+      setQuitConfirmOpen(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  // 방송 중 페이지 새로고침/이탈 방지 (안전망 — Electron 단축키 차단을 보완)
+  useEffect(() => {
+    if (!isBroadcasting) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "방송이 진행 중입니다. 페이지를 벗어나면 방송이 종료됩니다.";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isBroadcasting]);
+
+  const handleQuitConfirm = useCallback(() => {
+    setQuitConfirmOpen(false);
+    window.electronAPI?.broadcast?.confirmQuit();
+  }, []);
+
+  const handleQuitCancel = useCallback(() => {
+    setQuitConfirmOpen(false);
+    window.electronAPI?.broadcast?.cancelQuit();
+  }, []);
+
+  const handleNetworkDisconnectTerminate = useCallback(async () => {
+    setNetworkDisconnectOpen(false);
+    try {
+      const { terminateBroadcast } = await import("@/features/broadcast/api/broadcastApi");
+      await terminateBroadcast();
+      useAIModeStore.getState().clearBroadcast();
+    } catch {
+      // terminate 패해도 로컬 상태는 정리
+      useAIModeStore.getState().clearBroadcast();
+    }
+  }, []);
+
+  const handleNetworkDisconnectKeepWaiting = useCallback(() => {
+    setNetworkDisconnectOpen(false);
+  }, []);
+  const lastActiveAtRef = useRef<number | null>(null);
+
+  const resolvedVrmRuntime = resolveVrmRuntime({
+    appearance,
+    character,
+    broadcastCharacter: characterInfo,
+    settings: characterSettings,
+  });
 
   const overlayCharacterName = characterInfo?.characterName ?? character?.characterName ?? "AI";
-  const overlayCharacterImageUrl =
-    resolveAssetUrl(characterInfo?.characterImageUrl) || resolveAssetUrl(character?.characterImageUrl);
-  const overlayEmotionImageMap = buildEmotionImageMap(overlayCharacterImageUrl);
+  const overlayCharacterImageUrl = resolvedVrmRuntime.characterImageUrl;
+  const overlayCharacterVrmUrl = resolvedVrmRuntime.vrmUrl;
+  const overlayCharacterVrmThumbnailUrl = resolvedVrmRuntime.vrmThumbnailUrl;
+  const effectiveOverlayModelType = resolvedVrmRuntime.modelType;
+  const overlayEmotionImageMap =
+    effectiveOverlayModelType === "2D" ? buildEmotionImageMap(overlayCharacterImageUrl) : {};
+  const activeTriggerWords = useMemo(
+    () => normalizeTriggerWords([
+      ...(character?.triggerWords ?? []),
+      ...(characterInfo?.triggerWords ?? []),
+    ]),
+    [character?.triggerWords, characterInfo?.triggerWords],
+  );
 
   const handleFinalTranscript = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -54,6 +141,44 @@ export default function AppInitializer() {
         level: "warning",
       });
       return;
+    }
+
+    const now = Date.now();
+    const hasTriggerWord = containsTriggerWord(trimmed, activeTriggerWords);
+    const lastActiveAt = lastActiveAtRef.current;
+    const isActiveSession =
+      lastActiveAt !== null && now - lastActiveAt < ACTIVATION_TIMEOUT_MS;
+
+    if (!hasTriggerWord && !isActiveSession) {
+      if (import.meta.env.DEV) {
+        console.info("[AppInitializer] trigger word required (session inactive)", {
+          transcript: trimmed,
+          activeTriggerWords,
+          lastActiveAt,
+          msSinceLastActive: lastActiveAt !== null ? now - lastActiveAt : null,
+        });
+      }
+      useAIModeStore.getState().addActivityLog({
+        id: `stt-callword-skip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: "system",
+        message: activeTriggerWords.length > 0
+          ? `호출어(${activeTriggerWords.join(", ")})로 다시 깨워주세요.`
+          : "호출어 정보가 없어 음성 전송을 건너뜁니다.",
+        timestamp: new Date(),
+        level: "info",
+      });
+      return;
+    }
+
+    // 활성 세션 갱신 — 다음 발화까지의 타임아웃 카운트가 여기서부터 다시 시작된다.
+    lastActiveAtRef.current = now;
+
+    if (import.meta.env.DEV) {
+      console.info("[AppInitializer] transcript accepted", {
+        transcript: trimmed,
+        via: hasTriggerWord ? "trigger-word" : "active-session",
+        msSinceLastActive: lastActiveAt !== null ? now - lastActiveAt : null,
+      });
     }
 
     // 2단계 resident 경로:
@@ -101,6 +226,7 @@ export default function AppInitializer() {
           id: `local-streamer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           cursorId: null,
           speaker: "streamer",
+          subject: "STREAMER",
           text: trimmed,
           emotion: "DEFAULT",
           timestamp: new Date().toISOString(),
@@ -108,7 +234,7 @@ export default function AppInitializer() {
       ],
       null
     );
-  }, []);
+  }, [activeTriggerWords]);
 
   useEffect(() => {
     console.info('[app-init] init start', {
@@ -138,6 +264,7 @@ export default function AppInitializer() {
                 id: STREAMING_AI_DIALOGUE_ID,
                 cursorId: null,
                 speaker: "ai",
+                subject: "AI_CHARACTER",
                 text: nextText,
                 emotion,
                 timestamp: new Date().toISOString(),
@@ -155,6 +282,7 @@ export default function AppInitializer() {
               id: String(cursorId),
               cursorId,
               speaker: "ai",
+              subject: "AI_CHARACTER",
               text: voiceText,
               emotion,
               timestamp: new Date().toISOString(),
@@ -176,6 +304,7 @@ export default function AppInitializer() {
               id: String(cursorId),
               cursorId,
               speaker: "ai",
+              subject: "AI_CHARACTER",
               text: voiceText,
               emotion,
               timestamp: new Date().toISOString(),
@@ -200,6 +329,7 @@ export default function AppInitializer() {
               id: `local-streamer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               cursorId: null,
               speaker: "streamer",
+              subject: "STREAMER",
               text,
               emotion: "DEFAULT",
               timestamp: new Date().toISOString(),
@@ -210,6 +340,9 @@ export default function AppInitializer() {
       },
       onError: (message, code) => {
         console.error("[broadcast-ws-service] server error:", code ? `[${code}]` : "", message);
+      },
+      onProlongedDisconnect: () => {
+        setNetworkDisconnectOpen(true);
       },
     });
 
@@ -224,11 +357,42 @@ export default function AppInitializer() {
         "onVoiceInterrupted",
         "onBufferedStreamerTextFlushed",
         "onError",
+        "onProlongedDisconnect",
       ]);
       broadcastWSBackgroundService.dispose();
       sttBackgroundService.dispose();
     };
   }, [handleFinalTranscript]);
+
+  useEffect(() => {
+    const prevConnected = prevWsConnectedRef.current;
+    if (prevConnected === null) {
+      prevWsConnectedRef.current = isConnected;
+      return;
+    }
+
+    if (!prevConnected && isConnected) {
+      pushAlarm(prevWsErrorRef.current ? "ws.reconnected" : "ws.connected");
+    }
+
+    if (prevConnected && !isConnected) {
+      pushAlarm("ws.disconnected");
+    }
+
+    prevWsConnectedRef.current = isConnected;
+  }, [isConnected, pushAlarm]);
+
+  useEffect(() => {
+    if (!wsError) {
+      prevWsErrorRef.current = null;
+      return;
+    }
+
+    if (wsError !== prevWsErrorRef.current) {
+      pushAlarm("ws.reconnect_failed");
+      prevWsErrorRef.current = wsError;
+    }
+  }, [pushAlarm, wsError]);
 
   useEffect(() => {
     if (!sttEnabled) {
@@ -237,12 +401,52 @@ export default function AppInitializer() {
   }, [sttEnabled]);
 
   useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log("[AppInitializer] overlay runtime source", {
+        isBroadcasting,
+        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
+        characterInfo: characterInfo
+          ? {
+              characterId: characterInfo.characterId,
+              characterName: characterInfo.characterName,
+              characterImageUrl: characterInfo.characterImageUrl,
+            }
+          : null,
+        character: character
+          ? {
+              characterId: character.characterId,
+              modelType: character.modelType,
+              characterImageUrl: character.characterImageUrl,
+              vrmUrl: character.vrmUrl ?? null,
+              vrmThumbnailUrl: character.vrmThumbnailUrl ?? null,
+            }
+          : null,
+        appearance: appearance
+          ? {
+              modelType: appearance.modelType,
+              targetId: appearance.targetId,
+              vrmUrl: appearance.vrmUrl ?? null,
+              vrmThumbnailUrl: appearance.vrmThumbnailUrl ?? null,
+            }
+          : null,
+        resolved: {
+          modelType: effectiveOverlayModelType,
+          characterImageUrl: overlayCharacterImageUrl,
+          vrmUrl: overlayCharacterVrmUrl,
+          vrmThumbnailUrl: overlayCharacterVrmThumbnailUrl,
+        },
+      });
+    }
+
     updateOverlayRuntime({
       isBroadcasting,
       broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
       isSpeaking: isBroadcasting ? isPlayingTTS : false,
+      modelType: effectiveOverlayModelType,
       characterName: overlayCharacterName,
       characterImageUrl: overlayCharacterImageUrl,
+      vrmUrl: overlayCharacterVrmUrl,
+      vrmThumbnailUrl: overlayCharacterVrmThumbnailUrl,
       emotionImageMap: overlayEmotionImageMap,
       transcript: isBroadcasting ? currentTranscript : "",
       emotion: isBroadcasting ? currentEmotion : "DEFAULT",
@@ -254,9 +458,28 @@ export default function AppInitializer() {
     isPlayingTTS,
     overlayCharacterImageUrl,
     overlayCharacterName,
+    effectiveOverlayModelType,
+    overlayCharacterVrmThumbnailUrl,
+    overlayCharacterVrmUrl,
     overlayEmotionImageMap,
     updateOverlayRuntime,
   ]);
 
-  return null;
+  return (
+    <>
+      <BroadcastQuitConfirmModal
+        open={quitConfirmOpen}
+        onConfirm={handleQuitConfirm}
+        onCancel={handleQuitCancel}
+      />
+      <BroadcastQuitConfirmModal
+        open={networkDisconnectOpen}
+        onConfirm={handleNetworkDisconnectTerminate}
+        onCancel={handleNetworkDisconnectKeepWaiting}
+        title="네트워크 연결이 끊겼습니다"
+        description="60초 이상 서버와 연결되지 않았습니다. 방송을 종료하시겠습니까? 계속 대기하려면 '취소'를 누르세요."
+        confirmLabel="방송 종료하기"
+      />
+    </>
+  );
 }

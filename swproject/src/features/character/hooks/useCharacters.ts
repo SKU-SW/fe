@@ -59,6 +59,7 @@ export function useCharacters(): UseCharactersReturn {
   const characters = useCharacterStore((s) => s.characters);
   const setCharacters = useCharacterStore((s) => s.setCharacters);
   const setCharacterDetail = useCharacterStore((s) => s.setCharacterDetail);
+  const setSelectedCharacter = useCharacterStore((s) => s.setSelectedCharacter);
   const reset = useCharacterStore((s) => s.reset);
 
   const fetchCharacters = useCallback(async () => {
@@ -71,14 +72,22 @@ export function useCharacters(): UseCharactersReturn {
       setHasNext(response.hasNext);
 
       // 목록 API가 characterPersona를 생략하는 경우 대비: 상세를 병렬 조회해 캐시에 저장
-      void Promise.all(
+      // refetch 완료 시점엔 상세 캐시/selectedCharacter 도 최신 상태가 되도록 await 한다.
+      await Promise.all(
         response.content.map(async (item) => {
           try {
             const detail = await getCharacter(item.characterId);
-            setCharacterDetail({
+            const normalizedDetail = {
               ...detail,
-              characterImageUrl: normalizeCharacterImageUrlToDefault(detail.characterImageUrl),
-            });
+              characterImageUrl:
+                detail.modelType === "3D"
+                  ? detail.characterImageUrl
+                  : normalizeCharacterImageUrlToDefault(detail.characterImageUrl),
+            };
+            setCharacterDetail(normalizedDetail);
+            if (normalizedDetail.isSelected) {
+              setSelectedCharacter(normalizedDetail);
+            }
           } catch {
             // 개별 실패는 무시 — 목록 렌더링을 막지 않음
           }
@@ -103,7 +112,7 @@ export function useCharacters(): UseCharactersReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [reset, setCharacters]);
+  }, [reset, setCharacters, setSelectedCharacter]);
 
   // 마운트 시 자동 조회
   useEffect(() => {

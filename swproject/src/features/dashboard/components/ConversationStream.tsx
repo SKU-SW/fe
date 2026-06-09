@@ -13,9 +13,21 @@ interface ConversationStreamProps {
   onFilterChange: (next: ConversationFilterState) => void;
   chatLogOn?: boolean;
   onToggleChatLog?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
-export function ConversationStream({ messages, filter, onFilterChange, chatLogOn, onToggleChatLog }: ConversationStreamProps) {
+export function ConversationStream({
+  messages,
+  filter,
+  onFilterChange,
+  chatLogOn,
+  onToggleChatLog,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+}: ConversationStreamProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -76,6 +88,18 @@ export function ConversationStream({ messages, filter, onFilterChange, chatLogOn
 
       {/* 메시지 영역 (카카오톡 말풍선 스타일) */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
+        {hasMore && (
+          <div className="mb-4 flex justify-center">
+            <button
+              type="button"
+              onClick={onLoadMore}
+              disabled={isLoadingMore}
+              className="rounded border border-border-default px-3 py-1 text-xs font-semibold text-content-secondary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoadingMore ? "불러오는 중..." : "이전 대화 더 보기"}
+            </button>
+          </div>
+        )}
         {messages.length === 0 ? (
           <p className="py-12 text-center text-base font-medium text-content-muted">아직 대화가 없습니다.</p>
         ) : (
@@ -96,6 +120,15 @@ const SPEAKER_LABEL: Record<ConversationSpeaker, string> = {
   chat: "시청자",
 };
 
+const SUBJECT_META: Record<ConversationMessage["subject"], { label: string; badgeClass: string }> = {
+  streamer: { label: "스트리머", badgeClass: "bg-chat-streamer/15 text-chat-streamer" },
+  ai: { label: "AI", badgeClass: "bg-chat-ai/15 text-chat-ai" },
+  viewer: { label: "시청자", badgeClass: "bg-chat-viewer/15 text-chat-viewer" },
+  donation: { label: "도네", badgeClass: "bg-status-warning/15 text-status-warning" },
+  game_event: { label: "게임", badgeClass: "bg-status-success/15 text-status-success" },
+  system_summary: { label: "요약", badgeClass: "bg-brand/15 text-brand" },
+};
+
 function formatTime(date: Date) {
   return date.toLocaleTimeString("ko-KR", { hour12: true, hour: "numeric", minute: "2-digit" });
 }
@@ -111,9 +144,14 @@ function MessageRow({ message, hidden }: { message: ConversationMessage; hidden:
       <div className={`flex max-w-[75%] flex-col ${isAI ? "items-start" : "items-end"}`}>
         
         {/* 발화자 이름 표시 (채팅이면 유저명, 아니면 스피커 라벨) */}
-        <span className="mb-1 px-1 text-sm font-semibold text-content-muted">
-          {message.username ? message.username : SPEAKER_LABEL[message.speaker]}
-        </span>
+        <div className="mb-1 flex items-center gap-2 px-1">
+          <span className="text-sm font-semibold text-content-muted">
+            {message.username ? message.username : SPEAKER_LABEL[message.speaker]}
+          </span>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${SUBJECT_META[message.subject].badgeClass}`}>
+            {SUBJECT_META[message.subject].label}
+          </span>
+        </div>
         
         <div className={`flex items-end gap-2 ${isAI ? "flex-row" : "flex-row-reverse"}`}>
           {/* 말풍선 */}

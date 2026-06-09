@@ -3,9 +3,11 @@
  * @dependsOn window.electronAPI.stt.*
  * @dependsOn src/shared/stores/sttStore.ts
  * @dependsOn src/shared/stores/aiModeStore.ts
+ * @dependsOn src/shared/stores/alarmStore.ts
  * @usedBy src/components/AppInitializer.tsx, src/features/stt/hooks/useSTT.ts
  */
 
+import { useAlarmStore } from "@/shared/stores/alarmStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useSTTStore } from "@/shared/stores/sttStore";
 import { broadcastWSBackgroundService } from "@/services/broadcastWSBackgroundService";
@@ -102,9 +104,11 @@ class STTBackgroundService {
     if (!this.isSupported) {
       if (!this.hasElectronSTTBridge) {
         setError("Electron STT 브리지를 찾을 수 없습니다. Electron 앱으로 실행 중인지 확인해주세요.");
+        useAlarmStore.getState().push("stt.start_failed");
         return;
       }
       setError("이 환경에서는 로컬 마이크 녹음을 지원하지 않습니다.");
+      useAlarmStore.getState().push("stt.start_failed");
       return;
     }
 
@@ -194,6 +198,7 @@ class STTBackgroundService {
       if (err instanceof DOMException) {
         if (err.name === "NotAllowedError") {
           setError("마이크 권한이 거부되었습니다. 시스템 설정에서 앱의 마이크 권한을 허용해주세요.");
+          useAlarmStore.getState().push("stt.permission_denied");
           return;
         }
         if (err.name === "NotFoundError") {
@@ -206,6 +211,7 @@ class STTBackgroundService {
         }
       }
       setError(err instanceof Error ? err.message : "음성인식을 시작하지 못했습니다.");
+      useAlarmStore.getState().push("stt.start_failed");
     }
   }
 

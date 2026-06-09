@@ -24,9 +24,9 @@
  */
 
 import type { AxiosError } from "axios";
+import { useAlarmStore } from "@/shared/stores/alarmStore";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useAuthStore } from "@/shared/stores/authStore";
-import { useOverlayStore } from "@/shared/stores/overlayStore";
 import { adaptDialogue, getStreamInfo } from "@/features/broadcast/api/streamApi";
 import {
   buildInterruptRequestMessage,
@@ -39,7 +39,7 @@ import type {
   VoiceInterrupted,
   VoiceTurnComplete,
 } from "@/shared/types/broadcastWs";
-import type { StreamEmotion } from "@/shared/types/stream";
+import type { StreamDialogue, StreamEmotion } from "@/shared/types/stream";
 
 const WS_PATH = "/api/v1/stream/ws";
 const RECONNECT_DELAY_MS = 3000;
@@ -61,8 +61,10 @@ interface BroadcastWSCallbacks {
   onEmotionChange?: (emotion: StreamEmotion) => void;
   onVoiceInterrupted?: (interrupted: VoiceInterrupted) => void;
   onBufferedStreamerTextFlushed?: (text: string) => void;
-  onViewerChat?: (dialogues: any[]) => void;
+  onViewerChat?: (dialogues: StreamDialogue[]) => void;
   onError?: (message: string, code?: StreamWsErrorCode) => void;
+  /** 60초 이상 연속 연결 끊김 시 호출 — renderer 가 종료 확인 모달 표시용 */
+  onProlongedDisconnect?: () => void;
 }
 
 interface BroadcastWSServiceState {
@@ -168,6 +170,11 @@ class BroadcastWSBackgroundService {
   private pollingTimerRef: ReturnType<typeof setTimeout> | null = null;
   private pollingInFlightRef = false;
   private latestViewerCursorRef: number | null = null;
+
+  // prolonged disconnect timer — 60초 이상 연속 끊김 시 onProlongedDisconnect 호출
+  private prolongedDisconnectTimerRef: ReturnType<typeof setTimeout> | null = null;
+  private prolongedDisconnectFiredRef = false;
+  private readonly PROLONGED_DISCONNECT_MS = 60_000;
 
   // 콜백 등록
   private callbacksRef: BroadcastWSCallbacks = {};
@@ -344,6 +351,14 @@ class BroadcastWSBackgroundService {
     }
   }
 
+  private clearProlongedDisconnectTimer() {
+    if (this.prolongedDisconnectTimerRef) {
+      clearTimeout(this.prolongedDisconnectTimerRef);
+      this.prolongedDisconnectTimerRef = null;
+    }
+    this.prolongedDisconnectFiredRef = false;
+  }
+
   isAwaitingInterrupt(): boolean {
     return this.pendingInterruptTurnRef !== null;
   }
@@ -511,6 +526,8 @@ class BroadcastWSBackgroundService {
       this.callbacksRef.onError?.(msg, code);
 
       // 코드별 재연결 정책
+      // - 프론트는 WebSocket 에러만으로 방송 상태를 초기화하지 않음
+      // - 사용자가 명시적으로 종료 버튼을 눌러야 방송이 끝남
       if (
         code === "UNAUTHORIZED" ||
         code === "FORBIDDEN" ||
@@ -519,9 +536,10 @@ class BroadcastWSBackgroundService {
         code === "INVALID_REQUEST"
       ) {
         this.shouldReconnectRef = false;
-        if (code === "UNAUTHORIZED" || code === "FORBIDDEN" || code === "NOT_FOUND") {
-          useAIModeStore.getState().clearBroadcast();
-        }
+        console.warn("[broadcast-ws-service] non-recoverable WS error, stopping reconnect but keeping broadcast state", {
+          code,
+          message: msg,
+        });
         return;
       }
 
@@ -534,7 +552,9 @@ class BroadcastWSBackgroundService {
           lowerMsg.includes("방송")
         ) {
           this.shouldReconnectRef = false;
-          useAIModeStore.getState().clearBroadcast();
+          console.warn("[broadcast-ws-service] legacy broadcast-related WS error, stopping reconnect but keeping broadcast state", {
+            message: msg,
+          });
         }
       }
       return;
@@ -584,7 +604,7 @@ class BroadcastWSBackgroundService {
         });
         this.errorRef = null;
         const previewText = evt.voiceText ?? "";
-        this.diagnosticRef = `청크 수신: emotion=${evt.emotion}, text=\"${previewText.slice(0, 30)}${previewText.length > 30 ? "…" : ""}\"`;
+        this.diagnosticRef = `청크 수신: emotion=${evt.emotion}, text="${previewText.slice(0, 30)}${previewText.length > 30 ? "…" : ""}"`;
         this.enqueueTTS(audio);
         this.callbacksRef.onVoiceChunk?.({
           audio,
@@ -613,7 +633,7 @@ class BroadcastWSBackgroundService {
           emotion: evt.emotion,
         });
         this.errorRef = null;
-        this.diagnosticRef = `턴 종료: cursorId=${evt.broadcastDialogueCursorId}, text=\"${evt.voiceText.slice(0, 30)}${evt.voiceText.length > 30 ? "…" : ""}\"`;
+        this.diagnosticRef = `턴 종료: cursorId=${evt.broadcastDialogueCursorId}, text="${evt.voiceText.slice(0, 30)}${evt.voiceText.length > 30 ? "…" : ""}"`;
         this.streamingDialogueText = "";
         this.callbacksRef.onVoiceTurnComplete?.({
           voiceText: evt.voiceText,
@@ -671,6 +691,7 @@ class BroadcastWSBackgroundService {
       console.info("[broadcast-ws-service] connected");
       this.errorRef = null;
       this.diagnosticRef = `연결 성공: ${wsUrl}`;
+      this.clearProlongedDisconnectTimer();
       this.notifyStateChange();
     };
 
@@ -751,17 +772,25 @@ class BroadcastWSBackgroundService {
 
       if (event.code === 1006 && !event.wasClean && !opened) {
         this.shouldReconnectRef = false;
-        console.error("[broadcast-ws-service] handshake failed, stopping reconnect");
+        console.error("[broadcast-ws-service] handshake failed, stopping reconnect but keeping broadcast state");
         this.errorRef = "방송 채널 연결에 실패했습니다. 진행 중 방송이 없거나 인증이 만료되었을 수 있습니다.";
         this.diagnosticRef = "연결 중단: WebSocket handshake 실패로 재연결을 중지했습니다.";
         this.notifyStateChange();
-        useAIModeStore.getState().clearBroadcast();
         return;
       }
 
       this.reconnectTimerRef = setTimeout(() => {
         if (this.shouldReconnectRef) this.connect();
       }, RECONNECT_DELAY_MS);
+
+      // 60초 이상 연속 끊김 시 onProlongedDisconnect 호출 (한 번만)
+      if (!this.prolongedDisconnectFiredRef) {
+        this.prolongedDisconnectTimerRef = setTimeout(() => {
+          this.prolongedDisconnectFiredRef = true;
+          console.warn("[broadcast-ws-service] prolonged disconnect detected");
+          this.callbacksRef.onProlongedDisconnect?.();
+        }, this.PROLONGED_DISCONNECT_MS);
+      }
     };
   }
 
@@ -773,6 +802,7 @@ class BroadcastWSBackgroundService {
     }
     this.clearResponseTimer();
     this.clearInterruptTimer();
+    this.clearProlongedDisconnectTimer();
     const ws = this.wsRef;
     if (this.wsRef === ws) {
       this.wsRef = null;
@@ -870,6 +900,7 @@ class BroadcastWSBackgroundService {
       return ctx;
     } catch (e) {
       console.error("[broadcast-ws-service] AudioContext creation failed:", e);
+      useAlarmStore.getState().push("tts.playback_failed");
       return null;
     }
   }
@@ -964,6 +995,7 @@ class BroadcastWSBackgroundService {
     } catch (err) {
       if (generation === this.ttsGenerationRef) {
         console.warn("[broadcast-ws-service] TTS schedule failed:", err);
+        useAlarmStore.getState().push("tts.playback_failed");
       }
     } finally {
       if (generation === this.ttsGenerationRef) {
@@ -991,6 +1023,7 @@ class BroadcastWSBackgroundService {
     const generation = this.ttsGenerationRef;
     const audioBufferPromise = this.decodeBlob(audio, ctx).catch((err) => {
       console.warn("[broadcast-ws-service] TTS decode failed:", err);
+      useAlarmStore.getState().push("tts.playback_failed");
       return null;
     });
 
@@ -1070,8 +1103,6 @@ class BroadcastWSBackgroundService {
     } catch (err: unknown) {
       if (statusOf(err) === 404) {
         console.warn("[broadcast-ws-service] polling: broadcast not found");
-        this.stopPolling();
-        useAIModeStore.getState().clearBroadcast();
         return;
       }
       console.warn(

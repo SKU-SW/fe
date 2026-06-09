@@ -17,6 +17,30 @@
 export type Gender = "MALE" | "FEMALE";
 
 /**
+ * 캐릭터 모델 타입 — 프론트 UI 친화형 ("2D" / "3D")
+ * 백엔드 스웨거는 `characterAppearanceType: "TWO_D" | "THREE_D"` 를 사용.
+ * 변환은 toBackendAppearance / fromBackendAppearance 헬퍼로 처리.
+ */
+export type CharacterModelType = "2D" | "3D";
+
+/**
+ * 캐릭터 외형 타입 (백엔드 raw enum) — Swagger CharacterAppearanceType
+ */
+export type CharacterAppearanceType = "TWO_D" | "THREE_D";
+
+/** UI ("2D"|"3D") → 백엔드 ("TWO_D"|"THREE_D") */
+export function toBackendAppearance(m: CharacterModelType): CharacterAppearanceType {
+  return m === "3D" ? "THREE_D" : "TWO_D";
+}
+
+/** 백엔드 → UI */
+export function fromBackendAppearance(
+  a: CharacterAppearanceType | undefined,
+): CharacterModelType {
+  return a === "THREE_D" ? "3D" : "2D";
+}
+
+/**
  * 프리셋 타입 (backend)
  */
 export type PresetType =
@@ -76,9 +100,19 @@ export interface CharacterDetailResDto {
   characterName: string;
   triggerWords: string[];
   gender: Gender;
-  characterImageUrl: string;
+  characterImageUrl: string | null;
   characterPersona: CharacterPersonaResDto;
   isSelected: boolean;
+
+  // 백엔드가 추가로 줄 수 있는 필드 (optional). 현재 Swagger 응답엔 미포함.
+  characterAppearanceType?: CharacterAppearanceType;
+  characterImageId?: number | null;
+  vrmPresetId?: number | null;
+  vrmUrl?: string | null;
+  vrmThumbnailUrl?: string | null;
+
+  /** API 어댑터에서 characterAppearanceType 기반으로 채움 (UI 친화형) */
+  modelType?: CharacterModelType;
 }
 
 /**
@@ -89,9 +123,19 @@ export interface CharacterListItemResDto {
   characterName: string;
   triggerWords: string[];
   gender: Gender;
-  characterImageUrl: string;
+  characterImageUrl: string | null;
   characterPersona?: CharacterPersonaResDto;
   isSelected: boolean;
+
+  // 백엔드 향후 확장 (optional)
+  characterAppearanceType?: CharacterAppearanceType;
+  characterImageId?: number | null;
+  vrmPresetId?: number | null;
+  vrmUrl?: string | null;
+  vrmThumbnailUrl?: string | null;
+
+  /** API 어댑터에서 채움 (UI 친화형) */
+  modelType?: CharacterModelType;
 }
 
 // ============================================================
@@ -113,28 +157,23 @@ export interface SliceResponse<T> {
 // ============================================================
 
 /**
- * 캐릭터 생성 요청
- * - backend CharacterCreateReqDto 매칭
+ * 캐릭터 생성 요청 — 백엔드 Swagger CharacterCreateReqDto 와 1:1.
+ * - characterAppearanceType: TWO_D | THREE_D
+ * - targetId: 2D 면 imageId, 3D 면 characterVrmId 를 통합 송신
  */
 export interface CharacterCreateReqDto {
+  characterAppearanceType: CharacterAppearanceType;
   characterName: string;
   triggerWords: string[];
   gender: Gender;
-  characterImageId: number;
+  targetId: number;
   characterPersona: CharacterPersonaReqDto;
 }
 
 /**
- * 캐릭터 수정 요청
- * - backend CharacterUpdateReqDto 매칭 (모든 필드 필수)
+ * 캐릭터 수정 요청 — 생성과 동일 스키마
  */
-export interface CharacterUpdateReqDto {
-  characterName: string;
-  triggerWords: string[];
-  gender: Gender;
-  characterImageId: number;
-  characterPersona: CharacterPersonaReqDto;
-}
+export type CharacterUpdateReqDto = CharacterCreateReqDto;
 
 // ============================================================
 // Character Select
@@ -175,7 +214,6 @@ export interface CharacterImageResDto {
   gender: Gender;
   name: string;
   imageUrl: string;
-  imageUrl1?: string; // 서버 호환용 (imageUrl1 필드)
   // === Phase 2 placeholder (BE 확장 시 활성화) ===
   // imageUrlHappy?: string;
   // imageUrlAngry?: string;
@@ -188,12 +226,42 @@ export interface CharacterImageResDto {
 }
 
 /**
+ * 3D VRM 프리셋 응답
+ * 백엔드 Swagger 의 CharacterVrmResDto 는 { characterVrmId, vrmUrl } 만 줌.
+ * gender / name / thumbnailUrl 은 백엔드 확장 시 채워지는 optional.
+ * presetId 는 프론트 어댑터에서 characterVrmId 와 동기화되는 alias.
+ */
+export interface VrmPresetResDto {
+  /** 백엔드 raw 식별자 */
+  characterVrmId: number;
+  vrmUrl: string;
+
+  // 백엔드 확장 대기 (현재 응답엔 없음)
+  gender?: Gender;
+  name?: string;
+  thumbnailUrl?: string;
+
+  /** 프론트 alias — 어댑터가 characterVrmId 와 동기화 */
+  presetId?: number;
+}
+
+/**
  * 캐릭터 설정 옵션 응답
- * - backend CharacterSettingsResDto 매칭
+ * - backend CharacterSettingsResDto 매칭 (personaPresetTypes)
+ * - 프론트는 presetTypes / availableModelTypes alias 도 추가로 채움
  */
 export interface CharacterSettingsResDto {
   characterImages: CharacterImageResDto[];
-  presetTypes: PresetType[];
+  vrmPresets?: VrmPresetResDto[];
+
+  /** 백엔드 raw 필드 */
+  personaPresetTypes?: PresetType[];
+
+  /** 프론트 alias (어댑터가 personaPresetTypes 와 동기화) */
+  presetTypes?: PresetType[];
+
+  /** 프론트 추정 (vrmPresets 유무 기반) */
+  availableModelTypes?: CharacterModelType[];
 }
 
 // ============================================================
@@ -239,6 +307,7 @@ export type SensitivityLevel = "high" | "medium" | "low";
  * 캐릭터 기본 정보 (UI 내부용)
  */
 export interface CharacterInfo {
+  modelType: CharacterModelType;
   gender: UiGender;
   name: string;
   /** 표시용 호출어 합본 문자열 (예: "강희야, 야, 친구야"). 입력/저장 용도로 쓰지 말 것 — triggerWords 사용 */
@@ -248,6 +317,9 @@ export interface CharacterInfo {
   appearancePresetId: string;
   /** 백엔드 characterImageUrl - 캐릭터 카드 아바타 표시용 */
   imageUrl?: string;
+  vrmPresetId?: string;
+  vrmUrl?: string;
+  vrmThumbnailUrl?: string;
   voicePresetId: string;
   speechStyle: UiSpeechStyle;
   personality: UiPersonality;
@@ -329,7 +401,13 @@ export interface CharacterConfig {
   callWords: string[];
   gender: "male" | "female";
   voiceId?: string;
+  modelType: CharacterModelType;
   model2D: { presetId: string | null };
+  model3D: {
+    presetId: string | null;
+    vrmUrl?: string | null;
+    thumbnailUrl?: string | null;
+  };
   speechStyle: CharacterFormSpeechStyle;
   personality: "energetic" | "calm" | "humorous" | "serious";
   broadcastPreset: BroadcastPreset | null;

@@ -66,7 +66,7 @@ const SUBJECT_TO_SPEAKER: Record<DialogueSubject, DialogueSpeaker> = {
   // DONATION/GAME_EVENT 는 FE 화면상 시스템 이벤트로 분류 (별도 speaker 추가 전까지 임시 매핑)
   DONATION: "system",
   GAME_EVENT: "system",
-  SYSTEM_SUMMARY: "system",
+  SYSTEM_SUMMARY: "system_summary",
 };
 
 /** Swagger DialogueItem → FE StreamDialogue */
@@ -77,6 +77,7 @@ export function adaptDialogue(
     id: String(dto.cursorId),
     cursorId: dto.cursorId,
     speaker: SUBJECT_TO_SPEAKER[dto.subject],
+    subject: dto.subject,
     text: dto.content,
     emotion: "DEFAULT",
     timestamp: dto.createdAt,

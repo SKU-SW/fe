@@ -5,6 +5,7 @@
 export { useStartBroadcast } from "./useStartBroadcast";
 export { useTerminateBroadcast } from "./useTerminateBroadcast";
 export { useStreamInfo } from "./useStreamInfo";
+export { useStreamDialoguesPagination } from "./useStreamDialoguesPagination";
 export { useStreamWS } from "./useStreamWS";
 export { useTTSPlayer } from "./useTTSPlayer";
 export { useViewerChatPolling } from "./useViewerChatPolling";

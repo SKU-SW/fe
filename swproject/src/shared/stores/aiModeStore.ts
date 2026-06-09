@@ -94,7 +94,8 @@ interface AIModeStore {
 
   // === 방송 대화 / 오버레이 준비 상태 ===
   dialogues: StreamDialogue[];
-  dialogueCursorId: number | null;
+  nextCursor: number | null;
+  hasNextDialogues: boolean;
   currentEmotion: StreamEmotion;
   currentTranscript: string;
 
@@ -124,8 +125,10 @@ interface AIModeStore {
   clearChatMessages: () => void;
   addActivityLog: (log: ActivityLog) => void;
   clearActivityLogs: () => void;
-  setDialogues: (items: StreamDialogue[], cursorId: number | null) => void;
-  upsertDialogues: (items: StreamDialogue[], cursorId: number | null) => void;
+  setDialogues: (items: StreamDialogue[], nextCursor: number | null, hasNextDialogues?: boolean) => void;
+  appendDialogues: (items: StreamDialogue[], nextCursor: number | null, hasNextDialogues?: boolean) => void;
+  prependDialogues: (items: StreamDialogue[], nextCursor: number | null, hasNextDialogues?: boolean) => void;
+  upsertDialogues: (items: StreamDialogue[], nextCursor: number | null, hasNextDialogues?: boolean) => void;
   /** 특정 id 의 dialogue 만 제거. 스트리밍 중 임시 dialogue 정리에 사용. */
   removeDialogue: (id: string) => void;
   clearDialogues: () => void;
@@ -154,6 +157,12 @@ function sortAndLimitDialogues(items: StreamDialogue[]): StreamDialogue[] {
       return a.cursorId - b.cursorId;
     })
     .slice(-MAX_DIALOGUES);
+}
+
+function mergeDialogues(existing: StreamDialogue[], incoming: StreamDialogue[]): StreamDialogue[] {
+  const map = new Map(existing.map((item) => [item.id, item]));
+  incoming.forEach((item) => map.set(item.id, item));
+  return sortAndLimitDialogues([...map.values()]);
 }
 
 const DEFAULT_SENSITIVITY: SensitivitySettings = {
@@ -217,7 +226,8 @@ export const useAIModeStore = create<AIModeStore>()(
       chatMessages: [],
       activityLogs: [],
       dialogues: [],
-      dialogueCursorId: null,
+      nextCursor: null,
+      hasNextDialogues: false,
       currentEmotion: 'DEFAULT',
       currentTranscript: '',
 
@@ -234,7 +244,8 @@ export const useAIModeStore = create<AIModeStore>()(
           broadcastStreamId,
           broadcastStartedAt,
           dialogues: [],
-          dialogueCursorId: null,
+          nextCursor: null,
+          hasNextDialogues: false,
           activityLogs: [],
           currentEmotion: 'DEFAULT',
           currentTranscript: '',
@@ -249,7 +260,8 @@ export const useAIModeStore = create<AIModeStore>()(
           broadcastStreamId: null,
           broadcastStartedAt: null,
           dialogues: [],
-          dialogueCursorId: null,
+          nextCursor: null,
+          hasNextDialogues: false,
           activityLogs: [],
           currentEmotion: 'DEFAULT',
           currentTranscript: '',
@@ -301,25 +313,41 @@ export const useAIModeStore = create<AIModeStore>()(
       clearActivityLogs: () => set({ activityLogs: [] }),
 
       // === 방송 대화 / 오버레이 ===
-      setDialogues: (items, cursorId) =>
+      setDialogues: (items, nextCursor, hasNextDialogues = false) =>
         set({
           dialogues: sortAndLimitDialogues(items),
-          dialogueCursorId: cursorId,
+          nextCursor,
+          hasNextDialogues,
         }),
-      upsertDialogues: (items, cursorId) =>
+      appendDialogues: (items, nextCursor, hasNextDialogues = false) =>
         set((state) => {
-          const map = new Map(state.dialogues.map((item) => [item.id, item]));
-          items.forEach((item) => map.set(item.id, item));
           return {
-            dialogues: sortAndLimitDialogues([...map.values()]),
-            dialogueCursorId: cursorId ?? state.dialogueCursorId,
+            dialogues: mergeDialogues(state.dialogues, items),
+            nextCursor: nextCursor ?? state.nextCursor,
+            hasNextDialogues,
+          };
+        }),
+      prependDialogues: (items, nextCursor, hasNextDialogues = false) =>
+        set((state) => {
+          return {
+            dialogues: mergeDialogues(items, state.dialogues),
+            nextCursor: nextCursor ?? state.nextCursor,
+            hasNextDialogues,
+          };
+        }),
+      upsertDialogues: (items, nextCursor, hasNextDialogues) =>
+        set((state) => {
+          return {
+            dialogues: mergeDialogues(state.dialogues, items),
+            nextCursor: nextCursor ?? state.nextCursor,
+            hasNextDialogues: hasNextDialogues ?? state.hasNextDialogues,
           };
         }),
       removeDialogue: (id) =>
         set((state) => ({
           dialogues: state.dialogues.filter((item) => item.id !== id),
         })),
-      clearDialogues: () => set({ dialogues: [], dialogueCursorId: null }),
+      clearDialogues: () => set({ dialogues: [], nextCursor: null, hasNextDialogues: false }),
       setEmotion: (currentEmotion) => set({ currentEmotion }),
       setCurrentTranscript: (currentTranscript) => set({ currentTranscript }),
 
@@ -341,7 +369,8 @@ export const useAIModeStore = create<AIModeStore>()(
           chatMessages: [],
           activityLogs: [],
           dialogues: [],
-          dialogueCursorId: null,
+          nextCursor: null,
+          hasNextDialogues: false,
           currentEmotion: 'DEFAULT',
           currentTranscript: '',
         }),

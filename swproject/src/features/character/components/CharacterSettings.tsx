@@ -33,6 +33,8 @@ export function CharacterSettings({
   const missingFields: string[] = [];
   if (!config.name.trim()) missingFields.push("캐릭터 이름");
   if (!config.broadcastPreset) missingFields.push("페르소나 프리셋");
+  if (config.modelType === "2D" && !config.model2D.presetId) missingFields.push("2D 외모");
+  if (config.modelType === "3D" && !config.model3D.presetId) missingFields.push("3D VRM 모델");
   const triggerWordsError = getTriggerWordsValidationError(config.callWords);
 
   const canSave = missingFields.length === 0 && !triggerWordsError && !isSaving;

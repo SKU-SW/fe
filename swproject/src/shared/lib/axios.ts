@@ -24,8 +24,13 @@ import type { TokenResponse } from '@/shared/types/auth';
  * - 대부분의 API 요청에 사용
  * - baseURL은 환경변수에서 읽어오며, 없으면 localhost:8080 사용
  */
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const resolvedBaseUrl = import.meta.env.DEV
+  ? ''
+  : (configuredBaseUrl || 'http://localhost:8080');
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
+  baseURL: resolvedBaseUrl,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -38,7 +43,7 @@ const apiClient = axios.create({
  * - 재발급 요청 자체에 토큰이 필요하면 무한 루프에 빠질 수 있으므로 분리
  */
 export const bareClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
+  baseURL: resolvedBaseUrl,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
