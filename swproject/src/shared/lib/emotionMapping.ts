@@ -1,7 +1,7 @@
 /**
  * @file 백엔드 emotion → 표준 VRM 표정 매핑
  * @dependsOn 없음 (순수 함수)
- * @usedBy src/shared/lib/vrmController.ts, src/pages/VrmTestPage.tsx
+ * @usedBy src/shared/lib/vrmController.ts
  *
  * 흐름:
  *   백엔드 응답 emotion (예: 'fear', 'tired') →

@@ -46,6 +46,7 @@ import type { StreamDialogue } from "@/shared/types/stream";
 import type { CharacterModelType } from "@/shared/types/character";
 import { useChatAnalysis } from "@/features/stats/hooks/useChatAnalysis";
 import type { PublicOpinion } from "@/features/stats/types";
+import { useBroadcastSettings } from "@/features/settings/hooks/useBroadcastSettings";
 
 // ============================================================
 // 헬퍼 — BE DTO 표현을 UI 모델로 변환
@@ -115,6 +116,8 @@ export default function DashboardPage() {
   const togglePause = useAIModeStore((s) => s.togglePause);
   const dialogues = useAIModeStore((s) => s.dialogues);
   const activityLogs = useAIModeStore((s) => s.activityLogs);
+  // 방송 설정(선제 반응) — 실 API. zustand는 내부에서 sync 됨.
+  const { aiProactiveToChat, setAiProactive, isPending: isProactivePending } = useBroadcastSettings();
   const {
     characterInfo,
     error: streamInfoError,
@@ -291,12 +294,15 @@ export default function DashboardPage() {
       {/* 컨트롤 바 */}
       <BroadcastControls
         sttOn={toggles.sttEnabled}
-        proactiveOn={toggles.proactiveReactionEnabled}
+        proactiveOn={aiProactiveToChat}
         ttsOn={toggles.ttsEnabled}
         chatLogOn={toggles.chatReactionEnabled}
         aiOn={!isPaused}
         onToggleStt={() => setToggle("sttEnabled", !toggles.sttEnabled)}
-        onToggleProactive={() => setToggle("proactiveReactionEnabled", !toggles.proactiveReactionEnabled)}
+        onToggleProactive={() => {
+          if (isProactivePending) return;
+          void setAiProactive(!aiProactiveToChat);
+        }}
         onToggleTts={() => setToggle("ttsEnabled", !toggles.ttsEnabled)}
         onToggleChatLog={() => setToggle("chatReactionEnabled", !toggles.chatReactionEnabled)}
         onToggleAi={togglePause}

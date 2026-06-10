@@ -26,8 +26,11 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, 
 
 interface SentimentFlowChartProps {
   points: SentimentFlowPoint[];
-  filter: BroadcastChatStatsFilter;
-  onChangeFilter: (next: Partial<BroadcastChatStatsFilter>) => void;
+  /** 옵셔널 — 필터 제어가 없는 화면(일별 상세 등)에서는 생략 가능 */
+  filter?: BroadcastChatStatsFilter;
+  onChangeFilter?: (next: Partial<BroadcastChatStatsFilter>) => void;
+  /** 헤더 부제목을 직접 지정하고 싶을 때 (예: "10분 간격 · 전체 방송 시간") */
+  subtitle?: string;
 }
 
 const CHART_COLORS = {
@@ -49,7 +52,7 @@ const CHART_COLORS = {
 const CRITERIA_LABEL: Record<number, string> = { 1: "1분", 5: "5분", 10: "10분" };
 const RANGE_LABEL: Record<number, string> = { 1: "1시간 이전", 3: "3시간 이전", 0: "전체 방송 시간" };
 
-export function SentimentFlowChart({ points, filter, onChangeFilter }: SentimentFlowChartProps) {
+export function SentimentFlowChart({ points, filter, onChangeFilter, subtitle }: SentimentFlowChartProps) {
   const chartData = useMemo(() => ({
     labels: points.map((p) => p.timeLabel),
     datasets: [
@@ -112,7 +115,13 @@ export function SentimentFlowChart({ points, filter, onChangeFilter }: Sentiment
     scales: {
       x: {
         grid: { color: CHART_COLORS.grid },
-        ticks: { color: CHART_COLORS.tick, maxRotation: 0 },
+        ticks: {
+          color: CHART_COLORS.tick,
+          maxRotation: 0,
+          // 라벨이 너무 많으면 자동 솎아내기 (최대 8개)
+          maxTicksLimit: 8,
+          autoSkip: true,
+        },
       },
       y: {
         min: 0,
@@ -129,31 +138,36 @@ export function SentimentFlowChart({ points, filter, onChangeFilter }: Sentiment
         <div>
           <h2 className="text-xl font-extrabold text-content-primary">감정 흐름 그래프</h2>
           <p className="mt-1 text-sm text-content-muted">
-            {CRITERIA_LABEL[filter.statsCriteria]} 단위 · {RANGE_LABEL[filter.timeRange]} 범위
+            {subtitle
+              ?? (filter
+                ? `${CRITERIA_LABEL[filter.statsCriteria]} 단위 · ${RANGE_LABEL[filter.timeRange]} 범위`
+                : "10분 간격 · 전체 방송 시간")}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <select
-            value={filter.statsCriteria}
-            onChange={(e) => onChangeFilter({ statsCriteria: Number(e.target.value) as 1 | 5 | 10 })}
-            className="rounded-md border border-border-default bg-surface-base px-2 py-1.5 text-content-primary focus:border-brand focus:outline-none"
-          >
-            <option value={1}>1분 간격</option>
-            <option value={5}>5분 간격</option>
-            <option value={10}>10분 간격</option>
-          </select>
+        {filter && onChangeFilter && (
+          <div className="flex items-center gap-2 text-xs">
+            <select
+              value={filter.statsCriteria}
+              onChange={(e) => onChangeFilter({ statsCriteria: Number(e.target.value) as 1 | 5 | 10 })}
+              className="rounded-md border border-border-default bg-surface-base px-2 py-1.5 text-content-primary focus:border-brand focus:outline-none"
+            >
+              <option value={1}>1분 간격</option>
+              <option value={5}>5분 간격</option>
+              <option value={10}>10분 간격</option>
+            </select>
 
-          <select
-            value={filter.timeRange}
-            onChange={(e) => onChangeFilter({ timeRange: Number(e.target.value) as 1 | 3 | 0 })}
-            className="rounded-md border border-border-default bg-surface-base px-2 py-1.5 text-content-primary focus:border-brand focus:outline-none"
-          >
-            <option value={1}>1시간 이전</option>
-            <option value={3}>3시간 이전</option>
-            <option value={0}>전체 방송 시간</option>
-          </select>
-        </div>
+            <select
+              value={filter.timeRange}
+              onChange={(e) => onChangeFilter({ timeRange: Number(e.target.value) as 1 | 3 | 0 })}
+              className="rounded-md border border-border-default bg-surface-base px-2 py-1.5 text-content-primary focus:border-brand focus:outline-none"
+            >
+              <option value={1}>1시간 이전</option>
+              <option value={3}>3시간 이전</option>
+              <option value={0}>전체 방송 시간</option>
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="h-[320px] rounded-xl border border-border-default bg-surface-base p-4">

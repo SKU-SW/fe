@@ -1,5 +1,5 @@
 /**
- * @file 채팅 분석 — LLM 판단 현황 패널 (여론 감지 + AI 파트너 성향)
+ * @file 채팅 분석 — AI 판단 현황 패널 (여론 감지 + AI 파트너 성향)
  * @dependsOn src/features/stats/components/DetectionCard.tsx, BandwagonCard.tsx
  * @usedBy src/pages/ChatAnalysisPage.tsx
  */
@@ -35,8 +35,8 @@ export function LlmJudgmentPanel({
           <Brain className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-xl font-extrabold text-content-primary">LLM 판단 현황</h2>
-          <p className="text-sm text-content-muted">채팅 흐름을 분석하여 반응 결정</p>
+          <h2 className="text-xl font-extrabold text-content-primary">AI 판단 현황</h2>
+          <p className="text-sm text-content-muted">채팅 흐름을 분석해 AI가 어떻게 반응할지 결정합니다</p>
         </div>
       </div>
 

@@ -4,7 +4,7 @@
  * @usedBy src/features/stats/components/LlmJudgmentPanel.tsx
  */
 
-import { Sparkles, RotateCcw } from "lucide-react";
+import { RotateCcw, Sparkles } from "lucide-react";
 import type { AiTendency, TendencyVersion } from "@/features/stats/types";
 
 interface BandwagonCardProps {
@@ -28,17 +28,18 @@ const TENDENCY_COLOR: Record<AiTendency, string> = {
   NEGATIVE: "text-status-danger border-status-danger/30 bg-status-danger/10",
 };
 
-const TENDENCY_EMOJI: Record<AiTendency, string> = {
-  POSITIVE: "😊",
-  NEUTRAL: "😐",
-  NEGATIVE: "😠",
-};
-
 const TENDENCY_BUTTONS: { value: AiTendency; label: string }[] = [
   { value: "POSITIVE", label: "응원" },
   { value: "NEUTRAL", label: "중립" },
   { value: "NEGATIVE", label: "비판" },
 ];
+
+/** 선택된 버튼의 색상 톤 — 응원=초록, 중립=회색/브랜드, 비판=빨강 */
+const TENDENCY_ACTIVE_CLASS: Record<AiTendency, string> = {
+  POSITIVE: "border-status-success bg-status-success/10 text-status-success",
+  NEUTRAL: "border-brand bg-brand/10 text-brand",
+  NEGATIVE: "border-status-danger bg-status-danger/10 text-status-danger",
+};
 
 export function BandwagonCard({
   tendency,
@@ -80,38 +81,28 @@ export function BandwagonCard({
         </div>
       </div>
 
-      <blockquote className="rounded-xl border border-border-strong bg-surface-panel p-4 text-center">
-        <p className="text-3xl">{TENDENCY_EMOJI[displayTendency]}</p>
-        <p className="mt-2 text-lg font-extrabold text-content-primary">
-          {TENDENCY_LABEL[displayTendency]} 성향
-        </p>
-        <p className="mt-1 text-xs text-content-muted">
-          {displayTendency === "POSITIVE"
-            ? "긍정적인 반응을 보이고 있어요"
-            : displayTendency === "NEGATIVE"
-              ? "비판적인 반응을 보이고 있어요"
-              : "중립적인 반응을 유지하고 있어요"}
-        </p>
-      </blockquote>
-
-      {/* 수동 편승 제어 */}
-      <div className="mt-4 space-y-3">
-        <div className="flex gap-2">
-          {TENDENCY_BUTTONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onApplyManual(value)}
-              disabled={isPending}
-              className={`flex-1 rounded-lg border py-2 text-sm font-bold transition-colors disabled:opacity-50 ${
-                version === "MANUAL" && selectedTendency === value
-                  ? "border-brand bg-brand/10 text-brand"
-                  : "border-border-default bg-surface-base text-content-secondary hover:bg-surface-hover"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* 응원 / 중립 / 비판 — 클릭으로 현재 성향 변경 */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          {TENDENCY_BUTTONS.map(({ value, label }) => {
+            const isActive = displayTendency === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => onApplyManual(value)}
+                disabled={isPending}
+                aria-pressed={isActive}
+                className={`rounded-lg border py-3 text-base font-extrabold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isActive
+                    ? TENDENCY_ACTIVE_CLASS[value]
+                    : "border-border-default bg-surface-base text-content-secondary hover:bg-surface-hover"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         <button

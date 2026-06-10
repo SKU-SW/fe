@@ -72,11 +72,13 @@ interface BroadcastWSServiceState {
   error: string | null;
   diagnostic: string | null;
   isPlayingTTS: boolean;
+  mouthOpen: number;
+  visemeWeights: { aa: number; ih: number; ou: number; ee: number; oh: number };
 }
 
 interface QueuedTTSChunk {
   generation: number;
-  audioBufferPromise: Promise<AudioBuffer | null>;
+  decodedPromise: Promise<{ audioBuffer: AudioBuffer | null; mouthOpen: number }>;
 }
 
 // ============================================================
@@ -139,6 +141,8 @@ class BroadcastWSBackgroundService {
     error: null,
     diagnostic: null,
     isPlayingTTS: false,
+    mouthOpen: 0,
+    visemeWeights: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 },
   };
 
   // WebSocket 상태
@@ -165,6 +169,11 @@ class BroadcastWSBackgroundService {
   private ttsNextStartTimeRef = 0;
   private ttsGenerationRef = 0;
   private isPlayingTTSRef = false;
+  private mouthOpenRef = 0;
+  private visemeWeightsRef = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+  private analyserRef: AnalyserNode | null = null;
+  private lipSyncAnimFrameRef: number | null = null;
+  private lipSyncDebugCounter = 0;
 
   // 폴링 상태
   private pollingTimerRef: ReturnType<typeof setTimeout> | null = null;
@@ -219,9 +228,14 @@ class BroadcastWSBackgroundService {
       const prevStreamId = prevState.broadcastStreamId;
       const nextTtsEnabled = state.toggles.ttsEnabled;
       const prevTtsEnabled = prevState.toggles.ttsEnabled;
+      const nextLipSyncEnabled = state.toggles.lipSyncEnabled;
+      const prevLipSyncEnabled = prevState.toggles.lipSyncEnabled;
 
       if (nextTtsEnabled !== prevTtsEnabled && !nextTtsEnabled) {
         this.stopTTS();
+      }
+      if (nextLipSyncEnabled !== prevLipSyncEnabled && !nextLipSyncEnabled) {
+        this.setVisemeWeights({ aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 });
       }
 
       if (nextStreamId === prevStreamId) return;
@@ -254,6 +268,7 @@ class BroadcastWSBackgroundService {
 
   dispose() {
     console.info("[broadcast-ws-service] dispose");
+    this.stopLipSyncAnalysis();
     this.disconnect();
     this.stopPolling();
     this.stopTTS();
@@ -294,6 +309,8 @@ class BroadcastWSBackgroundService {
       error: this.errorRef,
       diagnostic: this.diagnosticRef,
       isPlayingTTS: this.isPlayingTTSRef,
+      mouthOpen: this.mouthOpenRef,
+      visemeWeights: { ...this.visemeWeightsRef },
     };
   }
 
@@ -772,7 +789,10 @@ class BroadcastWSBackgroundService {
 
       if (event.code === 1006 && !event.wasClean && !opened) {
         this.shouldReconnectRef = false;
-        console.error("[broadcast-ws-service] handshake failed, stopping reconnect but keeping broadcast state");
+        console.error("[broadcast-ws-service] handshake failed, stopping reconnect but keeping broadcast state", {
+          broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
+          wsUrl: this.getWsUrl()?.replace(/accessToken=[^&]+/, 'accessToken=***'),
+        });
         this.errorRef = "방송 채널 연결에 실패했습니다. 진행 중 방송이 없거나 인증이 만료되었을 수 있습니다.";
         this.diagnosticRef = "연결 중단: WebSocket handshake 실패로 재연결을 중지했습니다.";
         this.notifyStateChange();
@@ -833,10 +853,33 @@ class BroadcastWSBackgroundService {
   sendChat(text: string): { ok: boolean; reason?: string } {
     const ws = this.wsRef;
     if (!ws) {
+      // 방송 중인데 wsRef가 null이면 재연결 시도
+      const broadcastStreamId = useAIModeStore.getState().broadcastStreamId;
+      if (broadcastStreamId && !this.shouldReconnectRef) {
+        console.warn("[broadcast-ws-service] wsRef is null during broadcast, attempting reconnect", {
+          broadcastStreamId,
+          shouldReconnect: this.shouldReconnectRef,
+        });
+        this.shouldReconnectRef = true;
+        this.connect();
+        // 재연결 시도 후에도 즉시 전송은 실패 (다음 발화부터 가능)
+        const reason = "WebSocket 재연결을 시도합니다. 잠시 후 다시 시도해주세요.";
+        this.errorRef = reason;
+        this.diagnosticRef = `송신 실패: ${reason}`;
+        this.notifyStateChange();
+        return { ok: false, reason };
+      }
+
       const reason = "소켓 인스턴스가 없습니다.";
       this.errorRef = reason;
       this.diagnosticRef = `송신 실패: ${reason}`;
       this.notifyStateChange();
+      console.warn("[broadcast-ws-service] sendChat failed: wsRef is null", {
+        hasAccessToken: !!useAuthStore.getState().accessToken,
+        broadcastStreamId,
+        shouldReconnect: this.shouldReconnectRef,
+        diagnostic: this.diagnosticRef,
+      });
       return { ok: false, reason };
     }
     if (ws.readyState !== WebSocket.OPEN) {
@@ -888,6 +931,16 @@ class BroadcastWSBackgroundService {
 
   private ensureAudioContext(): AudioContext | null {
     if (this.audioCtxRef && this.audioCtxRef.state !== "closed") {
+      // AnalyserNode가 없으면 재생성 (stopTTS 등에서 null이 될 수 있음)
+      if (!this.analyserRef) {
+        try {
+          this.analyserRef = this.audioCtxRef.createAnalyser();
+          this.analyserRef.fftSize = 256;
+          this.analyserRef.smoothingTimeConstant = 0.3;
+        } catch {
+          /* ignore */
+        }
+      }
       return this.audioCtxRef;
     }
     try {
@@ -897,6 +950,12 @@ class BroadcastWSBackgroundService {
           .webkitAudioContext;
       const ctx = new Ctx();
       this.audioCtxRef = ctx;
+
+      // AnalyserNode 생성 (실시간 립싱크 분석용)
+      this.analyserRef = ctx.createAnalyser();
+      this.analyserRef.fftSize = 256;
+      this.analyserRef.smoothingTimeConstant = 0.3;
+
       return ctx;
     } catch (e) {
       console.error("[broadcast-ws-service] AudioContext creation failed:", e);
@@ -916,7 +975,45 @@ class BroadcastWSBackgroundService {
       this.currentSourceRef = null;
     }
     this.isPlayingTTSRef = false;
+    this.stopLipSyncAnalysis();
     this.notifyStateChange();
+  }
+
+  private setVisemeWeights(weights: { aa: number; ih: number; ou: number; ee: number; oh: number }) {
+    const lipSyncEnabled = useAIModeStore.getState().toggles.lipSyncEnabled;
+    if (!lipSyncEnabled) {
+      const zero = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+      this.visemeWeightsRef = zero;
+      this.mouthOpenRef = 0;
+      this.notifyStateChange();
+      return;
+    }
+
+    // clamp each viseme
+    const clamped = {
+      aa: Math.min(1, Math.max(0, Number.isFinite(weights.aa) ? weights.aa : 0)),
+      ih: Math.min(1, Math.max(0, Number.isFinite(weights.ih) ? weights.ih : 0)),
+      ou: Math.min(1, Math.max(0, Number.isFinite(weights.ou) ? weights.ou : 0)),
+      ee: Math.min(1, Math.max(0, Number.isFinite(weights.ee) ? weights.ee : 0)),
+      oh: Math.min(1, Math.max(0, Number.isFinite(weights.oh) ? weights.oh : 0)),
+    };
+
+    // 데드존 — 미세 변화 무시
+    const threshold = 0.005;
+    const hasSignificantChange = (
+      Math.abs(this.visemeWeightsRef.aa - clamped.aa) >= threshold ||
+      Math.abs(this.visemeWeightsRef.ih - clamped.ih) >= threshold ||
+      Math.abs(this.visemeWeightsRef.ou - clamped.ou) >= threshold ||
+      Math.abs(this.visemeWeightsRef.ee - clamped.ee) >= threshold ||
+      Math.abs(this.visemeWeightsRef.oh - clamped.oh) >= threshold
+    );
+
+    if (hasSignificantChange) {
+      this.visemeWeightsRef = clamped;
+      // backward compat: mouthOpen = aa weight
+      this.mouthOpenRef = clamped.aa;
+      this.notifyStateChange();
+    }
   }
 
   private syncTTSPlaybackState() {
@@ -927,9 +1024,82 @@ class BroadcastWSBackgroundService {
     this.notifyStateChange();
   }
 
-  private async decodeBlob(blob: Blob, ctx: AudioContext): Promise<AudioBuffer> {
+  private startLipSyncAnalysis() {
+    if (!this.analyserRef) return;
+    const dataArray = new Uint8Array(this.analyserRef.frequencyBinCount);
+
+    const visemeBands = {
+      aa: { low: 0, high: 15 },   // 0-2800Hz: 저역 중심 (입 크게 벌림)
+      ih: { low: 15, high: 30 },  // 2800-5600Hz: 중역 (입 옆으로)
+      ou: { low: 5, high: 12 },   // 900-2250Hz: 저역+중역 (입 둥글게)
+      ee: { low: 20, high: 35 },  // 3750-6500Hz: 중역 (입 중간)
+      oh: { low: 10, high: 20 },  // 1875-3750Hz: 중역 (입 둥글게 벌림)
+    };
+
+    const analyze = () => {
+      if (!this.analyserRef) return;
+      this.analyserRef.getByteFrequencyData(dataArray);
+
+      const visemes = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+
+      for (const [viseme, { low, high }] of Object.entries(visemeBands)) {
+        let sum = 0;
+        const bins = Math.min(high, dataArray.length) - low;
+        for (let i = low; i < Math.min(high, dataArray.length); i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / Math.max(1, bins) / 255;
+        // 5개 viseme 동시 적용 시 VRM expression이 합산되어 입이 과하게 벌어진다.
+        // 부스트는 다시 *2.5 로 낮추고, 각 viseme 최대값을 0.55 로 cap 한다.
+        visemes[viseme as keyof typeof visemes] = Math.min(0.55, avg * 2.5);
+      }
+
+      // DEV 진단: 30프레임마다 한 번씩 viseme 값/주파수 평균 출력
+      if (import.meta.env.DEV) {
+        this.lipSyncDebugCounter = (this.lipSyncDebugCounter ?? 0) + 1;
+        if (this.lipSyncDebugCounter % 30 === 0) {
+          let total = 0;
+          for (let i = 0; i < dataArray.length; i++) total += dataArray[i];
+          console.debug("[lipsync] avg byte =", (total / dataArray.length).toFixed(2),
+            "visemes =", visemes);
+        }
+      }
+
+      this.setVisemeWeights(visemes);
+      this.lipSyncAnimFrameRef = requestAnimationFrame(analyze);
+    };
+
+    analyze();
+  }
+
+  private stopLipSyncAnalysis() {
+    if (this.lipSyncAnimFrameRef !== null) {
+      cancelAnimationFrame(this.lipSyncAnimFrameRef);
+      this.lipSyncAnimFrameRef = null;
+    }
+    this.setVisemeWeights({ aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 });
+  }
+
+  private async decodeBlobWithMouthOpen(
+    blob: Blob,
+    ctx: AudioContext
+  ): Promise<{ audioBuffer: AudioBuffer | null; mouthOpen: number }> {
     const arrayBuffer = await blob.arrayBuffer();
-    return rawPcmToAudioBuffer(ctx, arrayBuffer);
+    const audioBuffer = rawPcmToAudioBuffer(ctx, arrayBuffer);
+    const view = new DataView(arrayBuffer);
+    const sampleCount = Math.floor(arrayBuffer.byteLength / 2);
+    if (sampleCount <= 0) {
+      return { audioBuffer, mouthOpen: 0 };
+    }
+    let sumSquares = 0;
+    for (let i = 0; i < sampleCount; i++) {
+      const sample = view.getInt16(i * 2, true);
+      const normalized = sample < 0 ? sample / 0x8000 : sample / 0x7fff;
+      sumSquares += normalized * normalized;
+    }
+    const rms = Math.sqrt(sumSquares / sampleCount);
+    const boosted = Math.min(1, Math.max(0, rms * 3.2));
+    return { audioBuffer, mouthOpen: boosted };
   }
 
   private async scheduleTTSQueue() {
@@ -947,6 +1117,18 @@ class BroadcastWSBackgroundService {
         await ctx.resume();
       }
 
+      // AnalyserNode를 destination에 연결 (립싱크 분석용)
+      if (this.analyserRef) {
+        try {
+          this.analyserRef.disconnect();
+        } catch {
+          /* ignore */
+        }
+        this.analyserRef.connect(ctx.destination);
+      }
+
+      let analysisScheduled = false;
+
       while (this.ttsQueueRef.length > 0) {
         const next = this.ttsQueueRef.shift();
         if (!next) break;
@@ -954,20 +1136,33 @@ class BroadcastWSBackgroundService {
           continue;
         }
 
-        const audioBuffer = await next.audioBufferPromise;
+        const decoded = await next.decodedPromise;
         if (generation !== this.ttsGenerationRef || next.generation !== generation) {
           continue;
         }
-        if (!audioBuffer) {
+        if (!decoded.audioBuffer) {
           continue;
         }
         if (ctx.state === "closed") {
           break;
         }
 
+        const startAt = Math.max(ctx.currentTime, this.ttsNextStartTimeRef);
+        this.ttsNextStartTimeRef = startAt + decoded.audioBuffer.duration;
+
+        // 분석을 오디오 시작 타이밍에 맞춰 정확히 시작
+        if (!analysisScheduled) {
+          analysisScheduled = true;
+          const delayMs = Math.max(0, (startAt - ctx.currentTime) * 1000);
+          setTimeout(() => {
+            if (generation !== this.ttsGenerationRef) return;
+            this.startLipSyncAnalysis();
+          }, delayMs);
+        }
+
         const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(ctx.destination);
+        source.buffer = decoded.audioBuffer;
+        source.connect(this.analyserRef ?? ctx.destination);
         this.currentSourceRef = source;
         this.scheduledSourcesRef.add(source);
 
@@ -979,6 +1174,7 @@ class BroadcastWSBackgroundService {
           }
           if (this.scheduledSourcesRef.size === 0 && this.ttsQueueRef.length === 0) {
             this.ttsNextStartTimeRef = 0;
+            this.stopLipSyncAnalysis();
           }
           try {
             source.disconnect();
@@ -988,9 +1184,7 @@ class BroadcastWSBackgroundService {
           this.syncTTSPlaybackState();
         };
 
-        const when = Math.max(ctx.currentTime, this.ttsNextStartTimeRef);
-        this.ttsNextStartTimeRef = when + audioBuffer.duration;
-        source.start(when);
+        source.start(startAt);
       }
     } catch (err) {
       if (generation === this.ttsGenerationRef) {
@@ -1021,13 +1215,13 @@ class BroadcastWSBackgroundService {
     if (!ctx) return;
 
     const generation = this.ttsGenerationRef;
-    const audioBufferPromise = this.decodeBlob(audio, ctx).catch((err) => {
+    const decodedPromise = this.decodeBlobWithMouthOpen(audio, ctx).catch((err) => {
       console.warn("[broadcast-ws-service] TTS decode failed:", err);
       useAlarmStore.getState().push("tts.playback_failed");
-      return null;
+      return { audioBuffer: null, mouthOpen: 0 };
     });
 
-    this.ttsQueueRef.push({ generation, audioBufferPromise });
+    this.ttsQueueRef.push({ generation, decodedPromise });
     this.syncTTSPlaybackState();
     void this.scheduleTTSQueue();
   }
@@ -1061,6 +1255,17 @@ class BroadcastWSBackgroundService {
       }
     }
     this.cleanupCurrentTTSSource();
+
+    // AnalyserNode 정리
+    if (this.analyserRef) {
+      try {
+        this.analyserRef.disconnect();
+      } catch {
+        /* ignore */
+      }
+      this.analyserRef = null;
+    }
+
     const ctx = this.audioCtxRef;
     if (ctx && ctx.state !== "closed") {
       ctx.close().catch(() => {

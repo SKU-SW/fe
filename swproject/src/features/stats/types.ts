@@ -54,3 +54,103 @@ export interface BroadcastTendencyUpdateResDto {
   prevVersion: TendencyVersion;
   prevTendency: AiTendency;
 }
+
+// ============================================================
+// 방송 통계 (캘린더 + 일별 상세) — /api/v1/broadcast/stats/*
+// ============================================================
+
+export type BroadcastStatus = "BROADCASTING" | "TERMINATED" | "ABNORMAL_TERMINATED";
+
+export type CharacterGender = "MALE" | "FEMALE";
+
+export type CharacterPersona =
+  | "FRIENDLY_CHATTER"
+  | "HIGH_TENSION"
+  | "PLAYFUL_TEASER"
+  | "PROFESSIONAL_MANAGER"
+  | "ROLEPLAY_EXPERT";
+
+export type DialogueSubject =
+  | "STREAMER"
+  | "AI_CHARACTER"
+  | "VIEWER"
+  | "DONATION"
+  | "GAME_EVENT"
+  | "SYSTEM_SUMMARY";
+
+/** 월별 방송 리스트의 한 항목 — 캘린더 셀에 표시할 단위 */
+export interface BroadcastMonthInfo {
+  day: number;
+  broadcastId: number;
+  characterId: number;
+  characterName: string;
+  broadcastStatus: BroadcastStatus;
+  /** "HH:MM:SS" 형식 — startedAt ~ terminatedAt(또는 현재) 차이 */
+  broadcastTime: string;
+}
+
+/** GET /api/v1/broadcast/stats/month 응답 */
+export interface BroadcastMonthResDto {
+  broadcastMonthInfoList: BroadcastMonthInfo[];
+  broadcastYear: number;
+  broadcastMonth: number;
+}
+
+/** 방송 분석 타임라인 한 구간 */
+export interface BroadcastTimeLine {
+  content: string;
+  /** "yyyy-MM-dd HH:mm:ss" */
+  startTime: string;
+  endTime: string;
+}
+
+/** 일별 방송 분석 결과 — 분석 완료 전이면 null */
+export interface BroadcastAnalysisResult {
+  majorContent: string;
+  majorMoodWithViewers: string;
+  summary: string;
+  totalAnalysis: string;
+  catchPhrases: string[];
+  timeLines: BroadcastTimeLine[];
+}
+
+export interface BroadcastDialogue {
+  cursorId: number;
+  subject: DialogueSubject;
+  content: string;
+  /** "yyyy-MM-dd-HH:mm:ss" (대시 separator) */
+  createdAt: string;
+}
+
+export interface BroadcastDayCharacterInfo {
+  name: string;
+  gender: CharacterGender;
+  imageUrl: string;
+  persona: CharacterPersona;
+  triggerWords: string[];
+}
+
+export interface BroadcastDayBroadcastInfo {
+  streamId: string;
+  status: BroadcastStatus;
+  /** "yyyy-MM-dd-HH:mm:ss" */
+  startedAt: string;
+  terminatedAt: string;
+  lastFiveBroadcastDialogues: BroadcastDialogue[];
+  analysisResult: BroadcastAnalysisResult | null;
+}
+
+export interface BroadcastDayChatAnalysisInfo {
+  publicOpinion: PublicOpinion;
+  aiPartnerTendency: AiTendency;
+  /** 일별 통계는 10분 간격으로 고정 그룹핑 */
+  sentimentFlow: SentimentFlowPoint[];
+  topKeywords: string[];
+}
+
+/** GET /api/v1/broadcast/stats/day 응답 */
+export interface BroadcastDayStatsResDto {
+  characterInfo: BroadcastDayCharacterInfo;
+  broadcastInfo: BroadcastDayBroadcastInfo;
+  chatAnalysisInfo: BroadcastDayChatAnalysisInfo;
+}

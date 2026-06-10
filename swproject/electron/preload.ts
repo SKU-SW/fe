@@ -27,6 +27,9 @@ interface OverlayBridgeState {
     isBroadcasting: boolean;
     broadcastStreamId: string | null;
     isSpeaking: boolean;
+    lipSyncEnabled: boolean;
+    mouthOpen: number;
+    visemeWeights: { aa: number; ih: number; ou: number; ee: number; oh: number };
     modelType: '2D' | '3D';
     characterName: string;
     characterImageUrl: string;

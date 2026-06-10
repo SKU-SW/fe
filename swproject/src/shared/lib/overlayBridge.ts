@@ -9,7 +9,7 @@ import type { OverlayBridgeState } from "@/shared/types/overlay";
 const OVERLAY_STATE_KEY = "sku-sw-overlay-bridge-state";
 const OVERLAY_EVENT_NAME = "sku-sw-overlay-bridge-update";
 const OVERLAY_STATE_SERVER_URL = "http://127.0.0.1:5174/overlay-state";
-const OVERLAY_STATE_POLL_INTERVAL_MS = 200;
+const OVERLAY_STATE_POLL_INTERVAL_MS = 33;
 
 function getStorage(): Storage | null {
   if (typeof window === "undefined") return null;
@@ -33,13 +33,27 @@ export function writeOverlayBridgeState(state: OverlayBridgeState) {
   });
 }
 
+/**
+ * 새 필드(visemeWeights 등) 추가 후, localStorage에 남아 있는 옛 state가
+ * 그대로 로드되면 undefined 필드 때문에 렌더가 깨진다. 항상 fallback으로 채워준다.
+ */
+function normalizeBridgeState(value: unknown): OverlayBridgeState | null {
+  if (!value || typeof value !== "object") return null;
+  const obj = value as OverlayBridgeState;
+  if (!obj.runtime || !obj.settings) return null;
+  if (!obj.runtime.visemeWeights) {
+    obj.runtime.visemeWeights = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+  }
+  return obj;
+}
+
 export function readOverlayBridgeState(): OverlayBridgeState | null {
   const storage = getStorage();
   if (!storage) return null;
   const raw = storage.getItem(OVERLAY_STATE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as OverlayBridgeState;
+    return normalizeBridgeState(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -50,7 +64,7 @@ export async function readOverlayStateServer(): Promise<OverlayBridgeState | nul
   try {
     const res = await fetch(OVERLAY_STATE_SERVER_URL, { cache: "no-store" });
     if (!res.ok) return null;
-    return await res.json() as OverlayBridgeState;
+    return normalizeBridgeState(await res.json());
   } catch {
     return null;
   }

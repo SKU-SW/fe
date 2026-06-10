@@ -33,13 +33,14 @@ const ACTIVATION_TIMEOUT_MS = 30_000;
 
 export default function AppInitializer() {
   const sttEnabled = useAIModeStore((s) => s.toggles.sttEnabled);
+  const lipSyncEnabled = useAIModeStore((s) => s.toggles.lipSyncEnabled);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
   const { character } = useCharacter(selectedCharacterId);
   const currentTranscript = useAIModeStore((s) => s.currentTranscript);
   const currentEmotion = useAIModeStore((s) => s.currentEmotion);
   const isBroadcasting = useAIModeStore((s) => s.mode === "broadcasting");
   const updateOverlayRuntime = useOverlayStore((s) => s.updateRuntime);
-  const { isConnected, error: wsError, isPlayingTTS } = useBroadcastWSState();
+  const { isConnected, error: wsError, isPlayingTTS, mouthOpen, visemeWeights } = useBroadcastWSState();
   const pushAlarm = useAlarmStore((s) => s.push);
   const { characterInfo } = useStreamInfo({ size: 1 });
   const characterSettings = useCharacterSettingsStore((s) => s.settings);
@@ -400,48 +401,68 @@ export default function AppInitializer() {
     }
   }, [sttEnabled]);
 
+  // 디버그 로그: 정체성 값(캐릭터/VRM)이 바뀔 때만 한 번씩 출력.
+  // 매 frame fire 되던 visemeWeights/mouthOpen/transcript 변경엔 로깅하지 않는다.
   useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log("[AppInitializer] overlay runtime source", {
-        isBroadcasting,
-        broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
-        characterInfo: characterInfo
-          ? {
-              characterId: characterInfo.characterId,
-              characterName: characterInfo.characterName,
-              characterImageUrl: characterInfo.characterImageUrl,
-            }
-          : null,
-        character: character
-          ? {
-              characterId: character.characterId,
-              modelType: character.modelType,
-              characterImageUrl: character.characterImageUrl,
-              vrmUrl: character.vrmUrl ?? null,
-              vrmThumbnailUrl: character.vrmThumbnailUrl ?? null,
-            }
-          : null,
-        appearance: appearance
-          ? {
-              modelType: appearance.modelType,
-              targetId: appearance.targetId,
-              vrmUrl: appearance.vrmUrl ?? null,
-              vrmThumbnailUrl: appearance.vrmThumbnailUrl ?? null,
-            }
-          : null,
-        resolved: {
-          modelType: effectiveOverlayModelType,
-          characterImageUrl: overlayCharacterImageUrl,
-          vrmUrl: overlayCharacterVrmUrl,
-          vrmThumbnailUrl: overlayCharacterVrmThumbnailUrl,
-        },
-      });
-    }
+    if (!import.meta.env.DEV) return;
+    console.log("[AppInitializer] overlay runtime source", {
+      isBroadcasting,
+      broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
+      characterInfo: characterInfo
+        ? {
+            characterId: characterInfo.characterId,
+            characterName: characterInfo.characterName,
+            characterImageUrl: characterInfo.characterImageUrl,
+          }
+        : null,
+      character: character
+        ? {
+            characterId: character.characterId,
+            modelType: character.modelType,
+            characterImageUrl: character.characterImageUrl,
+            vrmUrl: character.vrmUrl ?? null,
+            vrmThumbnailUrl: character.vrmThumbnailUrl ?? null,
+          }
+        : null,
+      appearance: appearance
+        ? {
+            modelType: appearance.modelType,
+            targetId: appearance.targetId,
+            vrmUrl: appearance.vrmUrl ?? null,
+            vrmThumbnailUrl: appearance.vrmThumbnailUrl ?? null,
+          }
+        : null,
+      resolved: {
+        modelType: effectiveOverlayModelType,
+        characterImageUrl: overlayCharacterImageUrl,
+        vrmUrl: overlayCharacterVrmUrl,
+        vrmThumbnailUrl: overlayCharacterVrmThumbnailUrl,
+      },
+    });
+  }, [
+    isBroadcasting,
+    character?.characterId,
+    character?.modelType,
+    character?.vrmUrl,
+    characterInfo?.characterId,
+    appearance?.targetId,
+    appearance?.modelType,
+    effectiveOverlayModelType,
+    overlayCharacterImageUrl,
+    overlayCharacterVrmUrl,
+    overlayCharacterVrmThumbnailUrl,
+  ]);
 
+  useEffect(() => {
     updateOverlayRuntime({
       isBroadcasting,
       broadcastStreamId: useAIModeStore.getState().broadcastStreamId,
       isSpeaking: isBroadcasting ? isPlayingTTS : false,
+      lipSyncEnabled: isBroadcasting ? lipSyncEnabled : false,
+      mouthOpen: isBroadcasting && lipSyncEnabled ? mouthOpen : 0,
+      visemeWeights: isBroadcasting && lipSyncEnabled
+        ? visemeWeights
+        : { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 },
       modelType: effectiveOverlayModelType,
       characterName: overlayCharacterName,
       characterImageUrl: overlayCharacterImageUrl,
@@ -456,6 +477,9 @@ export default function AppInitializer() {
     currentTranscript,
     isBroadcasting,
     isPlayingTTS,
+    lipSyncEnabled,
+    mouthOpen,
+    visemeWeights,
     overlayCharacterImageUrl,
     overlayCharacterName,
     effectiveOverlayModelType,

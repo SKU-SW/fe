@@ -22,7 +22,6 @@ import SafetyPage from './pages/SafetyPage';
 import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
 import StatsHistoryPage from './pages/StatsHistoryPage';
-import VrmTestPage from './pages/VrmTestPage';
 
 // Standalone Pages
 import OverlayPage from './pages/OverlayPage';
@@ -48,7 +47,6 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/stats/history" element={<StatsHistoryPage />} />
-        <Route path="/vrm-test" element={<VrmTestPage />} />
       </Route>
 
       {/* Overlay (standalone, transparent) */}

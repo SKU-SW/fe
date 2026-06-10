@@ -11,6 +11,7 @@ import { useEmotionImagePreload } from "@/shared/hooks/useEmotionImagePreload";
 import {
   applyBackendEmotion,
   setMouthOpen,
+  setVisemeWeights,
   setupVrmScene,
   startRenderLoop,
   type VrmSceneRefs,
@@ -73,6 +74,9 @@ function createDefaultBridgeState(settings: OverlaySettings): OverlayBridgeState
       isBroadcasting: false,
       broadcastStreamId: null,
       isSpeaking: false,
+      lipSyncEnabled: false,
+      mouthOpen: 0,
+      visemeWeights: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 },
       modelType: "2D",
       characterName: "AI",
       characterImageUrl: "",
@@ -241,6 +245,7 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
     emotion: displayEmotion,
   };
 
+  // 디버그 로그: 정체성 값이 바뀔 때만. updatedAt은 매 push마다 변하므로 deps에서 제외.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     console.log("[OverlayPage] runtime", {
@@ -251,14 +256,12 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
       characterImageUrl: displayRuntime.characterImageUrl,
       vrmUrl: displayRuntime.vrmUrl,
       vrmThumbnailUrl: displayRuntime.vrmThumbnailUrl,
-      updatedAt: displayRuntime.updatedAt,
     });
   }, [
     displayRuntime.characterImageUrl,
     displayRuntime.characterName,
     displayRuntime.isBroadcasting,
     displayRuntime.modelType,
-    displayRuntime.updatedAt,
     displayRuntime.vrmThumbnailUrl,
     displayRuntime.vrmUrl,
     preview,
@@ -309,6 +312,9 @@ function OverlayCanvas({ state, preview }: { state: OverlayBridgeState; preview:
                   vrmUrl={displayRuntime.vrmUrl}
                   emotion={displayEmotion}
                   isSpeaking={displayRuntime.isSpeaking}
+                  lipSyncEnabled={displayRuntime.lipSyncEnabled}
+                  mouthOpen={displayRuntime.mouthOpen}
+                  visemeWeights={displayRuntime.visemeWeights}
                 />
               ) : hasCharacterImage ? (
                 <img
@@ -348,10 +354,16 @@ function OverlayVrmCanvas({
   vrmUrl,
   emotion,
   isSpeaking,
+  lipSyncEnabled,
+  mouthOpen,
+  visemeWeights,
 }: {
   vrmUrl: string;
   emotion: StreamEmotion;
   isSpeaking: boolean;
+  lipSyncEnabled: boolean;
+  mouthOpen: number;
+  visemeWeights: { aa: number; ih: number; ou: number; ee: number; oh: number };
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const refsRef = useRef<VrmSceneRefs | null>(null);
@@ -393,11 +405,16 @@ function OverlayVrmCanvas({
     applyBackendEmotion(refsRef.current, emotion);
   }, [emotion, ready]);
 
-  // TTS 재생 중 → 입 모양 sine 애니메이션, 종료 시 0
+  // TTS 재생 중 → visem 가중치 적용, 종료 시 0
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !refsRef.current) return;
+    if (lipSyncEnabled) {
+      setVisemeWeights(refsRef.current, visemeWeights);
+      return;
+    }
+    // fallback: sine 애니메이션
     if (!isSpeaking) {
-      if (refsRef.current) setMouthOpen(refsRef.current, 0);
+      setMouthOpen(refsRef.current, 0);
       return;
     }
     let raf = 0;
@@ -414,7 +431,7 @@ function OverlayVrmCanvas({
       cancelAnimationFrame(raf);
       if (refsRef.current) setMouthOpen(refsRef.current, 0);
     };
-  }, [isSpeaking, ready]);
+  }, [isSpeaking, lipSyncEnabled, mouthOpen, visemeWeights, ready]);
 
   return (
     <canvas

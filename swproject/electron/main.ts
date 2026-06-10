@@ -90,10 +90,21 @@ interface OverlaySettings {
   showBubble: boolean;
 }
 
+interface OverlayVisemeWeights {
+  aa: number;
+  ih: number;
+  ou: number;
+  ee: number;
+  oh: number;
+}
+
 interface OverlayRuntimeState {
   isBroadcasting: boolean;
   broadcastStreamId: string | null;
   isSpeaking: boolean;
+  lipSyncEnabled: boolean;
+  mouthOpen: number;
+  visemeWeights: OverlayVisemeWeights;
   modelType: '2D' | '3D';
   characterName: string;
   characterImageUrl: string;
@@ -121,6 +132,9 @@ const DEFAULT_OVERLAY_STATE: OverlayBridgeState = {
     isBroadcasting: false,
     broadcastStreamId: null,
     isSpeaking: false,
+    lipSyncEnabled: false,
+    mouthOpen: 0,
+    visemeWeights: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 },
     modelType: '2D',
     characterName: 'AI',
     characterImageUrl: '',
@@ -300,6 +314,20 @@ function isEmotionImageMap(value: unknown): value is Partial<Record<StreamEmotio
   );
 }
 
+function sanitizeVisemeWeights(value: unknown): OverlayVisemeWeights {
+  const fallback = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
+  const candidate = value as Record<string, unknown>;
+  const keys: (keyof OverlayVisemeWeights)[] = ['aa', 'ih', 'ou', 'ee', 'oh'];
+  const result = { ...fallback };
+  for (const key of keys) {
+    if (typeof candidate[key] === 'number' && Number.isFinite(candidate[key])) {
+      result[key] = Math.min(1, Math.max(0, candidate[key]));
+    }
+  }
+  return result;
+}
+
 function sanitizeOverlayState(value: unknown): OverlayBridgeState {
   const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const settingsCandidate = candidate.settings && typeof candidate.settings === 'object'
@@ -336,6 +364,13 @@ function sanitizeOverlayState(value: unknown): OverlayBridgeState {
       isSpeaking: typeof runtimeCandidate.isSpeaking === 'boolean'
         ? runtimeCandidate.isSpeaking
         : DEFAULT_OVERLAY_STATE.runtime.isSpeaking,
+      lipSyncEnabled: typeof runtimeCandidate.lipSyncEnabled === 'boolean'
+        ? runtimeCandidate.lipSyncEnabled
+        : DEFAULT_OVERLAY_STATE.runtime.lipSyncEnabled,
+      mouthOpen: typeof runtimeCandidate.mouthOpen === 'number' && Number.isFinite(runtimeCandidate.mouthOpen)
+        ? Math.min(1, Math.max(0, runtimeCandidate.mouthOpen))
+        : DEFAULT_OVERLAY_STATE.runtime.mouthOpen,
+      visemeWeights: sanitizeVisemeWeights(runtimeCandidate.visemeWeights),
       modelType: runtimeCandidate.modelType === '3D' || runtimeCandidate.modelType === '2D'
         ? runtimeCandidate.modelType
         : DEFAULT_OVERLAY_STATE.runtime.modelType,
@@ -708,10 +743,14 @@ class STTManager {
     // renderer MediaRecorder(webm/opus) → main temp file → python sidecar(Faster Whisper) → 응답 JSON.
     // 이 경로에서 실제로 빈 transcript(너무 짧은 발화)와 정상 transcript 둘 다 확인되었다.
     const ext = getAudioExtension(mimeType);
-    const tempPath = path.join(os.tmpdir(), `sku-sw-stt-${Date.now()}-${this.nextSeq}.${ext}`);
+    // 동시 transcribe 호출 시 같은 nextSeq로 path가 충돌해 한쪽 파일을 다른 쪽이 덮어쓰고
+    // 먼저 끝난 응답이 unlink 하면 다른 쪽이 "audio not found" 로 실패하는 race 가 있었다.
+    // seq 를 한 번에 capture 해서 path/id 가 동일 seq 를 공유하도록 보장.
+    const seq = this.nextSeq++;
+    const tempPath = path.join(os.tmpdir(), `sku-sw-stt-${Date.now()}-${seq}.${ext}`);
     await fs.writeFile(tempPath, Buffer.from(audioBuffer));
 
-    const id = `req-${this.nextSeq++}`;
+    const id = `req-${seq}`;
 
     return new Promise<TranscribeResult>((resolve) => {
       const req: PendingRequest = {

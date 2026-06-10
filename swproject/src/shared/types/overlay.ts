@@ -7,6 +7,14 @@
 
 import type { StreamEmotion } from "@/shared/types/stream";
 
+export interface OverlayVisemeWeights {
+  aa: number;
+  ih: number;
+  ou: number;
+  ee: number;
+  oh: number;
+}
+
 export type OverlayPosition =
   | "bottom-right"
   | "bottom-left"
@@ -25,6 +33,10 @@ export interface OverlayRuntimeState {
   broadcastStreamId: string | null;
   /** TTS 재생 중 여부 — 오버레이 페이드 타이머 제어용 */
   isSpeaking: boolean;
+  /** 실험 기능: TTS 기반 립싱크 활성화 여부 */
+  lipSyncEnabled: boolean;
+  /** 립싱크용 입 벌림 강도 (0~1) */
+  mouthOpen: number;
   modelType: "2D" | "3D";
   characterName: string;
   /** 기본(DEFAULT) 이미지 — emotionImageMap 미존재 시 폴백 */
@@ -37,6 +49,8 @@ export interface OverlayRuntimeState {
    * - BE 가 CharacterImageResDto 에 감정별 필드를 노출하면 채워짐 (현재는 DEFAULT 만).
    */
   emotionImageMap: Partial<Record<StreamEmotion, string>>;
+  /** 5개 visem 가중치 (립싱크 분석 결과) */
+  visemeWeights: OverlayVisemeWeights;
   transcript: string;
   emotion: StreamEmotion;
   updatedAt: number;

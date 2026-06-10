@@ -1,8 +1,7 @@
 /**
  * @file VRM 모델 로드, 표정 전환, 입 모양 동기화 헬퍼
  * @dependsOn three, @pixiv/three-vrm, ./emotionMapping
- * @usedBy src/pages/VrmTestPage.tsx,
- *         (추후) src/features/dashboard/components/CharacterPortrait.tsx
+ * @usedBy src/pages/OverlayPage.tsx (OverlayVrmCanvas)
  *
  * 사용 흐름:
  *   1) setupVrmScene(canvas, vrmUrl) → 씬/카메라/모델 초기화
@@ -203,6 +202,27 @@ export function applyBackendEmotion(refs: VrmSceneRefs, backendEmotion: string):
 export function setMouthOpen(refs: VrmSceneRefs, volume: number): void {
   const clamped = Math.min(1, Math.max(0, volume));
   refs.vrm.expressionManager?.setValue('aa', clamped);
+}
+
+/**
+ * 5개 visem 가중치를 VRM 표정에 동시 적용.
+ * 지원되지 않는 visem은 무시됨 (setValue가 무해하게 넘어감).
+ */
+export function setVisemeWeights(
+  refs: VrmSceneRefs,
+  weights: { aa: number; ih: number; ou: number; ee: number; oh: number } | null | undefined
+): void {
+  const m = refs.vrm.expressionManager;
+  if (!m || !weights) return;
+
+  const clamp = (n: unknown) =>
+    typeof n === 'number' && Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0;
+  const available = m.expressionMap;
+  if ('aa' in available) m.setValue('aa', clamp(weights.aa));
+  if ('ih' in available) m.setValue('ih', clamp(weights.ih));
+  if ('ou' in available) m.setValue('ou', clamp(weights.ou));
+  if ('ee' in available) m.setValue('ee', clamp(weights.ee));
+  if ('oh' in available) m.setValue('oh', clamp(weights.oh));
 }
 
 /**
