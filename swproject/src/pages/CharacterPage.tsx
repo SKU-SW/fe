@@ -625,14 +625,9 @@ export default function CharacterPage() {
     [aiMode, enterObsGate, isStartingBroadcast, obsGatePending, select, selectedCharacterId, shouldSkipBroadcastNotice]
   );
 
-  useEffect(() => {
-    if (obsGatePending === null) return;
-    if (obsStatus !== "setup_ok") return;
-
-    const cid = obsGatePending;
-    setObsGatePending(null);
-    void performStart(cid);
-  }, [obsGatePending, obsStatus, performStart]);
+  // 자동 연결이 성공(setup_ok)해도 바로 방송을 시작하지 않는다.
+  // 사용자가 OBS 에서 오버레이 위치/씬을 정리한 뒤 모달의 "방송 시작" 버튼
+  // (handleObsGateManualConfirm)을 직접 눌러 시작하도록 게이트를 열어둔다.
 
   useEffect(() => {
     if (obsGatePending === null) return;

@@ -20,6 +20,7 @@ interface UseSTTReturn {
   stopListening: () => Promise<void>;
   cancelListening: () => Promise<void>;
   pushDebugTranscript: (text: string) => Promise<void>;
+  retrySTT: () => Promise<void>;
 }
 
 interface UseSTTOptions {
@@ -46,5 +47,6 @@ export function useSTT(options: UseSTTOptions = {}): UseSTTReturn {
     stopListening: () => sttBackgroundService.stopListening(),
     cancelListening: () => sttBackgroundService.cancelListening(),
     pushDebugTranscript: (text: string) => sttBackgroundService.pushDebugTranscript(text),
+    retrySTT: () => sttBackgroundService.retrySTT(),
   };
 }

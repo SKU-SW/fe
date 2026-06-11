@@ -83,9 +83,9 @@ export function ObsGateModal({
       return "자동 브라우저 소스 설정에 실패했습니다. 아래 URL을 OBS 브라우저 소스로 직접 추가한 뒤 체크리스트를 완료해주세요.";
     }
     if (isReady) {
-      return "OBS 자동 연결과 브라우저 소스 준비가 완료되었습니다. 이제 방송을 시작할 수 있습니다.";
+      return "OBS에 오버레이 브라우저 소스가 자동으로 추가됐어요. 이제 OBS 창에서 오버레이 위치·크기를 정리한 뒤, 준비되면 아래 '방송 시작'을 눌러주세요. (이 창은 직접 시작할 때까지 닫히지 않습니다)";
     }
-    return "OBS와 브라우저 소스 연결을 자동으로 준비하는 중입니다.";
+    return "OBS와 브라우저 소스 연결을 자동으로 준비하는 중입니다. 잠시만 기다려주세요…";
   }, [isReady, obsStatus]);
 
   return (
@@ -97,10 +97,10 @@ export function ObsGateModal({
       onClick={onCancel}
     >
       <div
-        className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border-default bg-surface-panel shadow-2xl transition-colors"
+        className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border-default bg-surface-panel shadow-2xl transition-colors"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border-default px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border-default px-6 py-4">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-brand" />
             <h2 id="obs-gate-title" className="text-base font-semibold text-content-primary">
@@ -109,7 +109,7 @@ export function ObsGateModal({
           </div>
         </div>
 
-        <div className="space-y-4 px-6 py-5">
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
           <div className="rounded-lg border border-border-default bg-surface-base p-4 transition-colors">
             <div className="flex items-start gap-3">
               {isBusy ? (
@@ -163,30 +163,44 @@ export function ObsGateModal({
               </button>
             </div>
             <p className="mt-2 text-xs leading-5 text-content-muted">
-              OBS에서 브라우저 소스를 추가할 때 위 주소를 그대로 넣으면 됩니다.
+              자동 연결이 되면 이 주소가 OBS 브라우저 소스로 <span className="font-semibold text-content-primary">자동 추가</span>됩니다.
+              직접 추가할 때만 이 주소를 복사해 사용하세요. <span className="font-semibold text-content-primary">(배포본에서는 5174 포트가 정상입니다)</span>
             </p>
           </div>
 
+          {isReady && (
+            <div className="rounded-lg border border-status-success/30 bg-status-success/10 p-4">
+              <p className="text-sm font-semibold text-content-primary">방송 시작 전, OBS에서 확인하세요</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5 text-content-secondary">
+                <li>OBS 창으로 이동합니다.</li>
+                <li>방송용 씬에 오버레이 브라우저 소스가 추가됐는지 확인합니다.</li>
+                <li>오버레이의 위치와 크기를 원하는 대로 조정합니다.</li>
+                <li>모두 준비되면 아래 <span className="font-semibold text-content-primary">방송 시작</span>을 누릅니다.</li>
+              </ol>
+            </div>
+          )}
+
           {!isReady && (
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-content-primary">수동 연결 체크리스트</p>
+              <p className="text-sm font-semibold text-content-primary">자동 연결이 안 될 때 — 수동 연결 체크리스트</p>
               <ChecklistItem
-                title="OBS Studio가 현재 실행 중입니다"
-                description="OBS를 직접 실행한 뒤 현재 방송용 씬을 열어둔 상태인지 확인해주세요."
+                title="1. OBS Studio가 현재 실행 중입니다"
+                description="OBS를 직접 실행하고, 방송에 사용할 씬을 열어둔 상태인지 확인해주세요."
                 checked={checkedObsRunning}
                 onChange={setCheckedObsRunning}
               />
               <ChecklistItem
-                title="오버레이 URL을 OBS 브라우저 소스에 추가했습니다"
-                description="브라우저 소스를 만들고 위 URL을 입력한 뒤, 화면에 오버레이가 나오는지 확인해주세요."
+                title="2. 위 오버레이 URL을 OBS 브라우저 소스로 추가했습니다"
+                description="OBS에서 소스 + → 브라우저 → URL 칸에 위 주소를 붙여넣고, 화면에 오버레이가 보이는지 확인해주세요."
                 checked={checkedOverlayAdded}
                 onChange={setCheckedOverlayAdded}
               />
+              <p className="text-xs leading-5 text-content-muted">두 항목을 모두 체크하면 아래 '방송 시작' 버튼이 활성화됩니다.</p>
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border-default bg-surface-base px-6 py-4 transition-colors">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border-default bg-surface-base px-6 py-4 transition-colors">
           {!isReady && (
             <button
               type="button"
@@ -225,7 +239,7 @@ export function ObsGateModal({
           )}
           <button
             type="button"
-            onClick={isReady ? onConfirmManualReady : onConfirmManualReady}
+            onClick={onConfirmManualReady}
             disabled={!isReady && !canStartManually}
             className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-content-inverse transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >

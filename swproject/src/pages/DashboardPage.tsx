@@ -164,6 +164,7 @@ export default function DashboardPage() {
   const {
     isListening,
     error: sttError,
+    retrySTT,
   } = useSTT();
 
   // 로컬 UI 상태
@@ -254,9 +255,16 @@ export default function DashboardPage() {
       {sttError && (
         <div
           role="status"
-          className="rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-xs text-status-danger"
+          className="flex items-center justify-between gap-3 rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 py-2 text-xs text-status-danger"
         >
-          {sttError}
+          <span className="min-w-0 flex-1">{sttError}</span>
+          <button
+            type="button"
+            onClick={() => void retrySTT()}
+            className="shrink-0 rounded-md border border-status-danger/40 px-2.5 py-1 font-medium text-status-danger transition-colors hover:bg-status-danger/15"
+          >
+            다시 시도
+          </button>
         </div>
       )}
 

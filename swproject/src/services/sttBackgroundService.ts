@@ -27,6 +27,7 @@ class STTBackgroundService {
   private sessionId = 0;
   private finalTranscriptHandlers = new Set<FinalTranscriptHandler>();
   private unsubscribeGlobalPtt: (() => void) | null = null;
+  private unsubscribeStatus: (() => void) | null = null;
 
   private get hasElectronSTTBridge() {
     return typeof window !== "undefined" && typeof window.electronAPI?.stt?.transcribe === "function";
@@ -68,14 +69,46 @@ class STTBackgroundService {
         void this.stopListening();
       });
     }
+
+    // STT 데몬 상태 구독: ready 면 에러 해제, fatal 이면 안내 표시(설치 유도).
+    const onStatus = window.electronAPI?.stt?.onStatus;
+    if (typeof onStatus === "function") {
+      this.unsubscribeStatus = onStatus((payload) => {
+        const { setError } = useSTTStore.getState();
+        if (payload.state === "ready") {
+          setError(null);
+        } else if (payload.state === "fatal") {
+          setError(payload.error ?? "로컬 STT 데몬을 시작할 수 없습니다.");
+        }
+        // restarting 은 retrySTT() 에서 이미 에러를 지운 상태이므로 유지
+      });
+    }
   }
 
   dispose() {
     this.unsubscribeGlobalPtt?.();
     this.unsubscribeGlobalPtt = null;
+    this.unsubscribeStatus?.();
+    this.unsubscribeStatus = null;
     void this.cancelListening();
     useSTTStore.getState().reset();
     this.initialized = false;
+  }
+
+  /** 의존성 설치 후 "다시 시도": STT 데몬을 재스폰하고 기존 에러를 지운다. */
+  async retrySTT() {
+    const { setError } = useSTTStore.getState();
+    const retry = window.electronAPI?.stt?.retry;
+    if (typeof retry !== "function") {
+      setError("Electron STT 브리지를 찾을 수 없습니다. Electron 앱을 다시 실행해주세요.");
+      return;
+    }
+    setError(null);
+    try {
+      await retry();
+    } catch {
+      setError("STT 데몬 재시작에 실패했습니다.");
+    }
   }
 
   subscribeFinalTranscript(handler: FinalTranscriptHandler): () => void {

@@ -188,6 +188,10 @@ function sendSttResult(payload: { text: string; isFinal: boolean }) {
   mainWindow?.webContents.send('stt:result', payload);
 }
 
+function sendSttStatus(payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }) {
+  mainWindow?.webContents.send('stt:status', payload);
+}
+
 function sendGlobalPttEvent(type: 'start' | 'stop') {
   // 검증된 흐름:
   // main(uiohook) → preload(onGlobalPtt) → renderer(sttBackgroundService).
@@ -577,6 +581,9 @@ function getAudioExtension(mimeType: string): string {
 type TranscribeResult = { ok: boolean; text?: string; error?: string };
 
 const STT_REQUEST_TIMEOUT_MS = 25_000;
+// fatal(예: faster-whisper 미설치) 이후 사용자가 의존성을 설치했을 수 있으므로,
+// 이 쿨다운이 지난 새 요청은 데몬을 다시 스폰해 재확인한다(영구 고착 방지).
+const STT_FATAL_RETRY_COOLDOWN_MS = 5_000;
 
 interface PendingRequest {
   id: string;
@@ -588,6 +595,7 @@ class STTManager {
   private child: ChildProcessWithoutNullStreams | null = null;
   private ready = false;
   private fatalError: string | null = null;
+  private lastFatalAt = 0;
   private inFlight = new Map<string, PendingRequest>();
   /** ready 전에 들어온 요청 임시 보관 */
   private queue: PendingRequest[] = [];
@@ -686,12 +694,15 @@ class STTManager {
         this.ready = true;
         this.fatalError = null;
         this.flushQueue();
+        sendSttStatus({ state: 'ready' });
         return;
       }
       if (obj.event === 'fatal') {
         const msg = typeof obj.error === 'string' ? obj.error : 'STT 데몬 시작 실패';
         console.error('[stt] fatal:', msg);
         this.fatalError = msg;
+        this.lastFatalAt = Date.now();
+        sendSttStatus({ state: 'fatal', error: msg });
         // 자식 종료 후 exit 핸들러가 큐/in-flight 정리함
         return;
       }
@@ -793,9 +804,16 @@ class STTManager {
         },
       };
 
-      // fatal 상태면 즉시 거절
+      // fatal 상태라도 사용자가 그 사이 의존성을 설치했을 수 있으므로,
+      // 쿨다운이 지난 새 요청은 데몬을 다시 스폰해 재확인한다(앱 재시작 없이 복구).
       if (this.fatalError && !this.child) {
-        req.resolve({ ok: false, error: this.fatalError });
+        if (Date.now() - this.lastFatalAt < STT_FATAL_RETRY_COOLDOWN_MS) {
+          req.resolve({ ok: false, error: this.fatalError });
+          return;
+        }
+        this.fatalError = null;
+        this.queue.push(req);
+        this.start();
         return;
       }
 
@@ -813,6 +831,16 @@ class STTManager {
 
       this.dispatch(req);
     });
+  }
+
+  /** 사용자가 의존성 설치 후 "다시 시도"를 누를 때: fatal 초기화 + 데몬 재스폰 */
+  retry() {
+    console.info('[stt] manual retry requested');
+    this.fatalError = null;
+    this.lastFatalAt = 0;
+    sendSttStatus({ state: 'restarting' });
+    if (!this.child) this.start();
+    return { ok: true };
   }
 
   shutdown() {
@@ -873,6 +901,20 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     show: false,
   });
+
+  // 배포본은 file:// 로 로드되어 백엔드로 가는 요청의 Origin 이 "file://"(null)이 된다.
+  // 백엔드 WebSocket(/api/v1/stream/ws)이 file://·null origin 을 403 으로 거부해 방송이
+  // 시작되지 않는다(dev 의 http://localhost:5173 은 허용). 검증 결과 https://dev.sku-sw.cloud
+  // origin 은 허용(401)되므로, sku-sw.cloud 로 나가는 요청의 Origin 을 이 값으로 교정한다.
+  // (dev 는 localhost:5173 이 이미 허용되므로 건드리지 않음)
+  if (!isDev) {
+    session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+      if (details.url.includes('sku-sw.cloud')) {
+        details.requestHeaders['Origin'] = 'https://dev.sku-sw.cloud';
+      }
+      callback({ requestHeaders: details.requestHeaders });
+    });
+  }
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
@@ -988,6 +1030,7 @@ app.whenReady().then(async () => {
     sendSttResult({ text: '', isFinal: true });
     return { ok: true };
   });
+  ipcMain.handle('stt:retry', () => sttManager.retry());
   ipcMain.handle('stt:transcribe', async (_event, audioBuffer: ArrayBuffer, mimeType: string) => {
     const startedAt = Date.now();
     console.info('[stt] ipc transcribe request', {

@@ -92,10 +92,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     transcribe: (audioBuffer: ArrayBuffer, mimeType: string) =>
       ipcRenderer.invoke('stt:transcribe', audioBuffer, mimeType),
     debugPush: (text: string) => ipcRenderer.invoke('stt:debug-push', text),
+    retry: () => ipcRenderer.invoke('stt:retry'),
     onResult: (callback: (payload: STTResult) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: STTResult) => callback(payload);
       ipcRenderer.on('stt:result', listener);
       return () => ipcRenderer.removeListener('stt:result', listener);
+    },
+    // STT 데몬 상태(ready/fatal/restarting) 구독. 반환값은 cleanup 함수.
+    onStatus: (
+      callback: (payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }) => void
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }
+      ) => callback(payload);
+      ipcRenderer.on('stt:status', listener);
+      return () => ipcRenderer.removeListener('stt:status', listener);
     },
     // 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독
     onGlobalPtt: (callback: (payload: GlobalPttPayload) => void) => {

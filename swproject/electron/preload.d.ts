@@ -81,7 +81,11 @@ interface ElectronAPI {
     stop: () => Promise<{ ok: boolean }>;
     transcribe: (audioBuffer: ArrayBuffer, mimeType: string) => Promise<{ ok: boolean; text?: string; error?: string }>;
     debugPush: (text: string) => Promise<{ ok: boolean }>;
+    /** 의존성 설치 후 STT 데몬을 재스폰(fatal 복구). */
+    retry: () => Promise<{ ok: boolean }>;
     onResult: (callback: (payload: { text: string; isFinal: boolean }) => void) => () => void;
+    /** STT 데몬 상태(ready/fatal/restarting) 구독. 반환값은 cleanup 함수. */
+    onStatus: (callback: (payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }) => void) => () => void;
     /** 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독. 반환값은 cleanup 함수. */
     onGlobalPtt: (callback: (payload: { type: 'start' | 'stop' }) => void) => () => void;
   };
