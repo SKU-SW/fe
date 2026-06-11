@@ -911,6 +911,17 @@ function createWindow() {
     session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
       if (details.url.includes('sku-sw.cloud')) {
         details.requestHeaders['Origin'] = 'https://dev.sku-sw.cloud';
+        // WebSocket 핸드셰이크는 표준 API 로 Authorization 헤더를 실을 수 없어서 FE 가 토큰을
+        // accessToken 쿼리로 보낸다. 백엔드 JwtAuthFilter 는 헤더를 보므로, Electron 에서
+        // 쿼리의 accessToken 을 Authorization 헤더로 변환해 준다.
+        try {
+          const accessToken = new URL(details.url).searchParams.get('accessToken');
+          if (accessToken && !details.requestHeaders['Authorization']) {
+            details.requestHeaders['Authorization'] = `Bearer ${accessToken}`;
+          }
+        } catch {
+          /* URL 파싱 실패 시 무시 */
+        }
       }
       callback({ requestHeaders: details.requestHeaders });
     });
