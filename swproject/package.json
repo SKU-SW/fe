@@ -68,23 +68,45 @@
     },
     "extraResources": [
       {
-        "from": "electron/stt_server.py",
-        "to": "electron/stt_server.py"
+        "from": "dist-stt/stt_server",
+        "to": "stt"
+      },
+      {
+        "from": "dist-stt/models",
+        "to": "models"
       }
+    ],
+    "asarUnpack": [
+      "**/node_modules/uiohook-napi/**"
     ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
       "package.json"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "SKU-SW",
+      "repo": "fe"
+    },
     "mac": {
-      "target": "dmg",
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] }
+      ],
       "category": "public.app-category.utilities",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "identity": null,
+      "artifactName": "LiveBuddy-mac-${arch}.${ext}",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "음성 인식(STT)을 위해 마이크에 접근합니다."
+      }
     },
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.png"
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "LiveBuddy-win-${arch}.${ext}"
     },
     "linux": {
       "target": "AppImage",

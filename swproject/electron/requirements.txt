@@ -1,0 +1,5 @@
+# STT 사이드카(stt_server.py) 빌드 의존성.
+# CI 에서 Python 3.11/3.12 venv 로 설치 후 PyInstaller 로 단일 실행파일 패키징.
+# (로컬 Python 3.14 는 ctranslate2 휠이 없을 수 있어 빌드 시 3.11/3.12 권장)
+faster-whisper==1.1.0
+pyinstaller==6.11.1

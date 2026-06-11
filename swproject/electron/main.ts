@@ -159,6 +159,31 @@ function resolveSttScriptPath(): string {
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[candidates.length - 1];
 }
 
+/**
+ * 패키지(배포)본에서 동봉된 STT 사이드카 실행파일 경로.
+ * - electron-builder extraResources 로 resourcesPath/stt/ 에 PyInstaller 산출물을 둔다.
+ * - 존재하지 않으면 null (→ dev 처럼 python3 폴백).
+ */
+function resolveSttBinary(): string | null {
+  const exe = process.platform === 'win32' ? 'stt_server.exe' : 'stt_server';
+  const candidates = [
+    path.join(process.resourcesPath, 'stt', exe),
+    path.join(app.getAppPath(), '..', 'stt', exe),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+/**
+ * 동봉된 Whisper 모델 디렉토리(resourcesPath/models/<name>).
+ * - 존재하면 stt_server.py 가 오프라인(local_files_only)으로 로드.
+ * - 없으면 빈 문자열 → 첫 실행 시 HF 다운로드.
+ */
+function resolveSttModelDir(): string {
+  const modelName = process.env.SKU_SW_STT_MODEL ?? 'small';
+  const candidate = path.join(process.resourcesPath, 'models', modelName);
+  return existsSync(candidate) ? candidate : '';
+}
+
 function sendSttResult(payload: { text: string; isFinal: boolean }) {
   mainWindow?.webContents.send('stt:result', payload);
 }
@@ -573,12 +598,17 @@ class STTManager {
 
   start() {
     if (this.child) return;
-    const scriptPath = resolveSttScriptPath();
-    console.info('[stt] spawning daemon:', scriptPath);
 
-    this.child = spawn('python3', [scriptPath], {
+    // 배포본: 동봉된 PyInstaller 바이너리 우선. dev/미동봉: 시스템 python3 + 스크립트.
+    const binary = resolveSttBinary();
+    const command = binary ?? 'python3';
+    const args = binary ? [] : [resolveSttScriptPath()];
+    const modelDir = resolveSttModelDir();
+    console.info('[stt] spawning daemon:', command, args.join(' '), modelDir ? `(model: ${modelDir})` : '(model: download)');
+
+    this.child = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: process.env,
+      env: { ...process.env, ...(modelDir ? { SKU_SW_STT_MODEL_DIR: modelDir } : {}) },
     });
 
     this.child.stdout.setEncoding('utf-8');

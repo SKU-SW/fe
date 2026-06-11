@@ -1,0 +1,77 @@
+name: Release (dmg + exe)
+
+# v* 태그 푸시 시 macOS(dmg) + Windows(exe) 를 빌드해 GitHub Release 에 업로드.
+# 수동 실행도 가능(workflow_dispatch) — 단 publish 는 태그가 있어야 동작.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # GitHub Release 생성/업로드용
+
+defaults:
+  run:
+    working-directory: swproject
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14 # Apple Silicon(arm64) → dmg + arm64 STT 사이드카
+            artifact: dmg
+          - os: windows-latest # x64 → nsis(exe) + x64 STT 사이드카
+            artifact: exe
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: swproject/package-lock.json
+
+      - name: Setup Python (3.12 — faster-whisper 휠 호환)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip && python -m pip install -r electron/requirements.txt
+
+      - name: Build STT sidecar (PyInstaller)
+        run: >
+          pyinstaller --noconfirm --onedir --name stt_server --distpath dist-stt
+          --collect-all faster_whisper
+          --collect-all ctranslate2
+          --collect-all av
+          --collect-all onnxruntime
+          --collect-all tokenizers
+          --collect-all huggingface_hub
+          electron/stt_server.py
+
+      - name: Pre-download Whisper model (small → 오프라인 동봉)
+        run: python -c "from faster_whisper import download_model; download_model('small', output_dir='dist-stt/models/small')"
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Build & publish (electron-builder)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run electron:build-main && npm run build && npx electron-builder --publish always
+
+      - name: Upload artifacts (백업)
+        uses: actions/upload-artifact@v4
+        with:
+          name: livebuddy-${{ matrix.artifact }}
+          path: |
+            swproject/release/*.dmg
+            swproject/release/*.exe
+          if-no-files-found: warn

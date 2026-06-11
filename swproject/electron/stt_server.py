@@ -17,8 +17,11 @@ Protocol:
     {"event": "fatal", "error": "..."}        # 시작 단계 치명적 실패
 
 환경변수:
-  SKU_SW_STT_MODEL  — 기본 "small". tiny|base|small|medium|large-v3 등
-  SKU_SW_STT_PROMPT — initial_prompt 문자열 (한국어 도메인 컨텍스트)
+  SKU_SW_STT_MODEL     — 기본 "small". tiny|base|small|medium|large-v3 등
+  SKU_SW_STT_MODEL_DIR — 동봉된 로컬 모델 디렉토리 경로. 설정되어 있고 존재하면
+                          인터넷 다운로드 없이 (local_files_only) 이 경로에서 로드.
+                          (배포본은 main.ts 가 resourcesPath/models/<name> 을 주입)
+  SKU_SW_STT_PROMPT    — initial_prompt 문자열 (한국어 도메인 컨텍스트)
 """
 
 import json
@@ -49,13 +52,24 @@ def main():
         "발로란트, 오버워치, 배틀그라운드.",
     )
 
+    # 동봉 모델 디렉토리가 지정되어 있으면 오프라인(local_files_only)으로 로드.
+    # 없으면 모델 이름으로 Hugging Face 에서 다운로드(첫 실행 시 인터넷 필요).
+    model_dir = os.environ.get("SKU_SW_STT_MODEL_DIR", "").strip()
+    use_local = bool(model_dir) and os.path.isdir(model_dir)
+    model_ref = model_dir if use_local else model_name
+
     try:
-        model = WhisperModel(model_name, device="auto", compute_type="int8")
+        model = WhisperModel(
+            model_ref,
+            device="auto",
+            compute_type="int8",
+            local_files_only=use_local,
+        )
     except Exception as exc:
         emit({"event": "fatal", "error": f"모델 로드 실패: {exc}"})
         return 1
 
-    emit({"event": "ready", "model": model_name})
+    emit({"event": "ready", "model": model_dir if use_local else model_name})
 
     # 메인 루프: 한 줄 = 한 요청 (line-delimited JSON)
     for raw_line in sys.stdin:
