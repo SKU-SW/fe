@@ -37,10 +37,11 @@ def emit(payload):
 def main():
     try:
         from faster_whisper import WhisperModel
-    except Exception:
+    except Exception as exc:
+        # 모든 import 실패를 "미설치"로 뭉개지 말고 실제 에러를 전달
         emit({
             "event": "fatal",
-            "error": "faster-whisper 미설치. 'pip3 install faster-whisper' 후 재시작.",
+            "error": f"faster-whisper 로드 실패: {type(exc).__name__}: {exc}",
         })
         return 1
 

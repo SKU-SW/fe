@@ -54,6 +54,9 @@ jobs:
           --collect-all onnxruntime
           --collect-all tokenizers
           --collect-all huggingface_hub
+          --collect-all requests
+          --collect-all tqdm
+          --hidden-import requests
           electron/stt_server.py
 
       - name: Pre-download Whisper model (small → 오프라인 동봉)
