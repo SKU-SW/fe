@@ -18,7 +18,10 @@
 /out/
 
 # production
-/build
+# build/ 은 electron-builder 아이콘 소스(buildResources)라 아이콘만 추적, 나머지는 무시
+/build/*
+!/build/icon.icns
+!/build/icon.png
 
 # electron
 /release/
