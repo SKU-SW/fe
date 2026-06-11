@@ -347,7 +347,12 @@ function resolveCharacterImage(runtime: OverlayRuntimeState): string {
     return map[runtime.emotion] as string;
   }
 
-  return map.DEFAULT ?? runtime.characterImageUrl ?? "";
+  // 3D 모드에서는 vrmThumbnailUrl을 폴백으로 사용
+  if (runtime.modelType === "3D" && runtime.vrmThumbnailUrl) {
+    return runtime.vrmThumbnailUrl;
+  }
+
+  return map.DEFAULT ?? runtime.characterImageUrl ?? runtime.vrmThumbnailUrl ?? "";
 }
 
 function OverlayVrmCanvas({

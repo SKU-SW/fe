@@ -105,10 +105,12 @@ export function resolveVrmRuntime({
   settings,
 }: ResolveVrmRuntimeOptions): ResolvedVrmRuntime {
   const matchedPreset = findMatchedVrmPreset(settings, appearance, character, broadcastCharacter);
-  const shouldUse3D = appearance?.modelType === "3D" || character?.modelType === "3D";
+  // appearance가 명시적으로 3D를 지정했거나, character가 3D이고 appearance가 2D를 강제하지 않은 경우
+  const appearanceForces2D = appearance?.modelType === "2D";
+  const shouldUse3D = !appearanceForces2D && (appearance?.modelType === "3D" || character?.modelType === "3D");
   const matchedImage = shouldUse3D ? null : findMatchedImage(settings, appearance, character, broadcastCharacter);
   const characterImageUrl = shouldUse3D
-    ? resolveAssetUrl(broadcastCharacter?.characterImageUrl) || resolveAssetUrl(character?.characterImageUrl)
+    ? resolveAssetUrl(broadcastCharacter?.characterImageUrl) || resolveAssetUrl(character?.characterImageUrl) || resolveAssetUrl(matchedPreset?.thumbnailUrl)
     : resolveAssetUrl(matchedImage?.imageUrl)
       || resolveAssetUrl(broadcastCharacter?.characterImageUrl)
       || resolveAssetUrl(character?.characterImageUrl);
@@ -118,7 +120,7 @@ export function resolveVrmRuntime({
       : "";
   const vrmThumbnailUrl =
     shouldUse3D
-      ? resolveAssetUrl(appearance?.vrmThumbnailUrl ?? "") || resolveAssetUrl(character?.vrmThumbnailUrl) || resolveAssetUrl(matchedPreset?.thumbnailUrl)
+      ? resolveAssetUrl(appearance?.vrmThumbnailUrl ?? "") || resolveAssetUrl(character?.vrmThumbnailUrl) || resolveAssetUrl(matchedPreset?.thumbnailUrl) || resolveAssetUrl(characterImageUrl)
       : "";
   const modelType: CharacterModelType =
     vrmUrl || shouldUse3D
