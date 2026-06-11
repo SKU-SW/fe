@@ -609,9 +609,21 @@ class STTManager {
 
     // 배포본: 동봉된 PyInstaller 바이너리 우선. dev/미동봉: 시스템 python3 + 스크립트.
     const binary = resolveSttBinary();
-    const command = binary ?? 'python3';
+    let command = binary ?? 'python3';
     const args = binary ? [] : [resolveSttScriptPath()];
     const modelDir = resolveSttModelDir();
+
+    // dev 모드에서 GUI 앱의 PATH는 쉘과 달라 python3를 못 찾을 수 있음.
+    // 실제 python3 경로를 찾아서 명시적으로 사용.
+    if (!binary) {
+      try {
+        const { execSync } = require('child_process');
+        command = execSync('which python3', { encoding: 'utf-8' }).trim();
+      } catch {
+        // which 실패 시 기존 'python3' 유지
+      }
+    }
+
     console.info('[stt] spawning daemon:', command, args.join(' '), modelDir ? `(model: ${modelDir})` : '(model: download)');
 
     this.child = spawn(command, args, {
