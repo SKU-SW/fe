@@ -126,7 +126,7 @@ export function AppSettingsTab() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <img
-                    src="/icons/chzzk.png"
+                    src="./icons/chzzk.png"
                     alt="치지직"
                     className="h-10 w-10 shrink-0 rounded-lg"
                     draggable={false}

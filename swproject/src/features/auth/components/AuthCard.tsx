@@ -17,7 +17,7 @@ export default function AuthCard({ title, subtitle, children }: AuthCardProps) {
     <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border-strong bg-surface-panel shadow-xl transition-colors">
       <div className="p-8 pb-6 text-center">
         <img
-          src="/icon.png"
+          src="./icon.png"
           alt="AI streamer"
           className="mx-auto mb-4 h-12 w-12 rounded-xl shadow-md"
         />

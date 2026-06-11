@@ -27,7 +27,7 @@ interface ChzzkStatusBadgeProps {
   onConnectClick?: () => void;
 }
 
-const CHZZK_ICON_SRC = "/icons/chzzk.png";
+const CHZZK_ICON_SRC = "./icons/chzzk.png";
 
 export function ChzzkStatusBadge({ variant, showCTA = false, onConnectClick }: ChzzkStatusBadgeProps) {
   const { status, isLoading } = useChzzkStatus();
