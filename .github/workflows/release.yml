@@ -56,7 +56,9 @@ jobs:
           --collect-all huggingface_hub
           --collect-all requests
           --collect-all tqdm
+          --collect-all numpy
           --hidden-import requests
+          --hidden-import numpy
           electron/stt_server.py
 
       - name: Pre-download Whisper model (small → 오프라인 동봉)
