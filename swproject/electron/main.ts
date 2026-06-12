@@ -935,9 +935,9 @@ function createWindow() {
   // 배포본은 file:// 로 로드되어 WS 핸드셰이크에 표준 API 로 Authorization 헤더를 실을 수
   // 없다. FE 가 토큰을 accessToken 쿼리로 보내면, 여기서 쿼리의 accessToken 을 Authorization
   // 헤더로 변환해 준다(백엔드 JwtAuthFilter 는 헤더를 봄).
-  // NOTE: 과거엔 백엔드가 file://·null Origin 을 403 으로 거부해 Origin 을 강제 교정했으나,
-  // 2026-06-12 확인 결과 백엔드가 모든 Origin(file://·null 포함)을 허용(401)하도록 바뀌어
-  // Origin 교정은 제거했다. (재발 시 백엔드 setAllowedOriginPatterns 가 근본 해결)
+  // WS 핸드셰이크의 Origin 을 안정적인 고정값(file://electron-app)으로 보낸다.
+  // (loadFile 배포본의 file:// origin 이 프록시/백엔드에서 비정상 처리되는지 배제하기 위한
+  //  실험. 백엔드 origin 정책은 모든 Origin 을 401 로 허용하는 것으로 확인됨.)
   if (!isDev) {
     session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
       if (details.url.includes('sku-sw.cloud')) {
@@ -945,6 +945,7 @@ function createWindow() {
           const accessToken = new URL(details.url).searchParams.get('accessToken');
           if (accessToken && !details.requestHeaders['Authorization']) {
             details.requestHeaders['Authorization'] = `Bearer ${accessToken}`;
+            details.requestHeaders['Origin'] = 'file://electron-app';
           }
         } catch {
           /* URL 파싱 실패 시 무시 */
