@@ -105,9 +105,13 @@ export function resolveVrmRuntime({
   settings,
 }: ResolveVrmRuntimeOptions): ResolvedVrmRuntime {
   const matchedPreset = findMatchedVrmPreset(settings, appearance, character, broadcastCharacter);
-  // appearance가 명시적으로 3D를 지정했거나, character가 3D이고 appearance가 2D를 강제하지 않은 경우
-  const appearanceForces2D = appearance?.modelType === "2D";
-  const shouldUse3D = !appearanceForces2D && (appearance?.modelType === "3D" || character?.modelType === "3D");
+  // modelType 권위: 백엔드(character.modelType — characterAppearanceType 유래) > 로컬 appearance 캐시.
+  // 과거엔 로컬 appearance 캐시의 stale "2D"가 백엔드 3D를 강제로 덮어써(appearanceForces2D),
+  // 3D로 저장해도 오버레이/초상이 2D로 뜨는 버그가 있었다. character(상세 API, 편집 후 reload로 항상
+  // 최신)를 우선하고, appearance 는 character 가 없을 때만 보조로 쓴다.
+  const resolvedModelType: CharacterModelType =
+    character?.modelType ?? appearance?.modelType ?? "2D";
+  const shouldUse3D = resolvedModelType === "3D";
   const matchedImage = shouldUse3D ? null : findMatchedImage(settings, appearance, character, broadcastCharacter);
   const characterImageUrl = shouldUse3D
     ? resolveAssetUrl(broadcastCharacter?.characterImageUrl) || resolveAssetUrl(character?.characterImageUrl) || resolveAssetUrl(matchedPreset?.thumbnailUrl)

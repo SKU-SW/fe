@@ -480,6 +480,9 @@ export default function CharacterPage() {
         const appearance = resolveAppearanceRecord(config);
         if (appearance) {
           setAppearance(created.characterId, appearance);
+        } else {
+          // 외형 레코드를 못 만들면(프리셋 누락 등) stale 캐시가 백엔드 modelType 을 덮지 않게 제거.
+          removeAppearance(created.characterId);
         }
         await refetch(); // 목록 새로고침: 생성된 캐릭터 포함 전체 목록 재조회
         setEditingCharacterId(null);
@@ -490,7 +493,7 @@ export default function CharacterPage() {
         }
       }
     },
-    [apiCharacters.length, create, refetch, resolveAppearanceRecord, setAppearance, settings]
+    [apiCharacters.length, create, refetch, removeAppearance, resolveAppearanceRecord, setAppearance, settings]
   );
 
   const handleUpdate = useCallback(
@@ -519,6 +522,9 @@ export default function CharacterPage() {
         const appearance = resolveAppearanceRecord(config);
         if (appearance) {
           setAppearance(targetCharacterId, appearance);
+        } else {
+          // 2D→3D 수정에서 외형 레코드를 못 만들면 예전 2D 캐시가 남아 백엔드 3D 를 덮어쓰므로 제거.
+          removeAppearance(targetCharacterId);
         }
         await refetch(); // 수정 후 목록 새로고침
         setEditingCharacterId(null);
@@ -530,7 +536,7 @@ export default function CharacterPage() {
         }
       }
     },
-    [editingCharacterId, refetch, resolveAppearanceRecord, selectedCharacterId, setAppearance, settings, update]
+    [editingCharacterId, refetch, removeAppearance, resolveAppearanceRecord, selectedCharacterId, setAppearance, settings, update]
   );
 
   const handleDelete = useCallback(
