@@ -112,4 +112,11 @@ def main():
 
 
 if __name__ == "__main__":
+    # PyInstaller 로 frozen 된 바이너리에서 ctranslate2/VAD 등이 multiprocessing 서브프로세스를
+    # 띄울 때, freeze_support() 가 없으면 자식이 worker 가 아니라 이 스크립트(main)를 통째로
+    # 재실행한다 → 모델(수백 MB)을 중복 로드하고 stdin 루프에도 들어가 "요청은 갔는데 응답이
+    # 영영 안 오는" 경합을 일으킨다. 반드시 main 진입 전에 호출해야 한다.
+    import multiprocessing
+
+    multiprocessing.freeze_support()
     raise SystemExit(main() or 0)

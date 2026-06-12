@@ -49,6 +49,12 @@ interface ElectronAPI {
   shell: {
     openExternal: (url: string) => Promise<void>;
   };
+  system: {
+    /** macOS 손쉬운 사용(Accessibility) 권한 부여 여부. darwin 외에는 항상 true. */
+    getAccessibilityStatus: () => Promise<boolean>;
+    /** 손쉬운 사용 권한 요청 + 시스템 설정 패널 열기. */
+    openAccessibilitySettings: () => Promise<void>;
+  };
   obs: {
     detect: () => Promise<{ found: boolean; path: string | null }>;
     launch: (obsPath: string) => Promise<{ ok: boolean; error?: string }>;

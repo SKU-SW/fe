@@ -3,3 +3,5 @@
  */
 
 export { useSTT } from "./useSTT";
+export { useInAppPtt } from "./useInAppPtt";
+export { useAccessibilityStatus } from "./useAccessibilityStatus";

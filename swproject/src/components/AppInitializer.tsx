@@ -15,6 +15,7 @@ import { useCharacter } from "@/features/character/hooks/useCharacter";
 import { containsTriggerWord, normalizeTriggerWords } from "@/features/character/lib/triggerWords";
 import { sttBackgroundService } from "@/services/sttBackgroundService";
 import { broadcastWSBackgroundService } from "@/services/broadcastWSBackgroundService";
+import { useInAppPtt } from "@/features/stt/hooks";
 import { buildEmotionImageMap } from "@/shared/lib/characterEmotionImages";
 import { resolveVrmRuntime } from "@/shared/lib/vrmRuntime";
 import { useAlarmStore } from "@/shared/stores/alarmStore";
@@ -32,6 +33,9 @@ const STREAMING_AI_DIALOGUE_ID = "streaming-ai-pending";
 const ACTIVATION_TIMEOUT_MS = 30_000;
 
 export default function AppInitializer() {
+  // 인앱 PTT 폴백: 앱 창 포커스 시엔 손쉬운 사용 권한 없이도 단축키로 STT 트리거.
+  useInAppPtt();
+
   const sttEnabled = useAIModeStore((s) => s.toggles.sttEnabled);
   const lipSyncEnabled = useAIModeStore((s) => s.toggles.lipSyncEnabled);
   const selectedCharacterId = useCharacterStore((s) => s.selectedCharacterId);
@@ -347,10 +351,7 @@ export default function AppInitializer() {
       },
     });
 
-    const unsubscribe = sttBackgroundService.subscribeFinalTranscript(handleFinalTranscript);
-
     return () => {
-      unsubscribe();
       broadcastWSBackgroundService.unregisterCallbacks([
         "onVoiceChunk",
         "onVoiceTurnComplete",
@@ -363,6 +364,14 @@ export default function AppInitializer() {
       broadcastWSBackgroundService.dispose();
       sttBackgroundService.dispose();
     };
+    // 서비스 init/콜백 등록은 1회만. handleFinalTranscript(트리거워드 변경 시 갱신)에
+    // 묶으면 캐릭터 데이터 로드마다 WS/STT 가 dispose→재연결되는 churn 이 생긴다.
+    // 최종 transcript 핸들러 구독은 아래 별도 effect 에서 가볍게 재구독한다.
+  }, []);
+
+  // 트리거워드 등으로 handleFinalTranscript 가 바뀌면 서비스 재시작 없이 핸들러만 교체.
+  useEffect(() => {
+    return sttBackgroundService.subscribeFinalTranscript(handleFinalTranscript);
   }, [handleFinalTranscript]);
 
   useEffect(() => {

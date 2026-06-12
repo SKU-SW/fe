@@ -872,6 +872,24 @@ class STTManager {
       if (child && !child.killed) child.kill('SIGKILL');
     }, 5000);
   }
+
+  /**
+   * 앱 종료(will-quit) 시 자식을 즉시 SIGKILL.
+   * 자식(파이썬 데몬)은 부모가 app.exit 로 죽어도 살아남아 모델을 물고 고아가 되므로,
+   * 강제 종료 직전에 동기적으로 죽여 orphan 을 막는다. (deferred 타이머에 의존하지 않음)
+   */
+  forceKill() {
+    this.shuttingDown = true;
+    const child = this.child;
+    this.child = null;
+    if (child && !child.killed) {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 }
 
 const sttManager = new STTManager();
@@ -1018,6 +1036,23 @@ app.whenReady().then(async () => {
     return { ok: true, settings: appSettings };
   });
   ipcMain.handle('shell:open-external', (_event, url: string) => shell.openExternal(url));
+  // 전역 PTT(uiohook)가 키 이벤트를 받으려면 macOS 손쉬운 사용 권한이 필요하다.
+  // renderer 가 권한 상태를 확인해(미부여 시) 안내 배너를 띄울 수 있게 노출한다.
+  ipcMain.handle('app:accessibility-status', () =>
+    process.platform === 'darwin'
+      ? systemPreferences.isTrustedAccessibilityClient(false)
+      : true
+  );
+  ipcMain.handle('app:open-accessibility-settings', () => {
+    if (process.platform === 'darwin') {
+      // prompt=true → 미부여 시 시스템 안내, 그리고 설정 패널 직접 오픈
+      systemPreferences.isTrustedAccessibilityClient(true);
+      return shell.openExternal(
+        'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+      );
+    }
+    return Promise.resolve();
+  });
   ipcMain.handle('obs:detect', () => detectObs());
   ipcMain.handle('obs:launch', (_event, obsPath: string) => launchObs(obsPath));
   ipcMain.handle('obs:connect-and-setup', async (_event, overlayUrl: string): Promise<ObsSetupResult> => {
@@ -1136,13 +1171,49 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
-  uIOhook.stop();
-  tray?.destroy();
+  // 베스트-에포트 정리. 각 단계를 try/catch 로 격리해 하나가 실패해도 종료가 막히지 않게 한다.
+  try {
+    sttManager.shutdown();
+  } catch (err) {
+    console.warn('[quit] stt shutdown failed:', err);
+  }
+  try {
+    tray?.destroy();
+  } catch {
+    /* ignore */
+  }
   tray = null;
-  obsManager.disconnect();
-  sttManager.shutdown();
-  overlayServer?.close();
+  try {
+    obsManager.disconnect();
+  } catch {
+    /* ignore */
+  }
+  try {
+    overlayServer?.close();
+  } catch {
+    /* ignore */
+  }
   overlayServer = null;
+  // NOTE: uIOhook.stop() 은 여기서 호출하지 않는다.
+  // 손쉬운 사용 권한이 없어 전역 훅이 비정상(반쯤 초기화) 상태이면 stop() 이 동기 블록/예외를
+  // 일으켜 before-quit 자체가 멈추고 종료가 영영 완료되지 않는 사례가 확인됐다(배포본이
+  // SIGTERM 에도 안 죽고 SIGKILL 이 필요했음). 네이티브 훅 스레드 정리는 아래 will-quit 의
+  // app.exit(0)(프로세스 강제 종료)에 맡긴다.
+});
+
+// 종료 보장 안전망:
+// 네이티브 훅(uiohook)·HTTP 서버·자식 프로세스가 main 프로세스를 붙들어 정상 종료가 멈추는
+// 것을 막는다. will-quit 까지 왔으면 자식을 즉시 죽이고 프로세스를 강제 종료한다.
+let forcedExit = false;
+app.on('will-quit', () => {
+  if (forcedExit) return;
+  forcedExit = true;
+  try {
+    sttManager.forceKill();
+  } catch {
+    /* ignore */
+  }
+  app.exit(0);
 });
 
 app.on('window-all-closed', () => {

@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Mic, MicOff, Users, MessageSquare, Sparkles } from "lucide-react";
+import { Activity, Mic, MicOff, Users, MessageSquare, Sparkles, KeyRound } from "lucide-react";
 import { useAIModeStore } from "@/shared/stores/aiModeStore";
 import { useCharacterStore } from "@/shared/stores/characterStore";
 import { useCharacter } from "@/features/character/hooks";
@@ -25,7 +25,7 @@ import { resolveVrmRuntime } from "@/shared/lib/vrmRuntime";
 import { useCharacterAppearanceStore } from "@/shared/stores/characterAppearanceStore";
 import { useCharacterSettingsStore } from "@/shared/stores/characterSettingsStore";
 import { useBroadcastWSState, useStreamDialoguesPagination, useStreamInfo } from "@/features/broadcast/hooks";
-import { useSTT } from "@/features/stt/hooks";
+import { useSTT, useAccessibilityStatus } from "@/features/stt/hooks";
 import { resolveAssetUrl } from "@/shared/lib/utils";
 import { formatPttShortcut, useAppSettingsStore } from "@/shared/stores/appSettingsStore";
 import {
@@ -167,6 +167,10 @@ export default function DashboardPage() {
     retrySTT,
   } = useSTT();
 
+  // 전역 PTT(다른 창 포커스 중 단축키)용 손쉬운 사용 권한 상태
+  const { trusted: accessibilityTrusted, isMac, openSettings: openAccessibilitySettings } =
+    useAccessibilityStatus();
+
   // 로컬 UI 상태
   const [logOpen, setLogOpen] = useState(false);
   const [filter, setFilter] = useState<ConversationFilterState>({
@@ -225,6 +229,10 @@ export default function DashboardPage() {
           onEnable={() => setToggle("sttEnabled", true)}
           onDismiss={() => setMicNoticeDismissed(true)}
         />
+      )}
+
+      {toggles.sttEnabled && isMac === true && accessibilityTrusted === false && (
+        <AccessibilityWarningBanner onOpenSettings={openAccessibilitySettings} />
       )}
 
       {streamInfoError && (
@@ -420,6 +428,48 @@ function MicWarningBanner({ onEnable, onDismiss }: { onEnable: () => void; onDis
             className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-content-inverse transition-colors hover:bg-brand-hover"
           >
             마이크 켜기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 손쉬운 사용 권한 안내 배너
+ * - macOS 에서 전역 PTT(uiohook)는 손쉬운 사용 권한이 있어야 다른 창 포커스 중에도 동작한다.
+ * - 미부여 시 노출. 단, 앱 창이 떠 있는 동안은 인앱 PTT 폴백(useInAppPtt)이 그대로 동작하므로
+ *   "지금도 앱 안에서는 단축키가 동작한다"는 점을 함께 안내해 혼란을 줄인다.
+ */
+function AccessibilityWarningBanner({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <div className="rounded-md border border-status-warning/30 bg-status-warning/10 p-3">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded bg-status-warning/15 p-2 text-status-warning">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-content-secondary">전역 단축키 권한이 필요합니다</p>
+            <p className="mt-1 text-xs text-content-muted">
+              다른 창(OBS·게임 등)에 포커스가 있는 동안에도 PTT 단축키로 말하려면 macOS{" "}
+              <span className="font-semibold">손쉬운 사용</span> 권한이 필요합니다. 재설치 후에는
+              기존 항목을 지우고 다시 추가해야 할 수 있습니다.
+              <br />
+              <span className="text-content-secondary">
+                이 앱 창이 떠 있는 동안에는 권한 없이도 단축키가 그대로 동작합니다.
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-content-inverse transition-colors hover:bg-brand-hover"
+          >
+            권한 설정 열기
           </button>
         </div>
       </div>

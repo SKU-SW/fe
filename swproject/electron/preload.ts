@@ -77,6 +77,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
   },
+  system: {
+    // 전역 PTT(uiohook) 키훅용 macOS 손쉬운 사용 권한 부여 여부
+    getAccessibilityStatus: (): Promise<boolean> =>
+      ipcRenderer.invoke('app:accessibility-status'),
+    openAccessibilitySettings: (): Promise<void> =>
+      ipcRenderer.invoke('app:open-accessibility-settings'),
+  },
   obs: {
     detect: () => ipcRenderer.invoke('obs:detect'),
     launch: (obsPath: string) => ipcRenderer.invoke('obs:launch', obsPath),
