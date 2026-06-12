@@ -932,18 +932,15 @@ function createWindow() {
     show: false,
   });
 
-  // 배포본은 file:// 로 로드되어 백엔드로 가는 요청의 Origin 이 "file://"(null)이 된다.
-  // 백엔드 WebSocket(/api/v1/stream/ws)이 file://·null origin 을 403 으로 거부해 방송이
-  // 시작되지 않는다(dev 의 http://localhost:5173 은 허용). 검증 결과 https://dev.sku-sw.cloud
-  // origin 은 허용(401)되므로, sku-sw.cloud 로 나가는 요청의 Origin 을 이 값으로 교정한다.
-  // (dev 는 localhost:5173 이 이미 허용되므로 건드리지 않음)
+  // 배포본은 file:// 로 로드되어 WS 핸드셰이크에 표준 API 로 Authorization 헤더를 실을 수
+  // 없다. FE 가 토큰을 accessToken 쿼리로 보내면, 여기서 쿼리의 accessToken 을 Authorization
+  // 헤더로 변환해 준다(백엔드 JwtAuthFilter 는 헤더를 봄).
+  // NOTE: 과거엔 백엔드가 file://·null Origin 을 403 으로 거부해 Origin 을 강제 교정했으나,
+  // 2026-06-12 확인 결과 백엔드가 모든 Origin(file://·null 포함)을 허용(401)하도록 바뀌어
+  // Origin 교정은 제거했다. (재발 시 백엔드 setAllowedOriginPatterns 가 근본 해결)
   if (!isDev) {
     session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
       if (details.url.includes('sku-sw.cloud')) {
-        details.requestHeaders['Origin'] = 'https://dev.sku-sw.cloud';
-        // WebSocket 핸드셰이크는 표준 API 로 Authorization 헤더를 실을 수 없어서 FE 가 토큰을
-        // accessToken 쿼리로 보낸다. 백엔드 JwtAuthFilter 는 헤더를 보므로, Electron 에서
-        // 쿼리의 accessToken 을 Authorization 헤더로 변환해 준다.
         try {
           const accessToken = new URL(details.url).searchParams.get('accessToken');
           if (accessToken && !details.requestHeaders['Authorization']) {
