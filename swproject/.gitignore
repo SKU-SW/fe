@@ -19,10 +19,12 @@
 
 # production
 # build/ 은 electron-builder 아이콘 소스(buildResources)라 아이콘만 추적, 나머지는 무시
+# (vc_redist.x64.exe 등 CI 가 내려받는 산출물은 계속 무시)
 /build/*
 !/build/icon.icns
 !/build/icon.png
 !/build/afterPack.cjs
+!/build/installer.nsh
 
 # electron
 /release/

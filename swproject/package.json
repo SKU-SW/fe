@@ -1,6 +1,6 @@
 {
   "name": "swproject",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -108,6 +108,9 @@
       ],
       "icon": "build/icon.png",
       "artifactName": "LiveBuddy-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "include": "build/installer.nsh"
     },
     "linux": {
       "target": "AppImage",
