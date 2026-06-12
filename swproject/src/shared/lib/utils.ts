@@ -30,3 +30,14 @@ export function resolveAssetUrl(url: string | null | undefined): string {
   const path = url.startsWith('/') ? url : `/${url}`;
   return `${base}${path}`;
 }
+
+/**
+ * characterImageUrl 이 3D(VRM) 캐릭터의 썸네일인지 URL 패턴으로 판별.
+ * 백엔드가 응답에 characterAppearanceType 을 안 주는 동안의 폴백 — 3D 캐릭터의
+ * characterImageUrl 은 `.../character-3d/<gender>/vrm-xxx/thumbnail.webp` 형태로 온다.
+ * (예: https://dev-img.sku-sw.cloud/character-3d/male/vrm-male-01/thumbnail.webp)
+ */
+export function is3DAppearanceUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /\/character-3d\//i.test(url) || /\/vrm-/i.test(url);
+}

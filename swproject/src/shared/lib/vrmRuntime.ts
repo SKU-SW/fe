@@ -8,7 +8,7 @@
  * @usedBy src/pages/DashboardPage.tsx
  */
 
-import { resolveAssetUrl } from "@/shared/lib/utils";
+import { is3DAppearanceUrl, resolveAssetUrl } from "@/shared/lib/utils";
 import type { AppearanceRecord } from "@/shared/stores/characterAppearanceStore";
 import type { BroadcastCharacterInfoResDto } from "@/shared/types/broadcast";
 import type { CharacterDetailResDto, CharacterImageResDto, CharacterModelType, CharacterSettingsResDto, VrmPresetResDto } from "@/shared/types/character";
@@ -109,8 +109,12 @@ export function resolveVrmRuntime({
   // 과거엔 로컬 appearance 캐시의 stale "2D"가 백엔드 3D를 강제로 덮어써(appearanceForces2D),
   // 3D로 저장해도 오버레이/초상이 2D로 뜨는 버그가 있었다. character(상세 API, 편집 후 reload로 항상
   // 최신)를 우선하고, appearance 는 character 가 없을 때만 보조로 쓴다.
+  // character/appearance 로 modelType 이 안 잡히는 경우(방송 중 broadcastCharacter 만 있는 등),
+  // characterImageUrl(=VRM 썸네일) 패턴으로 3D 를 추론한다.
   const resolvedModelType: CharacterModelType =
-    character?.modelType ?? appearance?.modelType ?? "2D";
+    character?.modelType
+    ?? appearance?.modelType
+    ?? (is3DAppearanceUrl(broadcastCharacter?.characterImageUrl ?? character?.characterImageUrl) ? "3D" : "2D");
   const shouldUse3D = resolvedModelType === "3D";
   const matchedImage = shouldUse3D ? null : findMatchedImage(settings, appearance, character, broadcastCharacter);
   const characterImageUrl = shouldUse3D

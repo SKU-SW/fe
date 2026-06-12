@@ -8,6 +8,7 @@
  */
 
 import apiClient from '@/shared/lib/axios';
+import { is3DAppearanceUrl } from '@/shared/lib/utils';
 import { useCharacterAppearanceStore } from '@/shared/stores/characterAppearanceStore';
 import {
   fromBackendAppearance,
@@ -37,6 +38,17 @@ function adaptCharacterDetail(raw: CharacterDetailResDto): CharacterDetailResDto
       modelType: fromBackendAppearance(appearance),
     };
   }
+  // 백엔드가 characterAppearanceType 를 응답에 안 주므로(현 Swagger), characterImageUrl 패턴으로
+  // 3D 를 추론한다. 3D 면 characterImageUrl 이 곧 VRM 썸네일이므로 vrmThumbnailUrl 로 채워주고,
+  // vrmUrl 은 resolveVrmRuntime 이 settings.vrmPresets 썸네일 매칭으로 복원한다.
+  if (is3DAppearanceUrl(raw.characterImageUrl)) {
+    return {
+      ...raw,
+      modelType: '3D',
+      characterAppearanceType: 'THREE_D',
+      vrmThumbnailUrl: raw.vrmThumbnailUrl ?? raw.characterImageUrl,
+    };
+  }
   const fallback = useCharacterAppearanceStore.getState().getAppearance(raw.characterId);
   if (fallback) {
     return {
@@ -61,6 +73,15 @@ function adaptCharacterListItem(raw: CharacterListItemResDto): CharacterListItem
     return {
       ...raw,
       modelType: fromBackendAppearance(appearance),
+    };
+  }
+  // characterImageUrl 패턴으로 3D 추론 (adaptCharacterDetail 과 동일 — 선택창 썸네일/표시용).
+  if (is3DAppearanceUrl(raw.characterImageUrl)) {
+    return {
+      ...raw,
+      modelType: '3D',
+      characterAppearanceType: 'THREE_D',
+      vrmThumbnailUrl: raw.vrmThumbnailUrl ?? raw.characterImageUrl,
     };
   }
   const fallback = useCharacterAppearanceStore.getState().getAppearance(raw.characterId);

@@ -154,9 +154,11 @@ export default function DashboardPage() {
   const effectiveCharacterVrmUrl = overlayCharacterVrmUrl;
   const effectiveModelType: CharacterModelType = overlayCharacterModelType;
   const effectiveCharacterImageUrl = streamCharacterImageUrl || overlayCharacterImageUrl;
+  // 3D 캐릭터는 감정 스프라이트(Default.webp 등)가 없다. characterImageUrl(=VRM 썸네일) 디렉토리에서
+  // 감정 이미지를 만들어 프리로드하면 전부 403 이 나므로, 3D 일 때는 빈 맵으로 둔다.
   const effectiveEmotionImageMap = useMemo(
-    () => buildEmotionImageMap(effectiveCharacterImageUrl),
-    [effectiveCharacterImageUrl]
+    () => (effectiveModelType === "3D" ? {} : buildEmotionImageMap(effectiveCharacterImageUrl)),
+    [effectiveCharacterImageUrl, effectiveModelType]
   );
   useEmotionImagePreload(effectiveEmotionImageMap);
 
