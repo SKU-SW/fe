@@ -935,17 +935,22 @@ function createWindow() {
   // 배포본은 file:// 로 로드되어 WS 핸드셰이크에 표준 API 로 Authorization 헤더를 실을 수
   // 없다. FE 가 토큰을 accessToken 쿼리로 보내면, 여기서 쿼리의 accessToken 을 Authorization
   // 헤더로 변환해 준다(백엔드 JwtAuthFilter 는 헤더를 봄).
-  // WS 핸드셰이크의 Origin 을 안정적인 고정값(file://electron-app)으로 보낸다.
-  // (loadFile 배포본의 file:// origin 이 프록시/백엔드에서 비정상 처리되는지 배제하기 위한
-  //  실험. 백엔드 origin 정책은 모든 Origin 을 401 로 허용하는 것으로 확인됨.)
+  // 배포본은 file:// 로 로드되어 모든 요청의 Origin 이 null 이 된다. 백엔드 WS 핸드셰이크는
+  // origin allowlist 를 강제(http://localhost:5173 · https://dev.sku-sw.cloud 만 허용)하므로
+  // null/file:// origin 은 거부되어 WS 가 1006 으로 실패한다.
+  // 실측: origin=http://localhost:5173 → 101 / origin=null(file://) → 1006.
+  // → sku-sw.cloud 요청의 Origin 을 허용된 값(https://dev.sku-sw.cloud)으로 교정한다.
+  //   (file://electron-app 등 allowlist 에 없는 값은 거부되므로 반드시 허용값이어야 함.)
+  // 또한 WS 핸드셰이크는 표준 API 로 Authorization 헤더를 못 싣는다 → 쿼리 accessToken 을
+  // Authorization 헤더로도 변환해 준다(REST 는 axios 가 이미 헤더로 보냄).
   if (!isDev) {
     session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
       if (details.url.includes('sku-sw.cloud')) {
+        details.requestHeaders['Origin'] = 'https://dev.sku-sw.cloud';
         try {
           const accessToken = new URL(details.url).searchParams.get('accessToken');
           if (accessToken && !details.requestHeaders['Authorization']) {
             details.requestHeaders['Authorization'] = `Bearer ${accessToken}`;
-            details.requestHeaders['Origin'] = 'file://electron-app';
           }
         } catch {
           /* URL 파싱 실패 시 무시 */
