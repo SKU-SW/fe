@@ -1280,7 +1280,7 @@ class BroadcastWSBackgroundService {
   // 폴링 관리
   // ============================================================
 
-  private async pollViewerChat() {
+  private async pollViewerChat(loadAll = false) {
     if (this.pollingInFlightRef) return;
     this.pollingInFlightRef = true;
 
@@ -1288,8 +1288,11 @@ class BroadcastWSBackgroundService {
       const res = await getStreamInfo(Math.max(1, 30));
       const viewerItems = res.content.filter((item) => item.subject === "VIEWER");
       const latestKnownCursor = this.latestViewerCursorRef;
-      const newViewerItems =
-        latestKnownCursor == null
+      // loadAll(대시보드 진입 1회): 현재 시청자 채팅 전부 적재.
+      // 평상시(연속 폴링): 마지막 커서 이후 신규분만.
+      const targetItems = loadAll
+        ? viewerItems
+        : latestKnownCursor == null
           ? []
           : viewerItems.filter((item) => item.cursorId > latestKnownCursor);
 
@@ -1300,8 +1303,8 @@ class BroadcastWSBackgroundService {
         );
       }
 
-      if (newViewerItems.length > 0) {
-        const adaptedDialogues = newViewerItems.map(adaptDialogue);
+      if (targetItems.length > 0) {
+        const adaptedDialogues = targetItems.map(adaptDialogue);
         useAIModeStore.getState().upsertDialogues(adaptedDialogues, null);
         this.callbacksRef.onViewerChat?.(adaptedDialogues);
       }
@@ -1320,9 +1323,18 @@ class BroadcastWSBackgroundService {
   }
 
   /**
+   * 대시보드 진입 시 1회만 시청자 채팅을 조회/적재(연속 폴링 없음).
+   * 이전엔 대시보드 체류 중 3초 주기로 폴링했으나, 진입 1회 로드로 변경(서버 부하·로그 절감).
+   * 다시 연속 폴링이 필요하면 useViewerChatPolling 에서 startViewerChatPolling() 로 되돌리면 됨.
+   */
+  pollViewerChatOnce() {
+    this.latestViewerCursorRef = null;
+    void this.pollViewerChat(true);
+  }
+
+  /**
+   * (연속 폴링 변형 — 현재 미사용, revert 용 보관)
    * 시청자 채팅 polling 시작 — 표시 전용이라 대시보드 체류 중에만 켠다.
-   * (전역/방송 lifecycle 에 묶지 않는다. 안 보는 페이지에서 /stream/info 를 3초마다
-   *  치며 서버에 부하/로그를 쌓던 문제를 막기 위함.)
    */
   startViewerChatPolling() {
     this.startPolling();

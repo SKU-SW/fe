@@ -14,9 +14,8 @@ import { broadcastWSBackgroundService } from "@/services/broadcastWSBackgroundSe
 export function useViewerChatPolling(enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return;
-    broadcastWSBackgroundService.startViewerChatPolling();
-    return () => {
-      broadcastWSBackgroundService.stopViewerChatPolling();
-    };
+    // 대시보드 진입 시 1회만 시청자 채팅 조회(연속 3초 폴링 제거 — 서버 부하/로그 절감).
+    // enabled(방송 중) 가 true 로 바뀌는 시점(=대시보드 진입/방송 시작)에 한 번 실행.
+    broadcastWSBackgroundService.pollViewerChatOnce();
   }, [enabled]);
 }
