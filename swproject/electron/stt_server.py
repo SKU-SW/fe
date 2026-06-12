@@ -28,6 +28,15 @@ import json
 import os
 import sys
 
+# Windows 한국어 로캘에서는 stdout 기본 인코딩이 cp949 라, 한글이 든 JSON 을 그대로 쓰면
+# Electron main(utf-8 로 read)에서 mojibake 가 된다. 그러면 finalText 가 깨져 호출어 매칭이
+#실패하고 백엔드로 전송되지 않는다. stdio 를 UTF-8 로 강제 재설정한다.
+for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except Exception:
+        pass
+
 
 def emit(payload):
     sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")

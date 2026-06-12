@@ -154,34 +154,23 @@ export default function AppInitializer() {
     const isActiveSession =
       lastActiveAt !== null && now - lastActiveAt < ACTIVATION_TIMEOUT_MS;
 
-    if (!hasTriggerWord && !isActiveSession) {
-      if (import.meta.env.DEV) {
-        console.info("[AppInitializer] trigger word required (session inactive)", {
-          transcript: trimmed,
-          activeTriggerWords,
-          lastActiveAt,
-          msSinceLastActive: lastActiveAt !== null ? now - lastActiveAt : null,
-        });
-      }
-      useAIModeStore.getState().addActivityLog({
-        id: `stt-callword-skip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        type: "system",
-        message: activeTriggerWords.length > 0
-          ? `호출어(${activeTriggerWords.join(", ")})로 다시 깨워주세요.`
-          : "호출어 정보가 없어 음성 전송을 건너뜁니다.",
-        timestamp: new Date(),
-        level: "info",
-      });
-      return;
+    // [방향 A] 프론트에서 호출어로 전송을 "막지" 않는다 — 백엔드가 호출어 판정을 단독 수행한다.
+    // hasTriggerWord/isActiveSession 은 로그·표시(아래 activity log)용으로만 유지하고,
+    // sendChat 은 항상 진행한다. 다시 프론트 게이트로 되돌리려면 아래 주석 블록을 살리면 된다.
+    //   if (!hasTriggerWord && !isActiveSession) {
+    //     addActivityLog("호출어로 다시 깨워주세요"); return;
+    //   }
+
+    // 호출어가 직접 맞았을 때만 활성 세션을 시작/연장한다(표시·세션 추적용, 전송 차단엔 미사용).
+    if (hasTriggerWord) {
+      lastActiveAtRef.current = now;
     }
 
-    // 활성 세션 갱신 — 다음 발화까지의 타임아웃 카운트가 여기서부터 다시 시작된다.
-    lastActiveAtRef.current = now;
-
     if (import.meta.env.DEV) {
-      console.info("[AppInitializer] transcript accepted", {
+      console.info("[AppInitializer] transcript forwarded (FE callword gate disabled)", {
         transcript: trimmed,
-        via: hasTriggerWord ? "trigger-word" : "active-session",
+        hasTriggerWord,
+        isActiveSession,
         msSinceLastActive: lastActiveAt !== null ? now - lastActiveAt : null,
       });
     }
@@ -192,7 +181,8 @@ export default function AppInitializer() {
     useAIModeStore.getState().addActivityLog({
       id: `stt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type: "system",
-      message: `STT 인식: ${trimmed}`,
+      // 호출어 여부를 표시(전송은 항상 됨 — 백엔드가 호출어 판정).
+      message: `STT 인식${hasTriggerWord ? " (호출어)" : isActiveSession ? " (대화중)" : " (호출어 없음)"}: ${trimmed}`,
       timestamp: new Date(),
       level: "info",
     });

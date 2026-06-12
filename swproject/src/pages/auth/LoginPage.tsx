@@ -37,6 +37,8 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface-base p-4 transition-colors">
+      {/* 헤더가 없는 화면이라 상단에 창 이동용 드래그 스트립을 둔다(Electron hiddenInset). */}
+      <div className="app-drag-region fixed inset-x-0 top-0 z-50 h-7" />
       <AuthCard title="환영합니다" subtitle="AI 스트리머 파트너 플랫폼에 로그인하세요">
         {apiError && (
           <div

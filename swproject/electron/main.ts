@@ -295,9 +295,12 @@ function sanitizeAppSettings(value: unknown): AppSettingsPayload {
 function createTray() {
   if (tray) return;
 
-  const iconPath = path.join(app.getAppPath(), 'public', 'icon.png');
+  // 패키지본은 public/ 이 asar 에 없으므로(dist 만 포함) 기존 public 경로는 항상 실패해
+  // 시스템 기본 아이콘으로 폴백됐다. resolveAppIconPath() 로 라이브버디 로고(dist/icon.png 등)를
+  // 찾아 트레이 아이콘으로 쓴다.
+  const iconPath = resolveAppIconPath();
   const fallbackIcon = nativeImage.createFromNamedImage('NSStatusAvailable', [16, 16]);
-  const trayIcon = existsSync(iconPath)
+  const trayIcon = iconPath
     ? nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 })
     : fallbackIcon;
 
@@ -628,7 +631,15 @@ class STTManager {
 
     this.child = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...(modelDir ? { SKU_SW_STT_MODEL_DIR: modelDir } : {}) },
+      // PYTHONUTF8/PYTHONIOENCODING: Windows(cp949) 에서 사이드카 stdout 이 cp949 로 나와
+      // 한글 finalText 가 깨지는 것을 막는다(아래 setEncoding('utf-8') 와 짝). stt_server.py
+      // 내부 reconfigure 와 이중 방어.
+      env: {
+        ...process.env,
+        PYTHONUTF8: '1',
+        PYTHONIOENCODING: 'utf-8',
+        ...(modelDir ? { SKU_SW_STT_MODEL_DIR: modelDir } : {}),
+      },
     });
 
     this.child.stdout.setEncoding('utf-8');
@@ -969,6 +980,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+    mainWindow?.focus();
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -1125,6 +1137,11 @@ app.whenReady().then(async () => {
     callback(false);
   });
 
+  // 창을 가장 먼저 띄운다.
+  // 이전엔 createWindow() 가 whenReady 의 맨 끝(접근성 다이얼로그·전역 훅 초기화 뒤)이라,
+  // 첫 실행 시 메인 창이 안 뜨고 트레이 아이콘을 눌러야 열리는 문제가 있었다(macOS).
+  createWindow();
+
   // STT 데몬 사전 부팅 — 사용자 첫 발화 전 모델 로딩 끝내두기
   sttManager.start();
   startOverlayStateServer();
@@ -1138,20 +1155,24 @@ app.whenReady().then(async () => {
     if (!trusted) {
       // prompt=true → 시스템 설정 열기 안내 다이얼로그 자동 표시
       systemPreferences.isTrustedAccessibilityClient(true);
-      dialog.showMessageBox({
-        type: 'info',
+      const accessibilityNotice = {
+        type: 'info' as const,
         title: '손쉬운 사용 권한 필요',
         message: '전역 PTT(Cmd/Ctrl+Shift+M)를 사용하려면 손쉬운 사용 권한이 필요합니다.',
         detail: '시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서\n"Electron" (개발 중) 또는 앱 이름을 활성화한 뒤 앱을 재시작해주세요.',
         buttons: ['확인'],
-      });
+      };
+      // 메인 창에 sheet 로 붙여서, 앱-모달 다이얼로그가 창 표시를 가로채지 않게 한다.
+      if (mainWindow) {
+        void dialog.showMessageBox(mainWindow, accessibilityNotice);
+      } else {
+        void dialog.showMessageBox(accessibilityNotice);
+      }
     }
   }
 
   startGlobalPttHook();
   console.info('[shortcut] 전역 PTT 후킹 시작: Ctrl/Cmd+Shift+M (hold)');
-
-  createWindow();
 
   app.on('activate', () => {
     if (mainWindow && !mainWindow.isVisible()) {

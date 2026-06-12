@@ -61,7 +61,7 @@ export default function DashboardHeader() {
   };
 
   return (
-    <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-border-strong bg-surface-raised px-4 shadow-sm transition-colors">
+    <header className="app-drag-region relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-border-strong bg-surface-raised px-4 shadow-sm transition-colors">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 text-content-primary">
           <Icon className="h-5 w-5 text-content-muted" />

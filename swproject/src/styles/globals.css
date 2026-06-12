@@ -9,6 +9,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Electron 창 이동(hiddenInset 타이틀바라 기본 드래그 영역이 없음).
+ * .app-drag-region 을 상단 헤더에 주면 그 영역을 잡고 창을 옮길 수 있다.
+ * 내부의 인터랙티브 요소(버튼/입력 등)는 자동으로 no-drag 처리해 클릭이 살아있게 한다.
+ */
+.app-drag-region {
+  -webkit-app-region: drag;
+}
+.app-no-drag,
+.app-drag-region :where(button, a, input, select, textarea, label, [role="button"], [contenteditable="true"]) {
+  -webkit-app-region: no-drag;
+}
+
 :root {
   --color-surface-base: 250 251 252;
   --color-surface-sidebar: 238 242 246;
