@@ -1,21 +1,22 @@
 /**
- * @file 대시보드 체류 중 시청자 채팅 polling 레거시 호환 훅
- * @deprecated Phase 2 완료: viewer polling은 broadcastWSBackgroundService가 전역으로 자동 관리함.
- *             이 훅은 중복 polling을 막기 위해 의도적으로 no-op wrapper로 유지된다.
- * @usedBy (deprecated — 더 이상 사용되지 않음)
+ * @file 대시보드 체류 중에만 시청자 채팅 polling 을 켜는 훅
+ * @dependsOn src/services/broadcastWSBackgroundService.ts
+ * @usedBy src/pages/DashboardPage.tsx
+ *
+ * 시청자 채팅 polling(/stream/info 3초 주기)은 대시보드 채팅 목록 표시 전용이다.
+ * 전역 resident 서비스(WS/TTS/STT)와 달리 다른 페이지에서까지 돌릴 이유가 없어,
+ * 대시보드가 마운트되어 있고 방송 중일 때만 켜고 떠나면 끈다(서버 부하/로그 절감).
  */
 
 import { useEffect } from "react";
+import { broadcastWSBackgroundService } from "@/services/broadcastWSBackgroundService";
 
-interface UseViewerChatPollingOptions {
-  enabled?: boolean;
-  size?: number;
-  intervalMs?: number;
-}
-
-export function useViewerChatPolling(options: UseViewerChatPollingOptions = {}) {
+export function useViewerChatPolling(enabled: boolean): void {
   useEffect(() => {
-    void options;
-    return () => undefined;
-  }, [options]);
+    if (!enabled) return;
+    broadcastWSBackgroundService.startViewerChatPolling();
+    return () => {
+      broadcastWSBackgroundService.stopViewerChatPolling();
+    };
+  }, [enabled]);
 }

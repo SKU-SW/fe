@@ -24,7 +24,7 @@ import { useCharacter } from "@/features/character/hooks";
 import { resolveVrmRuntime } from "@/shared/lib/vrmRuntime";
 import { useCharacterAppearanceStore } from "@/shared/stores/characterAppearanceStore";
 import { useCharacterSettingsStore } from "@/shared/stores/characterSettingsStore";
-import { useBroadcastWSState, useStreamDialoguesPagination, useStreamInfo } from "@/features/broadcast/hooks";
+import { useBroadcastWSState, useStreamDialoguesPagination, useStreamInfo, useViewerChatPolling } from "@/features/broadcast/hooks";
 import { useSTT, useAccessibilityStatus } from "@/features/stt/hooks";
 import { resolveAssetUrl } from "@/shared/lib/utils";
 import { formatPttShortcut, useAppSettingsStore } from "@/shared/stores/appSettingsStore";
@@ -195,6 +195,9 @@ export default function DashboardPage() {
   }, [toggles.sttEnabled]);
 
   const isBroadcasting = mode === "broadcasting";
+
+  // 시청자 채팅 polling 은 대시보드 체류 + 방송 중일 때만. (전역 폴링 금지 — 서버 부하/로그 절감)
+  useViewerChatPolling(isBroadcasting);
 
   // store.dialogues (BE 진실의 근원) → ConversationStream 의 통합 메시지 모델로 변환
   const conversationMessages = useMemo<ConversationMessage[]>(

@@ -250,7 +250,8 @@ class BroadcastWSBackgroundService {
 
       this.shouldReconnectRef = true;
       this.connect();
-      this.startPolling();
+      // 시청자 채팅 polling 은 더 이상 방송 시작에 묶지 않는다(전역 폴링 금지).
+      // 표시 전용이므로 대시보드 체류 중에만 startViewerChatPolling() 으로 켠다.
     });
 
     if (!useAIModeStore.getState().toggles.ttsEnabled) {
@@ -260,7 +261,6 @@ class BroadcastWSBackgroundService {
     if (useAuthStore.getState().accessToken && useAIModeStore.getState().broadcastStreamId) {
       this.shouldReconnectRef = true;
       this.connect();
-      this.startPolling();
     }
 
     this.notifyStateChange();
@@ -1317,6 +1317,20 @@ class BroadcastWSBackgroundService {
     } finally {
       this.pollingInFlightRef = false;
     }
+  }
+
+  /**
+   * 시청자 채팅 polling 시작 — 표시 전용이라 대시보드 체류 중에만 켠다.
+   * (전역/방송 lifecycle 에 묶지 않는다. 안 보는 페이지에서 /stream/info 를 3초마다
+   *  치며 서버에 부하/로그를 쌓던 문제를 막기 위함.)
+   */
+  startViewerChatPolling() {
+    this.startPolling();
+  }
+
+  /** 시청자 채팅 polling 중지 — 대시보드 언마운트 시 호출. */
+  stopViewerChatPolling() {
+    this.stopPolling();
   }
 
   private startPolling() {
