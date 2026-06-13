@@ -1,292 +1,1032 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live Buddy — AI 캐릭터 방송 관리</title>
-  <meta name="description" content="AI 캐릭터와 함께하는 방송 관리 데스크톱 앱. 실시간 채팅 분석, OBS 오버레이 자동화, 음성 인식까지." />
-  <style>
-    :root {
-      --bg: #1e1f22;
-      --bg-soft: #2b2d31;
-      --card: #313338;
-      --card-hover: #3a3c42;
-      --text: #f2f3f5;
-      --text-dim: #b5bac1;
-      --accent: #5865f2;
-      --accent-hover: #4752c4;
-      --border: #3f4147;
-      --radius: 16px;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
-        "Noto Sans KR", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-    a { color: inherit; text-decoration: none; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Live Buddy — AI 캐릭터와 함께 방송을 운영하는 데스크톱 콘솔. 실시간 채팅 분석, OBS 오버레이 자동화, 음성 인식까지 한 화면에서.">
+<title>Live Buddy — 방송을 함께 끌어가는 AI 파트너</title>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#e8ecf2;
+    --bg-2:#dde2eb;
+    --panel:#ffffff;
+    --panel-2:#f5f7fa;
+    --line:#c8cdd8;
+    --ink:#11131a;
+    --ink-soft:#4a5060;
+    --ink-faint:#7a8295;
+    --live:#e11d48;
+    --live-soft:#f43f5e;
+    --cyan:#0891b2;
+    --cyan-dim:#0e7490;
+    --amber:#d97706;
+    --violet:#7c3aed;
+    --radius:14px;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --display:'Space Grotesk','IBM Plex Sans KR',sans-serif;
+    --sans:'IBM Plex Sans KR','Space Grotesk',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--live);color:#fff}
 
-    /* ── Nav ── */
-    nav {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 20px 0;
-    }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; }
-    .brand .dot {
-      width: 30px; height: 30px; border-radius: 9px;
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
-      display: grid; place-items: center; font-size: 16px;
-    }
-    .nav-link { color: var(--text-dim); font-weight: 600; font-size: 15px; }
-    .nav-link:hover { color: var(--text); }
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
 
-    /* ── Hero ── */
-    .hero { text-align: center; padding: 72px 0 56px; }
-    .hero .badge {
-      display: inline-block; padding: 6px 14px; border-radius: 999px;
-      background: var(--bg-soft); color: var(--text-dim);
-      font-size: 13px; font-weight: 600; margin-bottom: 24px; border: 1px solid var(--border);
-    }
-    .hero h1 {
-      font-size: clamp(34px, 6vw, 60px); line-height: 1.1; font-weight: 900;
-      letter-spacing: -0.02em; margin-bottom: 20px;
-    }
-    .hero h1 .grad {
-      background: linear-gradient(135deg, #8b9bff, #c4b5fd);
-      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .hero p {
-      font-size: clamp(16px, 2.4vw, 20px); color: var(--text-dim);
-      max-width: 620px; margin: 0 auto 36px;
-    }
-    .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-    .btn {
-      display: inline-flex; align-items: center; gap: 10px;
-      padding: 14px 26px; border-radius: 12px; font-weight: 700; font-size: 16px;
-      cursor: pointer; border: 1px solid transparent; transition: all .15s ease;
-    }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
-    .btn-ghost { background: var(--bg-soft); color: var(--text); border-color: var(--border); }
-    .btn-ghost:hover { background: var(--card-hover); }
-    .btn svg { width: 20px; height: 20px; }
+  /* ---------- scanlines (CRT broadcast feel) ---------- */
+  .scanlines{
+    position:fixed;inset:0;z-index:9999;pointer-events:none;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);
+    opacity:.08;
+  }
 
-    /* ── Features ── */
-    .features { padding: 40px 0 24px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
-    .feature {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 26px 22px;
-    }
-    .feature .ic { font-size: 26px; margin-bottom: 12px; }
-    .feature h3 { font-size: 17px; margin-bottom: 6px; }
-    .feature p { color: var(--text-dim); font-size: 14px; }
+  /* ---------- particle canvas ---------- */
+  #particles{
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+  }
 
-    /* ── Download ── */
-    .download { padding: 64px 0; }
-    .section-head { text-align: center; margin-bottom: 40px; }
-    .section-head h2 { font-size: clamp(26px, 4vw, 38px); font-weight: 900; letter-spacing: -0.02em; }
-    .section-head p { color: var(--text-dim); margin-top: 10px; }
-    .dl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .dl-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 34px 28px; text-align: center; transition: all .15s ease; position: relative;
-    }
-    .dl-card:hover { background: var(--card-hover); transform: translateY(-2px); }
-    .dl-card.recommended { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-    .dl-card .tag {
-      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-      background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
-      padding: 3px 12px; border-radius: 999px;
-    }
-    .dl-card .os-ic { font-size: 46px; margin-bottom: 14px; }
-    .dl-card h3 { font-size: 22px; margin-bottom: 4px; }
-    .dl-card .meta { color: var(--text-dim); font-size: 14px; margin-bottom: 22px; }
-    .dl-card .btn { width: 100%; justify-content: center; }
+  /* ---------- nav ---------- */
+  header.nav{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:blur(20px) saturate(1.2);
+    background:rgba(247,248,250,.85);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{display:flex;align-items:center;gap:12px;font-family:var(--display);font-weight:800;letter-spacing:-.02em;font-size:1.05rem}
+  .brand img{width:32px;height:32px;border-radius:8px;object-fit:cover}
+  .dot{
+    width:10px;height:10px;border-radius:50%;background:var(--live);
+    box-shadow:0 0 0 0 rgba(225,29,72,.55);
+    animation:pulse 2.2s infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(225,29,72,.55)}
+    70%{box-shadow:0 0 0 12px rgba(225,29,72,0)}
+    100%{box-shadow:0 0 0 0 rgba(225,29,72,0)}
+  }
+  .nav-links{display:flex;align-items:center;gap:8px}
+  .nav-link{
+    font-family:var(--mono);font-size:.82rem;font-weight:600;
+    padding:7px 14px;border-radius:8px;
+    transition:.2s;color:var(--ink-soft);
+  }
+  .nav-link:hover{color:var(--cyan);background:rgba(8,145,178,.06)}
+  .nav-cta{
+    font-family:var(--mono);font-size:.82rem;font-weight:700;
+    padding:9px 18px;border:1px solid var(--line);border-radius:10px;
+    transition:.2s;color:var(--ink-soft);position:relative;overflow:hidden;
+  }
+  .nav-cta::before{
+    content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(8,145,178,.12),transparent);
+    transform:translateX(-100%);transition:transform .4s;
+  }
+  .nav-cta:hover{border-color:var(--cyan);color:var(--cyan)}
+  .nav-cta:hover::before{transform:translateX(100%)}
 
-    /* ── Install note ── */
-    .note {
-      margin-top: 28px; background: var(--bg-soft); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 22px 24px;
-    }
-    .note summary { cursor: pointer; font-weight: 700; font-size: 15px; list-style: none; }
-    .note summary::-webkit-details-marker { display: none; }
-    .note summary::before { content: "⚠️ "; }
-    .note[open] summary { margin-bottom: 14px; }
-    .note h4 { font-size: 14px; margin: 14px 0 6px; color: var(--text); }
-    .note p, .note li { color: var(--text-dim); font-size: 14px; }
-    .note ul { padding-left: 20px; }
-    .note code {
-      background: var(--bg); padding: 2px 7px; border-radius: 6px;
-      font-size: 13px; color: #e2c08d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
+  /* ---------- hero ---------- */
+  .hero{position:relative;padding:100px 0 72px;overflow:hidden}
+  .hero-grid{
+    position:absolute;inset:0;z-index:0;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse 75% 65% at 50% 25%,#000 25%,transparent 80%);
+    opacity:.15;
+  }
+  .hero-inner{position:relative;z-index:1}
+  .eyebrow{
+    font-family:var(--mono);font-size:.78rem;font-weight:600;letter-spacing:.14em;
+    color:var(--ink-faint);text-transform:uppercase;
+    display:inline-flex;align-items:center;gap:10px;
+    padding:7px 14px;border:1px solid var(--line);border-radius:99px;
+    background:var(--panel);
+  }
+  .eyebrow .dot{margin:0}
+  h1.tagline{
+    font-family:var(--display);
+    font-weight:800;
+    font-size:clamp(2.2rem,5.8vw,3.9rem);
+    line-height:1.06;
+    letter-spacing:-.03em;
+    margin:26px 0 0;
+    max-width:20ch;
+    text-shadow:0 0 40px rgba(8,145,178,.1),0 0 80px rgba(8,145,178,.04);
+  }
+  h1 .hl{
+    color:var(--cyan);
+    position:relative;white-space:nowrap;
+  }
+  .lede{
+    margin-top:22px;max-width:52ch;
+    font-size:1.15rem;color:var(--ink-soft);
+  }
+  .hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:36px}
+  .btn{
+    font-family:var(--mono);font-weight:600;font-size:.92rem;
+    padding:14px 24px;border-radius:12px;display:inline-flex;align-items:center;gap:10px;
+    transition:transform .2s ease,box-shadow .2s ease,background .2s;
+    cursor:pointer;border:1px solid transparent;position:relative;overflow:hidden;
+  }
+  .btn-primary{
+    background:var(--cyan);color:#fff;
+    box-shadow:0 8px 32px -8px rgba(8,145,178,.4),0 0 0 1px rgba(8,145,178,.2);
+  }
+  .btn-primary:hover{transform:translateY(-3px);box-shadow:0 16px 40px -8px rgba(8,145,178,.5),0 0 0 1px rgba(8,145,178,.3)}
+  .btn-ghost{
+    background:var(--panel);color:var(--ink);border-color:var(--line);
+    box-shadow:0 4px 16px -4px rgba(0,0,0,.3);
+  }
+  .btn-ghost:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-3px);box-shadow:0 8px 24px -4px rgba(8,145,178,.12)}
 
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border); margin-top: 40px;
-      padding: 28px 0; text-align: center; color: var(--text-dim); font-size: 14px;
-    }
-    footer a { color: var(--text-dim); font-weight: 600; }
-    footer a:hover { color: var(--text); }
+  /* ---------- dashboard mock (Live Buddy dashboard UI) ---------- */
+  .dashboard-mock{
+    margin-top:60px;border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--panel);overflow:hidden;
+    box-shadow:0 20px 60px -20px rgba(0,0,0,.1);
+  }
+  .dash-top{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;border-bottom:1px solid var(--line);
+  }
+  .dash-status{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:.82rem;color:var(--ink-soft)}
+  .pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--live);animation:pulse 2s infinite}
+  .dash-toggle{font-family:var(--mono);font-size:.78rem;color:var(--ink-faint);padding:6px 12px;border:1px solid var(--line);border-radius:8px}
+  .dash-stt-hint{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    padding:12px;font-family:var(--mono);font-size:.82rem;color:var(--ink-soft);
+    border-bottom:1px solid var(--line);background:var(--bg-2);
+  }
+  .dash-stt-hint .key{padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-weight:700}
+  .dash-main{display:grid;grid-template-columns:1fr 1.5fr;min-height:300px}
+  @media(max-width:640px){.dash-main{grid-template-columns:1fr}}
+  .dash-char{
+    padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px;
+    border-right:1px solid var(--line);
+  }
+  @media(max-width:640px){.dash-char{border-right:none;border-bottom:1px solid var(--line)}}
+  .char-frame{width:180px;height:220px;border-radius:16px;border:2px solid var(--line);overflow:hidden;background:var(--bg-2);display:flex;align-items:center;justify-content:center}
+  .char-frame img{width:100%;height:100%;object-fit:cover}
+  .char-name{font-family:var(--display);font-size:1.3rem;font-weight:800}
+  .char-state{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.82rem;color:var(--ink-faint);padding:6px 14px;border:1px solid var(--line);border-radius:99px;background:var(--panel)}
+  .state-dot{width:8px;height:8px;border-radius:50%;background:var(--ink-faint)}
+  .dash-chat{display:flex;flex-direction:column;border-right:none}
+  .chat-tabs{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .chat-tabs .tab{font-family:var(--mono);font-size:.76rem;font-weight:600;padding:6px 12px;border-radius:8px;color:var(--ink-faint);cursor:pointer}
+  .chat-tabs .tab.active{background:var(--bg-2);color:var(--ink)}
+  .chat-tabs .tab-toggle{margin-left:auto;font-family:var(--mono);font-size:.74rem;color:var(--ink-faint);display:flex;align-items:center;gap:8px}
+  .toggle-on{color:var(--cyan);font-weight:700}
+  .chat-body{padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;max-height:280px}
+  .chat-msg{display:flex;gap:8px;align-items:flex-start;font-size:.88rem}
+  .chat-msg.ai{padding:10px 14px;background:var(--bg-2);border-radius:12px;border:1px solid var(--line)}
+  .chat-user{font-family:var(--mono);font-weight:700;color:var(--cyan);flex-shrink:0;font-size:.8rem}
+  .chat-msg.ai .chat-user{color:var(--amber)}
+  .chat-text{color:var(--ink-soft);line-height:1.5}
+  .dash-controls{
+    display:flex;justify-content:center;gap:24px;padding:14px 20px;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg-2);flex-wrap:wrap;
+  }
+  .ctrl-item{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:.82rem}
+  .ctrl-label{color:var(--ink-soft);font-weight:600}
+  .ctrl-toggle{padding:4px 12px;border-radius:99px;font-weight:700;font-size:.74rem}
+  .ctrl-toggle.on{background:rgba(0,229,201,.12);color:var(--cyan);border:1px solid rgba(0,229,201,.25)}
+  .dash-kpis{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:20px;
+  }
+  @media(max-width:760px){.dash-kpis{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:480px){.dash-kpis{grid-template-columns:1fr}}
+  .dash-kpi{
+    border:1px solid var(--line);border-radius:12px;padding:20px;background:var(--panel);
+    display:flex;flex-direction:column;gap:8px;position:relative;
+    box-shadow:0 2px 8px -2px rgba(0,0,0,.06);
+  }
+  .kpi-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+  .kpi-icon{font-family:var(--mono);font-size:.7rem;font-weight:700;color:var(--ink-faint);padding:4px 8px;border-radius:6px;background:var(--bg-2);letter-spacing:.05em}
+  .kpi-status{width:8px;height:8px;border-radius:50%;background:var(--live);box-shadow:0 0 0 3px rgba(225,29,72,.15)}
+  .kpi-status.green{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+  .kpi-status.blue{background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+  .kpi-status.amber{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15)}
+  .kpi-label{font-family:var(--mono);font-size:.78rem;color:var(--ink-soft);font-weight:600}
+  .kpi-value{font-family:var(--display);font-size:1.6rem;font-weight:800;color:var(--ink);letter-spacing:-.02em}
+  .kpi-sub{font-family:var(--mono);font-size:.74rem;color:var(--ink-faint)}
 
-    @media (max-width: 620px) {
-      .dl-grid { grid-template-columns: 1fr; }
-    }
-  </style>
+  /* ---------- section frame ---------- */
+  section{padding:80px 0;position:relative}
+  .sec-eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;display:flex;align-items:center;gap:10px}
+  .sec-eyebrow::before{content:"";width:28px;height:1px;background:var(--cyan)}
+  h2.sec-title{font-family:var(--display);font-weight:800;font-size:clamp(1.7rem,3.8vw,2.5rem);letter-spacing:-.025em;margin:16px 0 0;max-width:24ch}
+  .sec-sub{color:var(--ink-soft);margin-top:14px;max-width:58ch;font-size:1.0rem}
+
+  /* ---------- who ---------- */
+  .who-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:42px}
+  @media(max-width:760px){.who-grid{grid-template-columns:1fr}}
+  .who-card{
+    border:1px solid var(--line);border-radius:var(--radius);padding:28px 24px;
+    background:var(--panel);transition:.3s;position:relative;overflow:hidden;
+  }
+  .who-card::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,var(--cyan),var(--violet),var(--live));
+    transform:scaleX(0);transform-origin:left;transition:transform .4s;
+  }
+  .who-card:hover::before{transform:scaleX(1)}
+  .who-card:hover{transform:translateY(-5px);border-color:var(--cyan);background:var(--panel-2);box-shadow:0 20px 50px -20px rgba(8,145,178,.1)}
+  .who-num{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint)}
+  .who-card h3{font-family:var(--display);font-size:1.2rem;font-weight:700;margin:14px 0 8px;letter-spacing:-.02em}
+  .who-card p{font-size:.95rem;color:var(--ink-soft);line-height:1.65}
+
+  /* ---------- features ---------- */
+  .feat-list{margin-top:46px;border-top:1px solid var(--line)}
+  .feat{
+    display:grid;grid-template-columns:64px 1fr auto;gap:24px;align-items:center;
+    padding:28px 6px;border-bottom:1px solid var(--line);
+    transition:.3s;cursor:default;
+  }
+  .feat:hover{background:linear-gradient(90deg,rgba(8,145,178,.04),transparent);padding-left:16px}
+  .feat-ico{font-size:2rem;width:56px;height:56px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:14px;background:var(--panel);transition:.3s}
+  .feat:hover .feat-ico{border-color:var(--cyan);transform:rotate(-6deg) scale(1.08);box-shadow:0 0 20px -4px rgba(8,145,178,.15)}
+  .feat-txt h3{font-family:var(--display);font-size:1.24rem;font-weight:700;letter-spacing:-.02em}
+  .feat-txt p{font-size:.96rem;color:var(--ink-soft);margin-top:6px;max-width:56ch;line-height:1.65}
+  .feat-tags{display:flex;gap:6px;flex-wrap:wrap}
+  .feat-tag{font-family:var(--mono);font-size:.74rem;font-weight:600;color:var(--cyan);border:1px solid rgba(8,145,178,.2);border-radius:99px;padding:4px 12px;white-space:nowrap}
+  .feat-tag.amber{color:var(--amber);border-color:rgba(217,119,6,.2)}
+  .feat-tag.violet{color:var(--violet);border-color:rgba(124,58,237,.2)}
+  .feat-tag.live{color:var(--live);border-color:rgba(225,29,72,.2)}
+  @media(max-width:640px){.feat{grid-template-columns:48px 1fr}.feat-tags{display:none}}
+
+  /* ---------- persona section ---------- */
+  .persona-section{background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .persona-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:40px}
+  @media(max-width:900px){.persona-grid{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:560px){.persona-grid{grid-template-columns:repeat(2,1fr)}}
+  .persona-card{
+    border:1px solid var(--line);border-radius:var(--radius);padding:24px 18px;
+    background:var(--panel);text-align:center;transition:.35s;position:relative;overflow:hidden;
+  }
+  .persona-card::after{
+    content:"";position:absolute;inset:0;border-radius:var(--radius);
+    background:radial-gradient(circle at 50% 0%,var(--glow),transparent 70%);
+    opacity:0;transition:opacity .35s;
+  }
+  .persona-card:hover::after{opacity:1}
+  .persona-card:hover{transform:translateY(-5px);border-color:var(--glow-border);box-shadow:0 24px 60px -24px var(--glow-shadow)}
+  .persona-emoji{font-family:var(--mono);font-size:1.4rem;font-weight:700;color:var(--ink-faint);margin-bottom:12px;position:relative;z-index:1}
+  .persona-card h3{font-family:var(--display);font-size:1.05rem;font-weight:700;letter-spacing:-.01em;position:relative;z-index:1}
+  .persona-card p{font-size:.85rem;color:var(--ink-soft);margin-top:8px;position:relative;z-index:1;line-height:1.55}
+
+  /* ---------- character showcase (2D / 3D) ---------- */
+  .char-showcase{background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .char-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px}
+  @media(max-width:760px){.char-grid{grid-template-columns:1fr}}
+  .char-card{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--panel);overflow:hidden;transition:.35s;
+    display:flex;flex-direction:column;
+  }
+  .char-card:hover{transform:translateY(-5px);border-color:var(--cyan);box-shadow:0 24px 60px -24px rgba(8,145,178,.15)}
+  .char-img-wrap{
+    position:relative;height:260px;background:var(--bg);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .char-img-wrap::before{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 50% 50%,rgba(8,145,178,.08),transparent 70%);
+  }
+  .char-img-wrap img{position:relative;z-index:1;height:90%;width:auto;object-fit:contain;transition:transform .4s}
+  .char-card:hover .char-img-wrap img{transform:scale(1.05)}
+  .char-img-wrap .dim-badge{
+    position:absolute;top:14px;right:14px;z-index:2;
+    font-family:var(--mono);font-size:.72rem;font-weight:600;
+    padding:5px 12px;border-radius:8px;background:rgba(247,248,250,.8);border:1px solid var(--line);
+  }
+  .char-img-wrap .dim-badge.d2{color:var(--cyan);border-color:rgba(8,145,178,.25)}
+  .char-img-wrap .dim-badge.d3{color:var(--violet);border-color:rgba(124,58,237,.25)}
+  .char-info{padding:22px 24px}
+  .char-info h3{font-family:var(--display);font-size:1.2rem;font-weight:700;margin-bottom:8px}
+  .char-info p{font-size:.9rem;color:var(--ink-soft);line-height:1.65}
+  .char-info .char-tags{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+  .char-info .char-tags span{font-family:var(--mono);font-size:.72rem;padding:4px 10px;border-radius:99px;border:1px solid var(--line);color:var(--ink-faint)}
+  .char-preview-row{display:flex;gap:16px;justify-content:center;align-items:center;height:100%;padding:20px}
+  .char-preview{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .char-preview img{width:120px;height:150px;object-fit:cover;border-radius:12px;border:2px solid var(--line);transition:transform .3s}
+  .char-card:hover .char-preview img{transform:scale(1.05)}
+  .char-preview .char-gender{font-family:var(--mono);font-size:.72rem;color:var(--ink-faint);font-weight:600}
+
+  /* ---------- tech stack ---------- */
+  #techstack{position:relative;overflow:hidden}
+  .tech-categories{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-top:40px}
+  @media(max-width:760px){.tech-categories{grid-template-columns:1fr}}
+  .tech-cat{border:1px solid var(--line);border-radius:var(--radius);padding:24px;background:var(--panel)}
+  .tech-cat h3{font-family:var(--display);font-size:1.1rem;font-weight:700;margin-bottom:14px;color:var(--ink)}
+  .tech-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .tech-chip{
+    font-family:var(--mono);font-size:.8rem;font-weight:600;
+    padding:9px 16px;border:1px solid var(--line);border-radius:10px;
+    background:var(--panel);color:var(--ink-soft);
+    transition:.25s;display:flex;align-items:center;gap:8px;
+  }
+  .tech-chip:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-2px);box-shadow:0 8px 20px -8px rgba(8,145,178,.1)}
+  .tech-chip .tc-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line);padding:44px 0 60px}
+  .foot-inner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:18px}
+  .foot-links{display:flex;gap:22px;font-family:var(--mono);font-size:.84rem;font-weight:600;color:var(--ink-faint)}
+  .foot-links a:hover{color:var(--cyan)}
+  .foot-brand{font-family:var(--display);font-weight:700;display:flex;align-items:center;gap:9px}
+  .foot-brand img{width:28px;height:28px;border-radius:6px;object-fit:cover}
+  .foot-copy{font-family:var(--mono);font-size:.78rem;color:var(--ink-faint);margin-top:6px}
+
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(28px);transition:opacity .8s ease,transform .8s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  /* stagger children */
+  .stagger > *{opacity:0;transform:translateY(18px);transition:opacity .55s ease,transform .55s ease}
+  .stagger.in > *{opacity:1;transform:none}
+  .stagger.in > *:nth-child(1){transition-delay:.06s}
+  .stagger.in > *:nth-child(2){transition-delay:.12s}
+  .stagger.in > *:nth-child(3){transition-delay:.18s}
+  .stagger.in > *:nth-child(4){transition-delay:.24s}
+  .stagger.in > *:nth-child(5){transition-delay:.3s}
+  .stagger.in > *:nth-child(6){transition-delay:.36s}
+  .stagger.in > *:nth-child(7){transition-delay:.42s}
+  .stagger.in > *:nth-child(8){transition-delay:.48s}
+
+  /* typing cursor */
+  .typing-cursor{
+    display:inline-block;width:2px;height:1em;background:var(--cyan);
+    margin-left:3px;vertical-align:text-bottom;
+    animation:blink 1s step-end infinite;
+  }
+  @keyframes blink{50%{opacity:0}}
+
+  /* counter animation */
+  .counter{font-family:var(--mono);font-weight:700;font-size:clamp(2.2rem,4.5vw,3rem);color:var(--cyan);line-height:1;text-shadow:0 0 20px rgba(8,145,178,.15)}
+  .counter-label{font-family:var(--mono);font-size:.8rem;font-weight:600;color:var(--ink-faint);margin-top:8px  }
+  .stats-row{display:flex;gap:36px;flex-wrap:wrap;margin-top:40px}
+  .stat-item{flex:1;min-width:130px}
+
+  #download .sec-eyebrow::before{background:var(--cyan)}
+  #download .dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:44px}
+  @media(max-width:640px){#download .dl-grid{grid-template-columns:1fr}}
+  #download .dl-card{position:relative;padding:34px 28px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;border-radius:var(--radius);transition:.3s;background:var(--panel);border:1px solid var(--line)}
+  #download .dl-card:hover{transform:translateY(-5px);border-color:var(--cyan);box-shadow:0 28px 60px -28px rgba(8,145,178,.15)}
+  #download .dl-card.recommended{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),0 12px 40px -12px rgba(8,145,178,.2)}
+  #download .rec-tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.7rem;font-weight:600;padding:4px 14px;border-radius:99px;background:var(--cyan);color:#fff}
+  #download .dl-meta{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint)}
+  #download .dl-card h3{color:var(--ink)}
+  #download .dl-card .btn-primary{width:100%;justify-content:center;margin-top:16px}
+
+  @media(prefers-reduced-motion:reduce){
+    .reveal,.stagger>*{opacity:1;transform:none;transition:none}
+    .dot,.pulse-dot,.bg-glow .orb{animation:none!important}
+    *{scroll-behavior:auto}
+    .scanlines{display:none}
+  }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <nav>
-      <div class="brand"><span class="dot">🎙️</span> Live Buddy</div>
-      <a class="nav-link" href="#download">다운로드</a>
-    </nav>
 
-    <!-- HERO -->
-    <header class="hero">
-      <span class="badge" id="version-badge">데스크톱 앱 · macOS &amp; Windows</span>
-      <h1>AI 캐릭터와 함께하는<br /><span class="grad">방송 관리 데스크톱 앱</span></h1>
-      <p>
-        실시간 채팅 분석, AI 캐릭터 대화, OBS 오버레이 자동화, 음성 인식(STT)까지 —
-        방송에 필요한 모든 걸 하나의 앱에서.
-      </p>
-      <div class="cta-row">
-        <a class="btn btn-primary" id="hero-download" href="#download">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>
-          <span id="hero-download-label">다운로드</span>
-        </a>
-        <a class="btn btn-ghost" href="https://github.com/SKU-SW/fe" target="_blank" rel="noopener">GitHub</a>
-      </div>
-    </header>
+<!-- CRT scanlines overlay -->
+<div class="scanlines" aria-hidden="true"></div>
 
-    <!-- FEATURES -->
-    <section class="features">
-      <div class="grid">
-        <div class="feature"><div class="ic">🤖</div><h3>AI 캐릭터</h3><p>커스텀 페르소나를 가진 AI 캐릭터가 방송에 함께 참여합니다.</p></div>
-        <div class="feature"><div class="ic">💬</div><h3>실시간 채팅 분석</h3><p>시청자 채팅을 실시간으로 분석하고 반응합니다.</p></div>
-        <div class="feature"><div class="ic">🎬</div><h3>OBS 오버레이 자동화</h3><p>OBS와 연동해 투명 오버레이를 자동으로 셋업·동기화합니다.</p></div>
-        <div class="feature"><div class="ic">🎤</div><h3>음성 인식(STT)</h3><p>오프라인 음성 인식 모델이 내장되어 별도 설치가 필요 없습니다.</p></div>
-      </div>
-    </section>
+<!-- particle canvas -->
+<canvas id="particles" aria-hidden="true"></canvas>
 
-    <!-- DOWNLOAD -->
-    <section class="download" id="download">
-      <div class="section-head">
-        <h2>지금 다운로드</h2>
-        <p>사용 중인 운영체제에 맞는 설치 파일을 받으세요.</p>
-      </div>
-
-      <div class="dl-grid">
-        <!-- macOS -->
-        <div class="dl-card" id="card-mac">
-          <span class="tag" hidden>추천</span>
-          <div class="os-ic"></div>
-          <h3>macOS</h3>
-          <div class="meta">Apple Silicon (M1 이상) · .dmg</div>
-          <a class="btn btn-ghost" href="https://github.com/SKU-SW/fe/releases/latest/download/LiveBuddy-mac-arm64.dmg">
-            macOS용 다운로드
-          </a>
-        </div>
-
-        <!-- Windows -->
-        <div class="dl-card" id="card-win">
-          <span class="tag" hidden>추천</span>
-          <div class="os-ic"></div>
-          <h3>Windows</h3>
-          <div class="meta">64-bit (x64) · .exe</div>
-          <a class="btn btn-ghost" href="https://github.com/SKU-SW/fe/releases/latest/download/LiveBuddy-win-x64.exe">
-            Windows용 다운로드
-          </a>
-        </div>
-      </div>
-
-      <!-- 설치 안내 -->
-      <details class="note">
-        <summary>설치가 안 되거나 보안 경고가 뜬다면 (꼭 읽어주세요)</summary>
-        <p>이 앱은 코드 서명이 없어 처음 실행할 때 1회 보안 경고가 나타날 수 있습니다. 아래 방법으로 해제하세요.</p>
-        <h4>macOS — "손상되었기 때문에 열 수 없습니다"</h4>
-        <ul>
-          <li>앱을 <b>우클릭 → 열기 → 열기</b>, 또는</li>
-          <li>터미널에서 <code>xattr -dr com.apple.quarantine "/Applications/Live Buddy.app"</code></li>
-          <li>첫 실행 시 마이크 접근 권한을 허용해 주세요 (음성 인식에 필요).</li>
-        </ul>
-        <h4>Windows — "Windows의 PC 보호" (SmartScreen)</h4>
-        <ul>
-          <li><b>추가 정보 → 실행</b> 을 누르세요.</li>
-        </ul>
-        <h4>공통</h4>
-        <ul>
-          <li>백엔드 서버와 통신하므로 <b>인터넷 연결</b>이 필요합니다.</li>
-          <li>방송 송출·오버레이 기능은 <b>OBS Studio</b>가 설치되어 있어야 동작합니다.</li>
-        </ul>
-      </details>
-    </section>
-  </div>
-
-  <footer>
-    <div class="wrap">
-      <p>
-        Live Buddy <span id="footer-version"></span> ·
-        <a href="https://github.com/SKU-SW/fe" target="_blank" rel="noopener">GitHub</a> ·
-        <a href="https://github.com/SKU-SW/fe/releases" target="_blank" rel="noopener">전체 릴리즈</a>
-      </p>
+<header class="nav">
+  <div class="wrap nav-inner">
+    <div class="brand"><img src="icon.png" alt="Live Buddy" width="32" height="32"> Live Buddy</div>
+    <div class="nav-links">
+      <a href="#features" class="nav-link">기능</a>
+      <a href="#personas" class="nav-link">페르소나</a>
+      <a href="#characters" class="nav-link">캐릭터</a>
+      <a href="#download" class="nav-cta">다운로드 →</a>
     </div>
-  </footer>
+  </div>
+</header>
 
-  <script>
-    // ── OS 자동 감지 → 추천 카드 강조 + 히어로 버튼 연결 ──
-    (function () {
-      const ua = navigator.userAgent;
-      const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
-      const isWin = /Win/i.test(platform) || /Windows/i.test(ua);
-      const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="wrap hero-inner">
+    <span class="eyebrow" id="version-badge"><span class="dot"></span> 데스크톱 방송 콘솔 · macOS & Windows</span>
+    <h1 class="tagline">방송을 혼자 끌어가지 마세요. <span class="hl">AI 파트너</span>가 함께합니다.</h1>
+    <p class="lede">시청자 채팅을 실시간으로 읽고, AI 캐릭터가 직접 반응하고, OBS 오버레이까지 자동으로 맞춰주는 1인 방송용 콘솔입니다. 음성 인식(STT) 모델이 앱에 내장되어 별도 설치 없이 바로 시작할 수 있습니다.</p>
+    <div class="hero-cta">
+      <a href="#download" class="btn btn-primary" id="hero-download">⬇ <span id="hero-download-label">앱 다운로드</span></a>
+      <a href="https://github.com/SKU-SW/fe" class="btn btn-ghost" target="_blank" rel="noopener">{ } GitHub 보기</a>
+    </div>
+    <div class="platform-row" style="display:flex;align-items:center;gap:16px;margin-top:16px">
+          <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.78rem;color:var(--ink-faint)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            macOS
+          </span>
+          <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.78rem;color:var(--ink-faint)">
+            <svg width="16" height="16" viewBox="0 0 88 88" fill="currentColor"><path d="M0 12.5L36 7.5V42H0V12.5zM40 6.9L88 0V42H40V6.9zM0 46H36V81L0 75.5V46zM40 46H88V88L40 81.1V46z"/></svg>
+            Windows
+          </span>
+    </div>
 
-      // SVG OS 아이콘 주입 (Apple / Windows)
-      const apple = '<svg viewBox="0 0 24 24" width="46" height="46" fill="currentColor"><path d="M16.365 1.43c0 1.14-.42 2.2-1.12 3.02-.84.99-2.2 1.75-3.32 1.66-.13-1.1.43-2.25 1.1-3.02.78-.9 2.16-1.6 3.34-1.66zM20.5 17.1c-.55 1.27-.82 1.83-1.53 2.96-.99 1.57-2.39 3.52-4.12 3.53-1.54.01-1.94-1-4.03-.99-2.09.01-2.52 1.01-4.06.99-1.73-.01-3.05-1.78-4.04-3.34C-.04 16.9-.4 11.5 1.36 8.62c1.18-1.94 3.06-3.07 4.83-3.07 1.8 0 2.93 1 4.42 1 1.44 0 2.32-1 4.4-1 1.57 0 3.24.86 4.42 2.34-3.88 2.13-3.25 7.67.07 9.21z"/></svg>';
-      const windows = '<svg viewBox="0 0 24 24" width="46" height="46" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0V3.45zM10.95 1.95L24 0v11.4H10.95V1.95zM0 12.6h9.75v9.45L0 20.7V12.6zM10.95 12.6H24V24l-13.05-1.8V12.6z"/></svg>';
-      const macIcon = document.querySelector("#card-mac .os-ic");
-      const winIcon = document.querySelector("#card-win .os-ic");
-      if (macIcon) macIcon.innerHTML = apple;
-      if (winIcon) winIcon.innerHTML = windows;
+    <!-- dashboard mock (Live Buddy dashboard UI) -->
+    <div class="dashboard-mock reveal">
+      <div class="dash-top">
+        <div class="dash-status">
+          <span class="pulse-dot"></span>
+          <span>AI가 방송 상황을 모니터링하고 있어요</span>
+        </div>
+        <div class="dash-toggle">
+          <span class="toggle-label">대화 로그</span>
+        </div>
+      </div>
+      <!-- STT hint removed -->
+      <div class="dash-main">
+        <div class="dash-char">
+          <div class="char-frame">
+            <img src="2D_male.webp" alt="AI 캐릭터" class="char-portrait">
+          </div>
+          <div class="char-name">Live Buddy</div>
+          <div class="char-state"><span class="state-dot"></span>대기 중</div>
+        </div>
+        <div class="dash-chat">
+          <div class="chat-tabs">
+            <span class="tab active">AI 캐릭터</span>
+            <span class="tab">스트리머</span>
+            <span class="tab">시청자 채팅</span>
+            <span class="tab-toggle">전체 채팅 <span class="toggle-on">ON</span></span>
+          </div>
+          <div class="chat-body" id="chat-body">
+            <div class="chat-msg">
+              <span class="chat-user">초보스트리머</span>
+              <span class="chat-text">오버레이 어떻게 넣었어요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">OBS Browser Source로 추가하면 자동 셋업돼요!</span>
+            </div>
+            <div class="chat-msg">
+              <span class="chat-user">음성궁금</span>
+              <span class="chat-text">페르소나별로 매핑된 음성이 있어요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">동네 친구, 텐션 폭발 등 각 페르소나마다 추천 음성 풀이 자동 매핑돼요!</span>
+            </div>
+            <div class="chat-msg">
+              <span class="chat-user">방송뉴비</span>
+              <span class="chat-text">STT 설치 안 해도 되나요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">네! Faster Whisper가 앱에 내장되어 있어요.</span>
+            </div>
+            <div class="chat-msg">
+              <span class="chat-user">채팅분석러</span>
+              <span class="chat-text">채팅 여론 분석은 어디서 봐요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">대시보드 하단 KPI 카드에서 실시간으로 확인하세요!</span>
+            </div>
+            <div class="chat-msg">
+              <span class="chat-user">통계광</span>
+              <span class="chat-text">방송 통계는 어디서 확인해요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">Stats 페이지에서 날짜별 타임라인과 요약을 볼 수 있어요!</span>
+            </div>
+            <div class="chat-msg">
+              <span class="chat-user">페르소나팬</span>
+              <span class="chat-text">AI 캐릭터 성격 바꿀 수 있어요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">동네 친구, 텐션 폭발, 깐족 요정, 전문 매니저, 과몰입 장인 중 선택 가능해요!</span>
+            </div>
+            <div class="chat-msg">
+              <span class="chat-user">단축키러</span>
+              <span class="chat-text">음성 인식 단축키 뭐예요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">macOS는 Cmd+Shift+M, Windows는 Ctrl+Shift+M이에요. 설정에서 커스텀도 가능합니다!</span>
+            </div>
+            <div class="chat-msg">
+              <span class="chat-user">치지직궁금</span>
+              <span class="chat-text">치지직 방송 시작하려면 OBS가 필요해요?</span>
+            </div>
+            <div class="chat-msg ai">
+              <span class="chat-user">버디</span>
+              <span class="chat-text">네, 치지직과 연동되어 방송 시작하려면 OBS가 필요합니다. 오버레이도 OBS로 송출돼요!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dash-controls">
+        <div class="ctrl-item"><span class="ctrl-label">마이크</span><span class="ctrl-toggle on">ON</span></div>
+        <div class="ctrl-item"><span class="ctrl-label">스피커</span><span class="ctrl-toggle on">ON</span></div>
+        <div class="ctrl-item"><span class="ctrl-label">선제 반응</span><span class="ctrl-toggle on">ON</span></div>
+        <div class="ctrl-item"><span class="ctrl-label">AI 동작</span><span class="ctrl-toggle on">ON</span></div>
+      </div>
+      <div class="dash-kpis">
+        <div class="dash-kpi">
+          <div class="kpi-header">
+            <div class="kpi-icon">AI</div>
+            <div class="kpi-status green"></div>
+          </div>
+          <div class="kpi-label">AI 상태</div>
+          <div class="kpi-value">활성화</div>
+          <div class="kpi-sub">정상 작동 중</div>
+        </div>
+        <div class="dash-kpi">
+          <div class="kpi-header">
+            <div class="kpi-icon">VIEW</div>
+            <div class="kpi-status blue"></div>
+          </div>
+          <div class="kpi-label">현재 시청자 수</div>
+          <div class="kpi-value">128</div>
+          <div class="kpi-sub">최고 156명</div>
+        </div>
+        <div class="dash-kpi">
+          <div class="kpi-header">
+            <div class="kpi-icon">CHAT</div>
+            <div class="kpi-status amber"></div>
+          </div>
+          <div class="kpi-label">채팅 속도</div>
+          <div class="kpi-value">42개/분</div>
+          <div class="kpi-sub">최근 10분 · 총 418건</div>
+        </div>
+        <div class="dash-kpi">
+          <div class="kpi-header">
+            <div class="kpi-icon">SENT</div>
+            <div class="kpi-status green"></div>
+          </div>
+          <div class="kpi-label">실시간 감정 비율</div>
+          <div class="kpi-value">긍정 78%</div>
+          <div class="kpi-sub">긍정 78% · 중립 18% · 부정 4%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-      const macCard = document.getElementById("card-mac");
-      const winCard = document.getElementById("card-win");
-      const heroBtn = document.getElementById("hero-download");
-      const heroLabel = document.getElementById("hero-download-label");
-      const MAC_URL = "https://github.com/SKU-SW/fe/releases/latest/download/LiveBuddy-mac-arm64.dmg";
-      const WIN_URL = "https://github.com/SKU-SW/fe/releases/latest/download/LiveBuddy-win-x64.exe";
+<!-- WHO -->
+<section>
+  <div class="wrap">
+    <span class="sec-eyebrow reveal">누구를 위한 도구인가요</span>
+    <h2 class="sec-title reveal">방송에 손이 모자란 사람을 위해 만들었습니다.</h2>
+    <div class="who-grid">
+      <div class="who-card reveal">
+        <div class="who-num">FOR · 01</div>
+        <h3>1인 방송인</h3>
+        <p>게임하랴 채팅 보랴 정신없는 1인 스트리머. 버디가 채팅을 읽고 대신 반응해 줍니다. 설정한 단축키로 음성 대화가 가능합니다.</p>
+      </div>
+      <div class="who-card reveal" style="transition-delay:.08s">
+        <div class="who-num">FOR · 02</div>
+        <h3>처음 시작하는 분</h3>
+        <p>아직 시청자가 적어 채팅이 뜸할 때, AI 캐릭터가 방송 분위기를 살려줍니다. AI가 채팅에 자연스럽게 반응하며 방송을 함께 이끌어갑니다.</p>
+      </div>
+      <div class="who-card reveal" style="transition-delay:.16s">
+        <div class="who-num">FOR · 03</div>
+        <h3>버추얼 방송인</h3>
+        <p>WebP 캐릭터 이미지에 페르소나와 음성을 입혀 OBS 오버레이로 바로 송출합니다. 2D와 3D VRM을 모두 지원합니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-      function recommend(card, url, label) {
-        card.classList.add("recommended");
-        card.querySelector(".tag").hidden = false;
-        const btn = card.querySelector(".btn");
-        btn.classList.remove("btn-ghost"); btn.classList.add("btn-primary");
-        heroBtn.setAttribute("href", url);
-        heroLabel.textContent = label + " 다운로드";
+<!-- FEATURES -->
+<section id="features">
+  <div class="wrap">
+    <span class="sec-eyebrow reveal">핵심 기능</span>
+    <h2 class="sec-title reveal">여덟 가지가 한 화면 안에서 돌아갑니다.</h2>
+    <p class="sec-sub reveal">대시보드를 열면 방송 상태, 채팅, AI 캐릭터, OBS 오버레이, STT, 통계가 한 곳에. 창을 전환할 필요가 없습니다.</p>
+    <div class="feat-list">
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="M15 9h-2a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h0a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2"></path><line x1="9" y1="3" x2="9" y2="9"></line><line x1="15" y1="3" x2="15" y2="9"></line><line x1="9" y1="15" x2="9" y2="21"></line><line x1="15" y1="15" x2="15" y2="21"></line></svg></div>
+        <div class="feat-txt"><h3>AI 캐릭터 · 5종 페르소나</h3><p>동네 친구, 텐션 폭발, 깐족 요정, 전문 매니저, 과몰입 장인. 각 페르소나마다 말투·성격·말속도까지 세밀하게 커스텀 가능합니다.</p></div>
+        <div class="feat-tags"><span class="feat-tag">PERSONA</span></div>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div>
+        <div class="feat-txt"><h3>실시간 채팅 분석</h3><p>흘러가는 채팅을 실시간으로 읽어 긍정·중립·부정 여론을 분석하고, 반응할 만한 메시지를 골라 응답합니다. 분당 채팅 속도, 주요 키워드 Top 10, 여론 흐름 그래프까지 제공합니다.</p></div>
+        <div class="feat-tags"><span class="feat-tag">REALTIME</span><span class="feat-tag amber">SENTIMENT</span></div>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></div>
+        <div class="feat-txt"><h3>OBS 오버레이 자동화</h3><p>OBS Browser Source와 연동해 투명 오버레이를 자동 셋업합니다. 캐릭터 이미지, AI 말풍선, 감정 상태가 송출 화면에 바로 얹힙니다. 위치·크기 프리셋도 저장 가능.</p></div>
+        <div class="feat-tags"><span class="feat-tag">OBS SYNC</span></div>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></div>
+        <div class="feat-txt"><h3>음성 인식 (STT)</h3><p>Faster Whisper 기반 로컬 STT 모델이 앱에 내장되어 별도 설치 없이 바로 동작합니다. Push-to-Talk(Ctrl+M)로 말하면 텍스트로 변환되어 AI가 함께 듣습니다. 음성이 외부로 나가지 않습니다.</p></div>
+        <div class="feat-tags"><span class="feat-tag live">LOCAL STT</span><span class="feat-tag">내장 모델</span></div>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></div>
+        <div class="feat-txt"><h3>AI 선제 반응</h3><p>중요한 채팅을 스트리머가 놓치면 AI가 먼저 반응합니다. 대화 공백이 감지되면 맥락에 맞는 대화나 가벼운 콘텐츠로 방송을 이어줍니다. 민감도와 빈도는 설정 가능.</p></div>
+        <div class="feat-tags"><span class="feat-tag amber">PROACTIVE</span></div>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg></div>
+        <div class="feat-txt"><h3>다중 플랫폼 방송 지원</h3><p>치지직 등 다양한 플랫폼과 연동하여 방송을 시작할 수 있습니다. OBS와 연동해 한 번의 설정으로 여러 플랫폼에 동시 송출 가능합니다.</p></div>
+        <div class="feat-tags"><span class="feat-tag violet">PLATFORM</span></div>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></div>
+        <div class="feat-txt"><h3>안전 관리</h3><p>커스텀 금지어 필터링으로 채팅 입력과 AI 응답 양쪽을 모두 검사합니다. 부적절한 내용은 자동 탐지되어 차단되고, AI의 응원·비판 강도도 세밀하게 조절할 수 있습니다.</p></div>
+        <div class="feat-tags"><span class="feat-tag live">SAFETY</span></div>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></div>
+        <div class="feat-txt"><h3>방송 통계</h3><p>날짜별 방송 흐름을 타임라인으로 다시 봅니다. 스트리머 대화, AI 응답, 채팅 여론, 게임 이벤트를 통합 조회하여 다음 방송 전략을 세울 수 있습니다.</p></div>
+        <div class="feat-tags"><span class="feat-tag">STATS</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PERSONAS -->
+<section class="persona-section" id="personas">
+  <div class="wrap">
+    <span class="sec-eyebrow reveal">AI 페르소나</span>
+    <h2 class="sec-title reveal">5가지 성격으로 방송에 개성을 더하세요.</h2>
+    <p class="sec-sub reveal">각 페르소나는 고유한 말투와 반응 스타일을 가집니다. 방송 컨셉에 맞는 캐릭터를 선택하고, 말투·성격·말속도까지 세밀하게 조절하세요.</p>
+    <div class="persona-grid stagger reveal">
+      <div class="persona-card" style="--glow:rgba(8,145,178,.08);--glow-border:var(--cyan);--glow-shadow:rgba(8,145,178,.15)">
+        <div class="persona-emoji">01</div>
+        <h3>동네 친구</h3>
+        <p>무난하고 편안한 국밥 포지션. 적당한 딴지와 밈으로 티키타카.</p>
+      </div>
+      <div class="persona-card" style="--glow:rgba(225,29,72,.08);--glow-border:var(--live);--glow-shadow:rgba(225,29,72,.15)">
+        <div class="persona-emoji">02</div>
+        <h3>텐션 폭발</h3>
+        <p>방송 분위기를 멱살 잡고 끌어올리는 포지션. 큰 리액션, 풍부한 감정.</p>
+      </div>
+      <div class="persona-card" style="--glow:rgba(217,119,6,.08);--glow-border:var(--amber);--glow-shadow:rgba(217,119,6,.15)">
+        <div class="persona-emoji">03</div>
+        <h3>깐족 요정</h3>
+        <p>스트리머를 긁거나 팩폭. 실수를 놓치지 않고 놀리는 장난기.</p>
+      </div>
+      <div class="persona-card" style="--glow:rgba(124,58,237,.08);--glow-border:var(--violet);--glow-shadow:rgba(124,58,237,.15)">
+        <div class="persona-emoji">04</div>
+        <h3>전문 매니저</h3>
+        <p>선 넘는 채팅 진정, 정보 전달. 차분하고 신뢰감 있는 진행.</p>
+      </div>
+      <div class="persona-card" style="--glow:rgba(14,116,144,.08);--glow-border:var(--cyan-dim);--glow-shadow:rgba(14,116,144,.15)">
+        <div class="persona-emoji">05</div>
+        <h3>과몰입 장인</h3>
+        <p>게임 세계관에 동화. 농담보다 분위기와 몰입감 우선.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CHARACTER SHOWCASE (2D / 3D) -->
+<section class="char-showcase" id="characters">
+  <div class="wrap">
+    <span class="sec-eyebrow reveal">캐릭터 미리보기</span>
+    <h2 class="sec-title reveal">2D WebP와 3D VRM을 모두 지원합니다.</h2>
+    <p class="sec-sub reveal">방송 스타일에 맞는 캐릭터 형태를 선택하세요. 2D는 가볍고 빠르게, 3D는 입체감 있게 송출 화면에 표시됩니다.</p>
+    <div class="char-grid">
+      <!-- 2D Card -->
+      <div class="char-card reveal">
+        <div class="char-img-wrap">
+          <span class="dim-badge d2">2D WebP</span>
+          <div class="char-preview-row">
+            <div class="char-preview">
+              <img src="2D_male.webp" alt="2D 남성 캐릭터">
+              <span class="char-gender">남성</span>
+            </div>
+            <div class="char-preview">
+              <img src="2D_female.webp" alt="2D 여성 캐릭터">
+              <span class="char-gender">여성</span>
+            </div>
+          </div>
+        </div>
+        <div class="char-info">
+          <h3>2D WebP 캐릭터</h3>
+          <p>WebP 이미지 기반의 가벼운 2D 캐릭터입니다. 감정 상태에 따라 이미지가 전환되며, OBS 오버레이에 최적화되어 있어 CPU 부하가 적습니다. 남성/여성 프리셋을 모두 제공합니다.</p>
+          <div class="char-tags">
+            <span>파일: .webp</span>
+            <span>저부하</span>
+            <span>감정 전환</span>
+            <span>OBS 최적화</span>
+          </div>
+        </div>
+      </div>
+      <!-- 3D Card -->
+      <div class="char-card reveal">
+        <div class="char-img-wrap">
+          <span class="dim-badge d3">3D VRM</span>
+          <div class="char-preview-row">
+            <div class="char-preview">
+              <img src="3D_male.webp" alt="3D 남성 VRM 캐릭터">
+              <span class="char-gender">남성</span>
+            </div>
+            <div class="char-preview">
+              <img src="3D_female.webp" alt="3D 여성 VRM 캐릭터">
+              <span class="char-gender">여성</span>
+            </div>
+          </div>
+        </div>
+        <div class="char-info">
+          <h3>3D VRM</h3>
+          <p>VRM 형식의 3D 아바타입니다. Three.js 기반 렌더링으로 웹 오버레이에서도 입체감 있는 캐릭터를 표시할 수 있습니다. 외형 커스터마이징과 모션도 확장 예정입니다.</p>
+          <div class="char-tags">
+            <span>파일: .vrm</span>
+            <span>Three.js 렌더</span>
+            <span>입체감</span>
+            <span>확장 예정</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section id="techstack">
+  <div class="wrap">
+    <span class="sec-eyebrow reveal">기술 스택</span>
+    <h2 class="sec-title reveal">검증된 기술로 만들어졌습니다.</h2>
+    <div class="tech-categories stagger reveal">
+      <div class="tech-cat">
+        <h3>Frontend</h3>
+        <div class="tech-chips">
+          <span class="tech-chip"><span class="tc-dot"></span>Electron 33</span>
+          <span class="tech-chip"><span class="tc-dot"></span>React 19</span>
+          <span class="tech-chip"><span class="tc-dot"></span>TypeScript 5</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Vite 8</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Zustand 5</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Tailwind CSS 3</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Chart.js</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Three.js</span>
+        </div>
+      </div>
+      <div class="tech-cat">
+        <h3>Backend</h3>
+        <div class="tech-chips">
+          <span class="tech-chip"><span class="tc-dot"></span>Java 21</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Spring Boot 3.5.6</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Spring Data JPA</span>
+          <span class="tech-chip"><span class="tc-dot"></span>QueryDSL 7.0</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Spring Security</span>
+          <span class="tech-chip"><span class="tc-dot"></span>JWT</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Spring WebSocket</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Spring WebFlux</span>
+        </div>
+      </div>
+      <div class="tech-cat">
+        <h3>AI</h3>
+        <div class="tech-chips">
+          <span class="tech-chip"><span class="tc-dot"></span>Python</span>
+          <span class="tech-chip"><span class="tc-dot"></span>FastAPI + Uvicorn</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Faster Whisper</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Google Gemini API</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Gemini Live API</span>
+        </div>
+      </div>
+      <div class="tech-cat">
+        <h3>Database / Cache</h3>
+        <div class="tech-chips">
+          <span class="tech-chip"><span class="tc-dot"></span>MySQL 8.0</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Redis (Pub-Sub)</span>
+          <span class="tech-chip"><span class="tc-dot"></span>AWS S3</span>
+        </div>
+      </div>
+      <div class="tech-cat">
+        <h3>Infrastructure</h3>
+        <div class="tech-chips">
+          <span class="tech-chip"><span class="tc-dot"></span>AWS VPC (EC2, S3)</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Docker</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Nginx</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Cloudflare</span>
+          <span class="tech-chip"><span class="tc-dot"></span>CloudFront</span>
+          <span class="tech-chip"><span class="tc-dot"></span>Let's Encrypt</span>
+        </div>
+      </div>
+      <div class="tech-cat">
+        <h3>DevOps / CI·CD</h3>
+        <div class="tech-chips">
+          <span class="tech-chip"><span class="tc-dot"></span>GitHub Actions</span>
+        </div>
+      </div>
+      <div class="tech-cat">
+        <h3>External API</h3>
+        <div class="tech-chips">
+          <span class="tech-chip"><span class="tc-dot"></span>Chzzk API</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOWNLOAD -->
+<section id="download" style="background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <span class="sec-eyebrow reveal" style="justify-content:center">지금 다운로드</span>
+    <h2 class="sec-title reveal" style="text-align:center;margin-left:auto;margin-right:auto">운영체제에 맞는 파일을 받으세요.</h2>
+    <p class="sec-sub reveal" style="text-align:center;margin-left:auto;margin-right:auto">STT 모델이 앱에 내장되어 있어 별도 설치 없이 바로 시작할 수 있습니다.</p>
+    <div class="dl-grid">
+      <div class="dl-card reveal" id="card-mac">
+        <span class="rec-tag" hidden>추천</span>
+        <div style="font-size:3rem;margin-bottom:12px;color:var(--ink)">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        </div>
+        <h3>macOS</h3>
+        <span class="dl-meta">Apple Silicon (M1+) · .dmg</span>
+        <a class="btn btn-primary" href="https://github.com/SKU-SW/fe/releases/latest/download/LiveBuddy-mac-arm64.dmg">macOS용 다운로드</a>
+      </div>
+      <div class="dl-card reveal" id="card-win" style="transition-delay:.08s">
+        <span class="rec-tag" hidden>추천</span>
+        <div style="font-size:3rem;margin-bottom:12px;color:var(--ink)">
+          <svg width="48" height="48" viewBox="0 0 88 88" fill="currentColor"><path d="M0 12.5L36 7.5V42H0V12.5zM40 6.9L88 0V42H40V6.9zM0 46H36V81L0 75.5V46zM40 46H88V88L40 81.1V46z"/></svg>
+        </div>
+        <h3>Windows</h3>
+        <span class="dl-meta">64-bit (x64) · .exe · NVIDIA GPU 필수</span>
+        <a class="btn btn-primary" href="https://github.com/SKU-SW/fe/releases/latest/download/LiveBuddy-win-x64.exe">Windows용 다운로드</a>
+      </div>
+    </div>
+    <p style="max-width:680px;margin:28px auto 0;text-align:center;font-family:var(--mono);font-size:.78rem;color:var(--ink-faint)">
+      Windows: Intel GPU 환경에서는 STT 모델이 동작하지 않습니다. NVIDIA GPU가 필요합니다.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div>
+      <div class="foot-brand"><img src="icon.png" alt="" width="28" height="28"> Live Buddy <span id="footer-version" style="font-weight:400;font-size:.82rem;color:var(--ink-faint)"></span></div>
+      <div class="foot-copy">AI 캐릭터 방송 관리 데스크톱 콘솔 · 오픈소스</div>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/SKU-SW/fe" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/SKU-SW/fe/releases" target="_blank" rel="noopener">전체 릴리즈</a>
+      <a href="#features">기능</a>
+      <a href="#personas">페르소나</a>
+      <a href="#characters">캐릭터</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* ── scroll reveal ── */
+  const io = new IntersectionObserver((es) => {
+    es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: .12 });
+  document.querySelectorAll('.reveal, .stagger').forEach(el => io.observe(el));
+
+  /* ── latest release version (fail-safe) ── */
+  (function () {
+    fetch('https://api.github.com/repos/SKU-SW/fe/releases/latest')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d || !d.tag_name) return;
+        const v = d.tag_name;
+        const badge = document.getElementById('version-badge');
+        const fv = document.getElementById('footer-version');
+        if (badge) badge.innerHTML = '<span class="dot"></span> 최신 버전 ' + v + ' · macOS & Windows';
+        if (fv) fv.textContent = v;
+      })
+      .catch(() => {});
+  })();
+
+  /* ── dynamic chat simulation ── */
+  (function () {
+    const chatBody = document.getElementById('chat-body');
+    if (!chatBody) return;
+    const sampleChats = [
+      { u: '초보스트리머', t: '오버레이 어떻게 넣었어요?' },
+      { u: '버디', t: 'OBS Browser Source로 추가하면 자동 셋업돼요!', ai: true },
+      { u: '음성궁금', t: '페르소나별로 매핑된 음성이 있어요?' },
+      { u: '버디', t: '동네 친구, 텐션 폭발 등 각 페르소나마다 추천 음성 풀이 자동 매핑돼요!', ai: true },
+      { u: '방송뉴비', t: 'STT 설치 안 해도 되나요?' },
+      { u: '버디', t: '네! Faster Whisper가 앱에 내장되어 있어요.', ai: true },
+      { u: '채팅분석러', t: '채팅 여론 분석은 어디서 봐요?' },
+      { u: '버디', t: '대시보드 하단 KPI 카드에서 실시간으로 확인하세요!', ai: true },
+      { u: '통계광', t: '방송 통계는 어디서 확인해요?' },
+      { u: '버디', t: 'Stats 페이지에서 날짜별 타임라인과 요약을 볼 수 있어요!', ai: true },
+      { u: '페르소나팬', t: 'AI 캐릭터 성격 바꿀 수 있어요?' },
+      { u: '버디', t: '동네 친구, 텐션 폭발, 깐족 요정, 전문 매니저, 과몰입 장인 중 선택 가능해요!', ai: true },
+      { u: '단축키러', t: '음성 인식 단축키 뭐예요?' },
+      { u: '버디', t: 'macOS는 Cmd+Shift+M, Windows는 Ctrl+Shift+M이에요. 설정에서 커스텀도 가능합니다!', ai: true },
+      { u: '치지직궁금', t: '치지직 방송 시작하려면 OBS가 필요해요?' },
+      { u: '버디', t: '네, 치지직과 연동되어 방송 시작하려면 OBS가 필요합니다. 오버레이도 OBS로 송출돼요!', ai: true },
+    ];
+    let idx = 0;
+    function addMsg() {
+      const data = sampleChats[idx % sampleChats.length];
+      const div = document.createElement('div');
+      div.className = 'chat-msg' + (data.ai ? ' ai' : '');
+      div.innerHTML = '<span class="chat-user">' + data.u + '</span><span class="chat-text">' + data.t + '</span>';
+      chatBody.appendChild(div);
+      chatBody.scrollTop = chatBody.scrollHeight;
+      const msgs = chatBody.querySelectorAll('.chat-msg');
+      if (msgs.length > 8) msgs[0].remove();
+      idx++;
+    }
+    setTimeout(() => { setInterval(addMsg, 4000); }, 5000);
+  })();
+
+  /* ── smooth nav active state ── */
+  (function () {
+    const links = document.querySelectorAll('.nav-link');
+    const sections = [];
+    links.forEach(l => {
+      const href = l.getAttribute('href');
+      if (href && href.startsWith('#')) {
+        const sec = document.querySelector(href);
+        if (sec) sections.push({ el: sec, link: l });
       }
-      if (isMac) recommend(macCard, MAC_URL, "macOS용");
-      else if (isWin) recommend(winCard, WIN_URL, "Windows용");
-      else heroBtn.setAttribute("href", "#download");
-    })();
+    });
+    if (!sections.length) return;
+    const navIO = new IntersectionObserver((es) => {
+      es.forEach(e => {
+        const found = sections.find(s => s.el === e.target);
+        if (found && e.isIntersecting) {
+          links.forEach(l => l.style.color = '');
+          found.link.style.color = 'var(--cyan)';
+        }
+      });
+    }, { threshold: .3 });
+    sections.forEach(s => navIO.observe(s.el));
+  })();
 
-    // ── 최신 릴리즈 버전 표시 (실패해도 무시) ──
-    (function () {
-      fetch("https://api.github.com/repos/SKU-SW/fe/releases/latest")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (!d || !d.tag_name) return;
-          const v = d.tag_name;
-          const badge = document.getElementById("version-badge");
-          const fv = document.getElementById("footer-version");
-          if (badge) badge.textContent = "최신 버전 " + v + " · macOS & Windows";
-          if (fv) fv.textContent = v;
-        })
-        .catch(() => {});
-    })();
-  </script>
+  /* ── particle background ── */
+  (function () {
+    const canvas = document.getElementById('particles');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let w, h;
+    function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const particles = [];
+    const count = Math.min(60, Math.floor(w * h / 25000));
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - .5) * .3,
+        vy: (Math.random() - .5) * .3,
+        r: Math.random() * 1.5 + .5,
+        alpha: Math.random() * .4 + .1,
+        color: Math.random() > .6 ? '8,145,178' : Math.random() > .5 ? '225,29,72' : '124,58,237'
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + p.color + ',' + p.alpha + ')';
+        ctx.fill();
+      });
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  /* ── OS auto-detect → recommend card ── */
+  (function () {
+    const ua = navigator.userAgent;
+    const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    const isWin = /Win/i.test(platform) || /Windows/i.test(ua);
+    const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
+    const macCard = document.getElementById('card-mac');
+    const winCard = document.getElementById('card-win');
+    function recommend(card) {
+      card.classList.add('recommended');
+      card.querySelector('.rec-tag').hidden = false;
+    }
+    if (isMac && macCard) recommend(macCard);
+    else if (isWin && winCard) recommend(winCard);
+  })();
+</script>
+
 </body>
 </html>
