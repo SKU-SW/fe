@@ -29,7 +29,7 @@ export interface SensitivitySettings {
 export interface QuickToggles {
   sttEnabled: boolean;         // 음성인식 (STT)
   ttsEnabled: boolean;         // 음성출력 (TTS)
-  lipSyncEnabled: boolean;     // TTS 기반 립싱크 (실험)
+  lipSyncEnabled: boolean;     // TTS 기반 립싱크
   chatReactionEnabled: boolean; // 채팅 반응
   proactiveReactionEnabled: boolean; // 선제적 반응
 }
@@ -176,7 +176,7 @@ const DEFAULT_SENSITIVITY: SensitivitySettings = {
 const DEFAULT_TOGGLES: QuickToggles = {
   sttEnabled: true,
   ttsEnabled: true,
-  lipSyncEnabled: false,
+  lipSyncEnabled: true,
   chatReactionEnabled: true,
   proactiveReactionEnabled: false,
 };

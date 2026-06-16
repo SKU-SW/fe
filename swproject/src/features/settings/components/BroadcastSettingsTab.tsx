@@ -1,5 +1,5 @@
 /**
- * @file 방송 설정 탭 — AI 선제 반응 토글 (실 API 연동) + 립싱크 실험 토글 (로컬)
+ * @file 방송 설정 탭 — AI 선제 반응 토글 (실 API 연동) + 립싱크 토글 (로컬)
  * @dependsOn src/features/settings/hooks/useBroadcastSettings.ts
  * @dependsOn src/shared/stores/aiModeStore.ts
  * @usedBy src/pages/SettingsPage.tsx
@@ -104,16 +104,16 @@ export function BroadcastSettingsTab() {
       </section>
 
       <section className="rounded-xl border border-border-strong bg-surface-panel p-6 transition-colors">
-        <h2 className="text-xl font-semibold text-content-primary">립싱크 (실험)</h2>
+        <h2 className="text-xl font-semibold text-content-primary">립싱크</h2>
         <p className="mt-1 text-sm text-content-muted">
-          TTS 재생 오디오를 기준으로 3D 캐릭터 입 모양을 동기화합니다. 기본값은 OFF입니다.
+          TTS 재생 오디오를 기준으로 3D 캐릭터 입 모양을 동기화합니다.
         </p>
 
         <label className="mt-5 flex items-start justify-between gap-4 rounded-xl border border-border-default bg-surface-raised p-4">
           <div>
             <p className="text-base font-semibold text-content-primary">TTS 기반 립싱크 활성화</p>
             <p className="mt-1 text-sm text-content-muted">
-              안정성 점검 중인 실험 기능입니다. 문제가 있으면 즉시 OFF로 되돌리세요.
+              켜면 AI가 말할 때 캐릭터의 입 모양이 음성에 맞춰 실시간으로 움직입니다.
             </p>
           </div>
           <input
