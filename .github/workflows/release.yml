@@ -23,7 +23,8 @@ jobs:
         include:
           - os: macos-14 # Apple Silicon(arm64) → dmg + arm64 STT 사이드카
             artifact: dmg
-          - os: windows-latest # x64 → nsis(exe) + x64 STT 사이드카
+          - os: windows-2022 # x64 → nsis(exe) + x64 STT 사이드카. windows-latest(2025)는
+            # node-gyp 의 VS 툴체인 탐지 실패(uiohook-napi 리빌드)로 깨져 2022 로 핀.
             artifact: exe
     runs-on: ${{ matrix.os }}
 
@@ -70,7 +71,7 @@ jobs:
       # STT 사이드카(ctranslate2/onnxruntime)가 MSVC 런타임 DLL 을 필요로 하므로, 인스톨러에
       # 동봉해 설치 시 자동 설치한다(build/installer.nsh 의 customInstall 에서 실행).
       - name: Download VC++ x64 Redistributable (Windows only → installer 동봉)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         shell: pwsh
         run: Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "build/vc_redist.x64.exe"
 
