@@ -10,9 +10,13 @@
 ;   - vc_redist.x64.exe 는 CI 에서 build/ 로 내려받아 인스톨러에 동봉한다(BUILD_RESOURCES_DIR).
 
 !macro customInstall
+  !if /FileExists "${BUILD_RESOURCES_DIR}\vc_redist.x64.exe"
   SetOutPath "$PLUGINSDIR"
   File "${BUILD_RESOURCES_DIR}\vc_redist.x64.exe"
   DetailPrint "Visual C++ 런타임 확인/설치 중... (음성 인식 엔진 의존성)"
   ExecWait '"$PLUGINSDIR\vc_redist.x64.exe" /install /quiet /norestart' $0
   DetailPrint "Visual C++ 런타임 설치 종료 코드: $0"
+  !else
+  DetailPrint "vc_redist.x64.exe 를 찾지 못해 Visual C++ 런타임 설치를 건너뜁니다."
+  !endif
 !macroend

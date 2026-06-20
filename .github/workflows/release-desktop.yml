@@ -36,6 +36,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Download VC++ redistributable (Windows only)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          $out = "swproject/build/vc_redist.x64.exe"
+          Invoke-WebRequest -Uri $url -OutFile $out
       - name: Install dependencies
         run: npm ci
         working-directory: swproject
