@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 
-const rootDir = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const electronDir = path.join(rootDir, "electron");
 const distSttDir = path.join(rootDir, "dist-stt");
 const venvDir = path.join(rootDir, ".venv-stt-sidecar");

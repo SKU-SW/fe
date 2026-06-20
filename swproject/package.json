@@ -11,7 +11,7 @@
     "stt:build": "node scripts/build-stt-sidecar.mjs",
     "electron:build-main": "tsc --project tsconfig.electron.json",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron:build-main && cross-env NODE_ENV=development electron dist-electron/main.js\"",
-    "electron:build": "npm run stt:build && npm run electron:build-main && npm run build && electron-builder",
+    "electron:build": "npm run stt:build && npm run electron:build-main && npm run build && electron-builder --publish never",
     "electron:preview": "npm run stt:build && npm run electron:build-main && npm run build && cross-env NODE_ENV=production electron dist-electron/main.js"
   },
   "dependencies": {
