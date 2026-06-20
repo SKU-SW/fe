@@ -181,7 +181,8 @@ function findMatchedImage(
 function findMatchedVrm(
   settings: CharacterSettingsResDto | null,
   vrmPresetId: number | null | undefined,
-  vrmUrl: string | null | undefined
+  vrmUrl: string | null | undefined,
+  thumbnailUrl?: string | null | undefined
 ) {
   const presets = settings?.vrmPresets ?? [];
   if (vrmPresetId) {
@@ -195,6 +196,14 @@ function findMatchedVrm(
     if (matchedByUrl) return matchedByUrl;
   }
 
+  // 백엔드가 3D 캐릭터의 characterImageUrl 로 VRM 썸네일을 주므로(vrmPresetId/vrmUrl 미제공),
+  // 썸네일 URL 로도 매칭해 "원래 선택된 VRM" 을 복원한다. → 수정 페이지에서 미리 선택됨.
+  const resolvedThumb = resolveAssetUrl(thumbnailUrl);
+  if (resolvedThumb) {
+    const matchedByThumb = presets.find((preset) => resolveAssetUrl(preset.thumbnailUrl) === resolvedThumb);
+    if (matchedByThumb) return matchedByThumb;
+  }
+
   return presets[0] ?? null;
 }
 
@@ -205,7 +214,7 @@ function toCharacterPreset(item: CharacterListItemResDto, settings: CharacterSet
   const persona = item.characterPersona;
   const modelType = modelTypeOf(item.modelType);
   const matchedImage = findMatchedImage(settings, item.characterImageId, item.characterImageUrl, item.gender);
-  const matchedVrm = findMatchedVrm(settings, item.vrmPresetId, item.vrmUrl);
+  const matchedVrm = findMatchedVrm(settings, item.vrmPresetId, item.vrmUrl, item.vrmThumbnailUrl ?? item.characterImageUrl);
   return {
     id: String(item.characterId),
     name: item.characterName,
@@ -227,7 +236,7 @@ function toCharacterPreset(item: CharacterListItemResDto, settings: CharacterSet
       vrmPresetId: item.vrmPresetId
         ? String(item.vrmPresetId)
         : matchedVrm
-          ? String(matchedVrm.presetId ?? matchedVrm.characterVrmId)
+          ? String(matchedVrm.characterVrmId ?? matchedVrm.presetId)
           : "",
       vrmUrl: item.vrmUrl ?? undefined,
       vrmThumbnailUrl: item.vrmThumbnailUrl ?? matchedVrm?.thumbnailUrl ?? undefined,
@@ -253,7 +262,7 @@ function detailToPreset(detail: CharacterDetailResDto, settings: CharacterSettin
   const triggerWords = normalizeTriggerWords(detail.triggerWords);
   const modelType = modelTypeOf(detail.modelType);
   const matchedImage = findMatchedImage(settings, detail.characterImageId, detail.characterImageUrl, detail.gender);
-  const matchedVrm = findMatchedVrm(settings, detail.vrmPresetId, detail.vrmUrl);
+  const matchedVrm = findMatchedVrm(settings, detail.vrmPresetId, detail.vrmUrl, detail.vrmThumbnailUrl ?? detail.characterImageUrl);
   return {
     id: String(detail.characterId),
     name: detail.characterName,
@@ -274,7 +283,9 @@ function detailToPreset(detail: CharacterDetailResDto, settings: CharacterSettin
       vrmPresetId: detail.vrmPresetId
         ? String(detail.vrmPresetId)
         : matchedVrm
-          ? String(matchedVrm.presetId)
+          // selector(vrmTargetIdOf)와 동일하게 characterVrmId(숫자) 우선 — targetId 변환(toPositiveInt)
+          // 이 되도록. presetId 가 비-숫자 문자열이면 저장 시 변환 실패로 저장이 막혔다.
+          ? String(matchedVrm.characterVrmId ?? matchedVrm.presetId)
           : "",
       vrmUrl: detail.vrmUrl ?? matchedVrm?.vrmUrl ?? undefined,
       vrmThumbnailUrl: detail.vrmThumbnailUrl ?? matchedVrm?.thumbnailUrl ?? undefined,
@@ -474,8 +485,9 @@ export default function CharacterPage() {
         });
         return;
       }
-      const payload = toBackendCreatePayload(config);
       try {
+        // try 안에서 생성 — 프리셋 미선택 등 검증 throw 가 catch 로 잡혀 사용자에게 보임(로그 only X).
+        const payload = toBackendCreatePayload(config);
         const created = await create(payload);
         const appearance = resolveAppearanceRecord(config);
         if (appearance) {
@@ -516,8 +528,9 @@ export default function CharacterPage() {
         });
         return;
       }
-      const payload = toBackendUpdatePayload(config);
       try {
+        // try 안에서 생성 — 프리셋 미선택 등 검증 throw 가 catch 로 잡혀 사용자에게 보임(로그 only X).
+        const payload = toBackendUpdatePayload(config);
         await update(targetCharacterId, payload);
         const appearance = resolveAppearanceRecord(config);
         if (appearance) {

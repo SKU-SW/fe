@@ -900,9 +900,9 @@ Authorization: Bearer {accessToken}
 
 ## 6. 방송 통계 (Broadcast Statistics)
 
-### 6.1 특정 날짜 방송 통계
+### 6.1 월별 방송 통계 조회
 
-**엔드포인트**: `GET /api/v1/broadcast/statistics?date=2025-04-21&type=SUMMARY`
+**엔드포인트**: `GET /api/v1/broadcast/stats/month?year=2026&month=6`
 
 **요청 헤더**:
 ```
@@ -910,36 +910,126 @@ Authorization: Bearer {accessToken}
 ```
 
 **쿼리 파라미터**:
-- `date`: 조회 날짜 (YYYY-MM-DD)
-- `type`: SUMMARY | DETAILED | TRANSCRIPT
+- `year`: 조회 연도
+- `month`: 조회 월
 
 **응답 (200 OK)**:
 ```json
 {
-  "success": true,
+  "status": 200,
+  "message": "요청이 성공적으로 처리되었습니다.",
   "data": {
-    "date": "2025-04-21",
-    "broadcastDuration": 3600,
-    "statistics": {
-      "totalMessages": 1000,
-      "uniqueUsers": 250,
-      "sentimentBreakdown": {
-        "positive": 450,
-        "neutral": 350,
-        "negative": 200
-      },
-      "topKeywords": ["재미", "좋음", "스트리머"],
-      "aiResponses": 45,
-      "gameEvents": 12
-    },
-    "timeline": [
+    "broadcastMonthInfoList": [
       {
-        "timestamp": "2025-04-21T10:00:00Z",
-        "event": "방송 시작",
-        "details": {}
+        "day": 9,
+        "broadcastId": 101,
+        "characterId": 7,
+        "characterName": "나형준",
+        "broadcastStatus": "TERMINATED",
+        "broadcastTime": 240
       }
-    ]
+    ],
+    "broadcastYear": 2026,
+    "broadcastMonth": 6
   }
+}
+```
+
+---
+
+### 6.2 하루 방송 통계 조회
+
+**엔드포인트**: `GET /api/v1/broadcast/stats/day?broadcastId=101`
+
+**요청 헤더**:
+```
+Authorization: Bearer {accessToken}
+```
+
+**쿼리 파라미터**:
+- `broadcastId`: 조회할 방송 PK
+
+**응답 (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "요청이 성공적으로 처리되었습니다.",
+  "data": {
+    "characterInfo": {
+      "name": "나형준",
+      "gender": "MALE",
+      "imageUrl": "https://...",
+      "persona": "FRIENDLY_CHATTER",
+      "triggerWords": ["형준아", "형준"]
+    },
+    "broadcastInfo": {
+      "streamId": "ABCDEFG123",
+      "status": "TERMINATED",
+      "startedAt": "2026-06-09-18:00:15",
+      "terminatedAt": "2026-06-09-22:00:15",
+      "lastFiveBroadcastDialogues": [
+        {
+          "cursorId": 5,
+          "subject": "AI_CHARACTER",
+          "content": "넵 ㅠㅠ 죄송해요 조용히하고 있을게요",
+          "createdAt": "2026-04-25-18:00:05"
+        }
+      ],
+      "analysisResult": {
+        "majorContent": "게임을 주로 하는 편이나, 때때로 스몰토크나 일상 이야기를 하는 편이며...",
+        "majorMoodWithViewers": "자주 싸우는 분위기이나...",
+        "summary": "하루 종일 게임을 하다가...",
+        "totalAnalysis": "분석 결과: ...",
+        "catchPhrases": [
+          {
+            "content": "무야호",
+            "subject": "VIEWER",
+            "situationAnalysis": "시청자가 특정 상황에서 재미있다고 반응하며 반복 사용한 표현"
+          }
+        ],
+        "timeLines": [
+          {
+            "content": "스트리머가 시청자와...",
+            "startTime": "2026-06-28 09:12:33",
+            "endTime": "2026-06-28 09:30:33"
+          }
+        ]
+      }
+    },
+    "chatAnalysisInfo": {
+      "publicOpinion": {
+        "positiveChatCount": 150,
+        "neutralChatCount": 80,
+        "negativeChatCount": 20,
+        "totalChatCount": 250,
+        "positiveRatio": 60.0,
+        "neutralRatio": 32.0,
+        "negativeRatio": 8.0
+      },
+      "aiPartnerTendency": "POSITIVE",
+      "sentimentFlow": [
+        {
+          "timeLabel": "14:00",
+          "positiveRatio": 60.0,
+          "neutralRatio": 30.0,
+          "negativeRatio": 10.0
+        }
+      ],
+      "topKeywords": ["롤", "ㅋㅋㅋ", "대박", "게임", "신난다", "최고", "재밌다", "gg", "실화", "미쳤다"]
+    }
+  }
+}
+```
+
+**비고**:
+- `analysisResult.catchPhrases`는 더 이상 문자열 리스트가 아닙니다.
+- 각 항목은 아래 구조의 객체입니다.
+
+```json
+{
+  "content": "무야호",
+  "subject": "VIEWER",
+  "situationAnalysis": "시청자가 특정 상황에서 재미있다고 반응하며 반복 사용한 표현"
 }
 ```
 
@@ -1468,4 +1558,3 @@ apiClient.interceptors.response.use(
 |------|------|---------|
 | 1.1 | 2025-05-11 | § 7 방송 스트림 API 추가 (POST /stream/start, POST /stream/terminate, GET /stream/info, GET /stream/info/dialogues) + § 8.6 방송 스트림 WebSocket 추가 |
 | 1.0 | 2025-04-21 | 초본 작성 |
-

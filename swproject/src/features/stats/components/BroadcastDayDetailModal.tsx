@@ -20,6 +20,7 @@ import {
 import type {
   AiTendency,
   BroadcastDayStatsResDto,
+  CatchPhraseSubject,
   CharacterPersona,
   DialogueSubject,
 } from "@/features/stats/types";
@@ -69,6 +70,11 @@ const TENDENCY_TONE_CLASS: Record<AiTendency, string> = {
   POSITIVE: "border-status-success/30 bg-status-success/10 text-status-success",
   NEUTRAL: "border-border-default bg-surface-raised text-content-secondary",
   NEGATIVE: "border-status-danger/30 bg-status-danger/10 text-status-danger",
+};
+
+const CATCH_PHRASE_SUBJECT_LABEL: Record<CatchPhraseSubject, string> = {
+  STREAMER: "스트리머",
+  VIEWER: "시청자",
 };
 
 /** "yyyy-MM-dd-HH:mm:ss" 또는 "yyyy-MM-dd HH:mm:ss" → "HH:mm:ss" 추출 */
@@ -176,10 +182,28 @@ function DetailErrorState({ title, description }: { title: string; description: 
 
 function DetailBody({ data }: { data: BroadcastDayStatsResDto }) {
   const { characterInfo, broadcastInfo, chatAnalysisInfo } = data;
-  const { analysisResult } = broadcastInfo;
+  const { analysisResult, status } = broadcastInfo;
 
   return (
     <>
+      {status === "ABNORMAL_TERMINATED" && (
+        <div className="flex items-start gap-2 rounded-xl border border-status-warning/40 bg-status-warning/10 p-3 text-status-warning">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="text-xs font-bold leading-relaxed">
+            비정상 종료된 방송입니다. 일부 통계나 분석 데이터가 누락되었을 수 있어요.
+          </p>
+        </div>
+      )}
+
+      {status === "BROADCASTING" && (
+        <div className="flex items-start gap-2 rounded-xl border border-status-success/40 bg-status-success/10 p-3 text-status-success">
+          <span className="mt-1 inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-status-success" />
+          <p className="text-xs font-bold leading-relaxed">
+            현재 진행 중인 방송입니다. 방송이 종료되면 최종 분석 결과가 채워집니다.
+          </p>
+        </div>
+      )}
+
       <CharacterHeader characterInfo={characterInfo} broadcastInfo={broadcastInfo} />
 
       {analysisResult ? (
@@ -187,7 +211,11 @@ function DetailBody({ data }: { data: BroadcastDayStatsResDto }) {
       ) : (
         <section className="rounded-xl border border-border-default bg-surface-base p-4">
           <p className="text-sm text-content-muted">
-            방송 분석이 아직 준비되지 않았습니다. 잠시 후 다시 확인해주세요.
+            {status === "BROADCASTING"
+              ? "방송이 종료된 후 분석 결과가 생성됩니다."
+              : status === "ABNORMAL_TERMINATED"
+                ? "비정상 종료로 인해 분석이 진행되지 않았을 수 있습니다."
+                : "방송 분석이 아직 준비되지 않았습니다. 잠시 후 다시 확인해주세요."}
           </p>
         </section>
       )}
@@ -246,12 +274,23 @@ function CharacterHeader({
             <Hourglass className="h-3.5 w-3.5" />
             {startTime} ~ {endTime}
           </span>
-          <span className="rounded-md border border-border-default bg-surface-raised px-2 py-0.5">
+          <span
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 ${
+              broadcastInfo.status === "BROADCASTING"
+                ? "border-status-success/40 bg-status-success/10 text-status-success"
+                : broadcastInfo.status === "ABNORMAL_TERMINATED"
+                  ? "border-status-warning/40 bg-status-warning/10 text-status-warning"
+                  : "border-border-default bg-surface-raised text-content-muted"
+            }`}
+          >
+            {broadcastInfo.status === "BROADCASTING" && (
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-status-success" />
+            )}
             {broadcastInfo.status === "TERMINATED"
               ? "정상 종료"
               : broadcastInfo.status === "ABNORMAL_TERMINATED"
                 ? "비정상 종료"
-                : "방송 중"}
+                : "방송 중 (LIVE)"}
           </span>
           <span
             className="inline-flex items-center gap-1 rounded-md border border-border-default bg-surface-raised px-2 py-0.5 font-mono text-[10px] tracking-tight text-content-muted"
@@ -301,14 +340,22 @@ function AnalysisSection({
           <p className="mb-2 text-xs font-bold uppercase tracking-wider text-content-muted">
             방송 유행어
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            {analysisResult.catchPhrases.map((phrase) => (
-              <span
-                key={phrase}
-                className="rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand"
+          <div className="space-y-2">
+            {analysisResult.catchPhrases.map((phrase, index) => (
+              <div
+                key={`${phrase.content}-${index}`}
+                className="rounded-lg border border-brand/20 bg-brand/5 px-3 py-2"
               >
-                {phrase}
-              </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">
+                    {phrase.content}
+                  </span>
+                  <span className="text-xs font-semibold text-content-secondary">
+                    {CATCH_PHRASE_SUBJECT_LABEL[phrase.subject]}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-content-secondary">{phrase.situationAnalysis}</p>
+              </div>
             ))}
           </div>
         </div>

@@ -24,14 +24,30 @@ const WEEK_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const STATUS_LABEL: Record<BroadcastStatus, string> = {
   BROADCASTING: "방송 중",
-  TERMINATED: "정상",
-  ABNORMAL_TERMINATED: "비정상",
+  TERMINATED: "정상 종료",
+  ABNORMAL_TERMINATED: "비정상 종료",
 };
 
+/** 셀 안의 작은 상태 점 색상 */
 const STATUS_DOT_CLASS: Record<BroadcastStatus, string> = {
-  BROADCASTING: "bg-status-success",
-  TERMINATED: "bg-brand",
+  BROADCASTING: "bg-status-success animate-pulse",
+  TERMINATED: "bg-content-muted",
   ABNORMAL_TERMINATED: "bg-status-warning",
+};
+
+/** 셀 안의 캐릭터 칩(버튼) 톤 — 각 방송 한 줄 */
+const STATUS_CHIP_CLASS: Record<BroadcastStatus, string> = {
+  BROADCASTING: "border-status-success/40 bg-status-success/10 text-status-success hover:bg-status-success/20",
+  TERMINATED: "border-border-default bg-surface-panel text-content-secondary hover:bg-surface-hover",
+  ABNORMAL_TERMINATED: "border-status-warning/40 bg-status-warning/10 text-status-warning hover:bg-status-warning/20",
+};
+
+/** 셀 전체 배경 톤 — 해당 일자에 있는 방송 중 가장 강한 상태 우선 */
+const STATUS_PRIORITY: BroadcastStatus[] = ["BROADCASTING", "ABNORMAL_TERMINATED", "TERMINATED"];
+const STATUS_CELL_BG_CLASS: Record<BroadcastStatus, string> = {
+  BROADCASTING: "border-status-success/40 bg-status-success/5",
+  TERMINATED: "border-brand/20 bg-brand/5",
+  ABNORMAL_TERMINATED: "border-status-warning/40 bg-status-warning/5",
 };
 
 function startOfMonth(date: Date): Date {
@@ -184,8 +200,12 @@ export function BroadcastCalendar() {
 
             const baseCellClass = "relative flex aspect-square flex-col overflow-hidden rounded-md border p-1 text-left transition-all";
             const dimClass = cell.inMonth ? "" : "opacity-40";
-            const cellBgClass = hasBroadcasts
-              ? "border-brand/30 bg-brand/5"
+            // 한 셀에 여러 상태가 있으면 가장 강한 상태(라이브 > 비정상 > 정상)로 셀 배경 결정
+            const dominantStatus = hasBroadcasts
+              ? STATUS_PRIORITY.find((s) => dayBroadcasts.some((bc) => bc.broadcastStatus === s)) ?? null
+              : null;
+            const cellBgClass = dominantStatus
+              ? STATUS_CELL_BG_CLASS[dominantStatus]
               : "border-border-default bg-surface-base";
             const todayClass = isToday ? "ring-1 ring-brand/60" : "";
 
@@ -210,7 +230,7 @@ export function BroadcastCalendar() {
                         type="button"
                         onClick={() => setSelectedBroadcastId(bc.broadcastId)}
                         title={`${bc.characterName} · ${STATUS_LABEL[bc.broadcastStatus]} · ${bc.broadcastTime}`}
-                        className="flex items-center gap-1 truncate rounded border border-brand/20 bg-surface-panel px-1 py-0.5 text-left text-[9px] font-bold text-content-primary transition-colors hover:bg-brand/10"
+                        className={`flex items-center gap-1 truncate rounded border px-1 py-0.5 text-left text-[9px] font-bold transition-colors ${STATUS_CHIP_CLASS[bc.broadcastStatus]}`}
                       >
                         <span className={`h-1 w-1 shrink-0 rounded-full ${STATUS_DOT_CLASS[bc.broadcastStatus]}`} />
                         <span className="truncate">{bc.characterName}</span>
@@ -230,12 +250,12 @@ export function BroadcastCalendar() {
 
         <footer className="mt-4 flex flex-wrap items-center gap-3 text-[11px] font-bold text-content-muted">
           <span className="inline-flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS.TERMINATED}`} />
-            정상 종료
+            <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS.BROADCASTING}`} />
+            방송 중 (LIVE)
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS.BROADCASTING}`} />
-            방송 중
+            <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS.TERMINATED}`} />
+            정상 종료
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS.ABNORMAL_TERMINATED}`} />

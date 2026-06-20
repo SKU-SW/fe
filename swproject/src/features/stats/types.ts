@@ -104,13 +104,22 @@ export interface BroadcastTimeLine {
   endTime: string;
 }
 
+/** 방송 유행어 항목 */
+export type CatchPhraseSubject = "STREAMER" | "VIEWER";
+
+export interface BroadcastCatchPhrase {
+  content: string;
+  subject: CatchPhraseSubject;
+  situationAnalysis: string;
+}
+
 /** 일별 방송 분석 결과 — 분석 완료 전이면 null */
 export interface BroadcastAnalysisResult {
   majorContent: string;
   majorMoodWithViewers: string;
   summary: string;
   totalAnalysis: string;
-  catchPhrases: string[];
+  catchPhrases: BroadcastCatchPhrase[];
   timeLines: BroadcastTimeLine[];
 }
 
