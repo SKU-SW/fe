@@ -1,0 +1,50 @@
+name: Release Desktop Builds
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.18)"
+        required: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            artifact_glob: "swproject/release/LiveBuddy-win-*.exe"
+            latest_glob: "swproject/release/latest*.yml"
+          - os: macos-14
+            artifact_glob: "swproject/release/LiveBuddy-mac-*.dmg"
+            latest_glob: "swproject/release/latest*.yml"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: swproject/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: npm ci
+        working-directory: swproject
+      - name: Build desktop app
+        run: npm run electron:build
+        working-directory: swproject
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: |
+            ${{ matrix.artifact_glob }}
+            ${{ matrix.latest_glob }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

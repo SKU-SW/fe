@@ -78,7 +78,8 @@ class STTBackgroundService {
         if (payload.state === "ready") {
           setError(null);
         } else if (payload.state === "fatal") {
-          setError(payload.error ?? "로컬 STT 데몬을 시작할 수 없습니다.");
+          const engineLabel = payload.engine ? ` (${payload.engine})` : "";
+          setError(payload.error ?? `로컬 STT 데몬${engineLabel}을 시작할 수 없습니다.`);
         }
         // restarting 은 retrySTT() 에서 이미 에러를 지운 상태이므로 유지
       });

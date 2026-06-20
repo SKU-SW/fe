@@ -107,11 +107,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     // STT 데몬 상태(ready/fatal/restarting) 구독. 반환값은 cleanup 함수.
     onStatus: (
-      callback: (payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }) => void
+      callback: (payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string; engine?: string; device?: string }) => void
     ) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
-        payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }
+        payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string; engine?: string; device?: string }
       ) => callback(payload);
       ipcRenderer.on('stt:status', listener);
       return () => ipcRenderer.removeListener('stt:status', listener);

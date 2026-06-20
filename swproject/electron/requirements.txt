@@ -7,3 +7,4 @@ faster-whisper==1.1.0
 huggingface_hub>=0.13,<1.0
 requests
 pyinstaller==6.11.1
+platformdirs>=4.3.0

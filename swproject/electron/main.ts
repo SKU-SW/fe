@@ -168,7 +168,9 @@ function resolveSttBinary(): string | null {
   const exe = process.platform === 'win32' ? 'stt_server.exe' : 'stt_server';
   const candidates = [
     path.join(process.resourcesPath, 'stt', exe),
+    path.join(process.resourcesPath, 'stt', 'stt_server', exe),
     path.join(app.getAppPath(), '..', 'stt', exe),
+    path.join(app.getAppPath(), '..', 'stt', 'stt_server', exe),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
@@ -184,11 +186,22 @@ function resolveSttModelDir(): string {
   return existsSync(candidate) ? candidate : '';
 }
 
+function resolveOpenVinoModelDir(): string {
+  const modelName = process.env.SKU_SW_STT_MODEL ?? 'small';
+  const candidates = [
+    path.join(process.resourcesPath, 'models', `whisper-${modelName}-ov`),
+    path.join(process.resourcesPath, 'models', `whisper-${modelName}-int8-ov`),
+    path.join(app.getAppPath(), '..', 'models', `whisper-${modelName}-ov`),
+    path.join(app.getAppPath(), '..', 'models', `whisper-${modelName}-int8-ov`),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? '';
+}
+
 function sendSttResult(payload: { text: string; isFinal: boolean }) {
   mainWindow?.webContents.send('stt:result', payload);
 }
 
-function sendSttStatus(payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }) {
+function sendSttStatus(payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string; engine?: string; device?: string }) {
   mainWindow?.webContents.send('stt:status', payload);
 }
 
@@ -606,6 +619,8 @@ class STTManager {
   private stdoutBuffer = '';
   private nextSeq = 0;
   private shuttingDown = false;
+  private activeEngine: string | null = null;
+  private activeDevice: string | null = null;
 
   start() {
     if (this.child) return;
@@ -615,6 +630,7 @@ class STTManager {
     let command = binary ?? 'python3';
     const args = binary ? [] : [resolveSttScriptPath()];
     const modelDir = resolveSttModelDir();
+    const openVinoModelDir = resolveOpenVinoModelDir();
 
     // dev 모드에서 GUI 앱의 PATH는 쉘과 달라 python3를 못 찾을 수 있음.
     // 실제 python3 경로를 찾아서 명시적으로 사용.
@@ -627,7 +643,13 @@ class STTManager {
       }
     }
 
-    console.info('[stt] spawning daemon:', command, args.join(' '), modelDir ? `(model: ${modelDir})` : '(model: download)');
+    console.info(
+      '[stt] spawning daemon:',
+      command,
+      args.join(' '),
+      modelDir ? `(fw-model: ${modelDir})` : '(fw-model: download)',
+      openVinoModelDir ? `(ov-model: ${openVinoModelDir})` : '(ov-model: auto)'
+    );
 
     this.child = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -638,7 +660,10 @@ class STTManager {
         ...process.env,
         PYTHONUTF8: '1',
         PYTHONIOENCODING: 'utf-8',
+        SKU_SW_STT_ENGINE: process.env.SKU_SW_STT_ENGINE ?? 'auto',
+        SKU_SW_STT_DEVICE: process.env.SKU_SW_STT_DEVICE ?? 'auto',
         ...(modelDir ? { SKU_SW_STT_MODEL_DIR: modelDir } : {}),
+        ...(openVinoModelDir ? { SKU_SW_STT_OPENVINO_MODEL_DIR: openVinoModelDir } : {}),
       },
     });
 
@@ -658,6 +683,8 @@ class STTManager {
       console.warn(`[stt] daemon exited (code=${code}, signal=${signal})`);
       this.child = null;
       this.ready = false;
+      this.activeEngine = null;
+      this.activeDevice = null;
       // in-flight 요청 모두 reject
       for (const req of this.inFlight.values()) {
         req.resolve({
@@ -713,11 +740,13 @@ class STTManager {
     // 라이프사이클 이벤트
     if (typeof obj.event === 'string') {
       if (obj.event === 'ready') {
-        console.info('[stt] daemon ready, model =', obj.model);
+        console.info('[stt] daemon ready, model =', obj.model, 'engine =', obj.engine, 'device =', obj.device);
         this.ready = true;
         this.fatalError = null;
+        this.activeEngine = typeof obj.engine === 'string' ? obj.engine : null;
+        this.activeDevice = typeof obj.device === 'string' ? obj.device : null;
         this.flushQueue();
-        sendSttStatus({ state: 'ready' });
+        sendSttStatus({ state: 'ready', engine: this.activeEngine ?? undefined, device: this.activeDevice ?? undefined });
         return;
       }
       if (obj.event === 'fatal') {
@@ -725,7 +754,12 @@ class STTManager {
         console.error('[stt] fatal:', msg);
         this.fatalError = msg;
         this.lastFatalAt = Date.now();
-        sendSttStatus({ state: 'fatal', error: msg });
+        sendSttStatus({
+          state: 'fatal',
+          error: msg,
+          engine: typeof obj.engine === 'string' ? obj.engine : this.activeEngine ?? undefined,
+          device: typeof obj.device === 'string' ? obj.device : this.activeDevice ?? undefined,
+        });
         // 자식 종료 후 exit 핸들러가 큐/in-flight 정리함
         return;
       }

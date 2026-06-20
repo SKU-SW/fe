@@ -491,7 +491,7 @@
             </div>
             <div class="chat-msg ai">
               <span class="chat-user">버디</span>
-              <span class="chat-text">네! Faster Whisper가 앱에 내장되어 있어요.</span>
+              <span class="chat-text">네! Windows에선 Intel OpenVINO를 우선 쓰고, 환경에 따라 로컬 Whisper로 자동 전환돼요.</span>
             </div>
             <div class="chat-msg">
               <span class="chat-user">채팅분석러</span>
@@ -633,7 +633,7 @@
       </div>
       <div class="feat reveal">
         <div class="feat-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></div>
-        <div class="feat-txt"><h3>음성 인식 (STT)</h3><p>Faster Whisper 기반 로컬 STT 모델이 앱에 내장되어 별도 설치 없이 바로 동작합니다. Push-to-Talk(Ctrl+M)로 말하면 텍스트로 변환되어 AI가 함께 듣습니다. 음성이 외부로 나가지 않습니다.</p></div>
+        <div class="feat-txt"><h3>음성 인식 (STT)</h3><p>Windows에서는 Intel GPU용 OpenVINO Whisper를 우선 사용하고, 환경에 따라 로컬 Whisper로 자동 전환됩니다. Push-to-Talk(Ctrl+M)로 말하면 텍스트로 변환되어 AI가 함께 듣습니다. 음성이 외부로 나가지 않습니다.</p></div>
         <div class="feat-tags"><span class="feat-tag live">LOCAL STT</span><span class="feat-tag">내장 모델</span></div>
       </div>
       <div class="feat reveal">
@@ -797,6 +797,7 @@
         <div class="tech-chips">
           <span class="tech-chip"><span class="tc-dot"></span>Python</span>
           <span class="tech-chip"><span class="tc-dot"></span>FastAPI + Uvicorn</span>
+          <span class="tech-chip"><span class="tc-dot"></span>OpenVINO Whisper</span>
           <span class="tech-chip"><span class="tc-dot"></span>Faster Whisper</span>
           <span class="tech-chip"><span class="tc-dot"></span>Google Gemini API</span>
           <span class="tech-chip"><span class="tc-dot"></span>Gemini Live API</span>
@@ -859,12 +860,12 @@
           <svg width="48" height="48" viewBox="0 0 88 88" fill="currentColor"><path d="M0 12.5L36 7.5V42H0V12.5zM40 6.9L88 0V42H40V6.9zM0 46H36V81L0 75.5V46zM40 46H88V88L40 81.1V46z"/></svg>
         </div>
         <h3>Windows</h3>
-        <span class="dl-meta">64-bit (x64) · .exe · NVIDIA GPU 필수</span>
+        <span class="dl-meta">64-bit (x64) · .exe · Intel/NVIDIA 지원</span>
         <a class="btn btn-primary" href="https://github.com/SKU-SW/fe/releases/latest/download/LiveBuddy-win-x64.exe">Windows용 다운로드</a>
       </div>
     </div>
     <p style="max-width:680px;margin:28px auto 0;text-align:center;font-family:var(--mono);font-size:.78rem;color:var(--ink-faint)">
-      Windows: Intel GPU 환경에서는 STT 모델이 동작하지 않습니다. NVIDIA GPU가 필요합니다.
+      Windows: Intel GPU에서는 OpenVINO Whisper를 우선 사용하고, 지원되지 않는 환경에서는 로컬 Whisper 경로로 자동 전환됩니다.
     </p>
   </div>
 </section>

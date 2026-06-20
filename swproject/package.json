@@ -1,6 +1,6 @@
 {
   "name": "swproject",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -8,10 +8,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint",
+    "stt:build": "node scripts/build-stt-sidecar.mjs",
     "electron:build-main": "tsc --project tsconfig.electron.json",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron:build-main && cross-env NODE_ENV=development electron dist-electron/main.js\"",
-    "electron:build": "npm run electron:build-main && npm run build && electron-builder",
-    "electron:preview": "npm run electron:build-main && npm run build && cross-env NODE_ENV=production electron dist-electron/main.js"
+    "electron:build": "npm run stt:build && npm run electron:build-main && npm run build && electron-builder",
+    "electron:preview": "npm run stt:build && npm run electron:build-main && npm run build && cross-env NODE_ENV=production electron dist-electron/main.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

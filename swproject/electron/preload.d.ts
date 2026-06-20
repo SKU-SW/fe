@@ -91,7 +91,7 @@ interface ElectronAPI {
     retry: () => Promise<{ ok: boolean }>;
     onResult: (callback: (payload: { text: string; isFinal: boolean }) => void) => () => void;
     /** STT 데몬 상태(ready/fatal/restarting) 구독. 반환값은 cleanup 함수. */
-    onStatus: (callback: (payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string }) => void) => () => void;
+    onStatus: (callback: (payload: { state: 'ready' | 'fatal' | 'restarting'; error?: string; engine?: string; device?: string }) => void) => () => void;
     /** 전역 PTT(Cmd/Ctrl+Shift+M hold) 이벤트 구독. 반환값은 cleanup 함수. */
     onGlobalPtt: (callback: (payload: { type: 'start' | 'stop' }) => void) => () => void;
   };
