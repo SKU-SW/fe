@@ -81,12 +81,17 @@ function buildSidecar() {
     "--noconfirm",
     "--clean",
     "--onedir",
+    "--noupx",
     "--name",
     "stt_server",
     "--distpath",
     distSttDir,
     "--workpath",
     workDir,
+    "--collect-all",
+    "numpy",
+    "--collect-all",
+    "scipy",
     "--collect-all",
     "faster_whisper",
     "--collect-all",
@@ -99,6 +104,8 @@ function buildSidecar() {
 
   if (process.platform === "win32") {
     args.push(
+      "--hidden-import", "numpy._core._exceptions",
+      "--hidden-import", "numpy._core._dtype_ctypes",
       "--collect-all", "openvino",
       "--collect-all", "openvino_genai",
       "--collect-all", "optimum",
