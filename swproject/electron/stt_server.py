@@ -33,14 +33,53 @@ import os
 import sys
 from pathlib import Path
 
-import numpy as np
-
 
 for _stream in (sys.stdin, sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     except Exception:
         pass
+
+
+def configure_windows_dll_search_paths() -> None:
+    """Make PyInstaller-bundled OpenVINO DLLs discoverable on Windows."""
+    if sys.platform != "win32":
+        return
+
+    roots: list[Path] = []
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        roots.extend([exe_dir, exe_dir / "_internal"])
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            roots.append(Path(meipass))
+    else:
+        roots.append(Path(__file__).resolve().parent)
+
+    dll_dirs: list[str] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        dll_dirs.append(str(root))
+        try:
+            dll_dirs.extend(str(path.parent) for path in root.rglob("*.dll"))
+        except OSError:
+            continue
+
+    unique_dirs = list(dict.fromkeys(dll_dirs))
+    for directory in unique_dirs:
+        try:
+            os.add_dll_directory(directory)
+        except (FileNotFoundError, OSError, AttributeError):
+            pass
+
+    if unique_dirs:
+        os.environ["PATH"] = os.pathsep.join(unique_dirs + [os.environ.get("PATH", "")])
+
+
+configure_windows_dll_search_paths()
+
+import numpy as np
 
 
 HF_MODEL_IDS = {
@@ -93,7 +132,12 @@ def resolve_faster_whisper_device(requested: str) -> str:
     lowered = requested.lower()
     if lowered in {"cuda", "cpu"}:
         return lowered
-    if sys.platform == "darwin":
+
+    # Windows release builds target Intel/OpenVINO first. If that path fails,
+    # the safe fallback is CPU: CTranslate2 "auto" can pick CUDA merely because
+    # nvidia-smi exists, then crash when the installed driver is too old for the
+    # bundled CUDA runtime.
+    if sys.platform in {"darwin", "win32"}:
         return "cpu"
 
     # Windows/Linux 에서 NVIDIA 드라이버가 있으면 CUDA 경로를 우선 사용.

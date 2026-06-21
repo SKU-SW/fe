@@ -1,11 +1,8 @@
-name: Release (dmg + exe)
+name: Release (legacy manual)
 
-# v* 태그 푸시 시 macOS(dmg) + Windows(exe) 를 빌드해 GitHub Release 에 업로드.
-# 수동 실행도 가능(workflow_dispatch) — 단 publish 는 태그가 있어야 동작.
+# Legacy desktop release workflow kept for manual recovery only.
+# Tag-based releases are handled by release-desktop.yml.
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
 permissions:

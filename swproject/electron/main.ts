@@ -16,7 +16,7 @@
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, systemPreferences, Tray } from 'electron';
 import { existsSync, promises as fs } from 'fs';
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { execSync, spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import http from 'http';
 import os from 'os';
 import path from 'path';
@@ -636,7 +636,6 @@ class STTManager {
     // 실제 python3 경로를 찾아서 명시적으로 사용.
     if (!binary) {
       try {
-        const { execSync } = require('child_process');
         command = execSync('which python3', { encoding: 'utf-8' }).trim();
       } catch {
         // which 실패 시 기존 'python3' 유지

@@ -108,6 +108,7 @@ function buildSidecar() {
       "--hidden-import", "numpy._core._dtype_ctypes",
       "--collect-all", "openvino",
       "--collect-all", "openvino_genai",
+      "--collect-all", "openvino_tokenizers",
       "--collect-all", "optimum",
       "--collect-all", "transformers",
     );
