@@ -650,6 +650,8 @@ class STTManager {
       openVinoModelDir ? `(ov-model: ${openVinoModelDir})` : '(ov-model: auto)'
     );
 
+    const defaultEngine = process.platform === 'win32' ? 'faster-whisper' : 'auto';
+
     this.child = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       // PYTHONUTF8/PYTHONIOENCODING: Windows(cp949) 에서 사이드카 stdout 이 cp949 로 나와
@@ -659,7 +661,7 @@ class STTManager {
         ...process.env,
         PYTHONUTF8: '1',
         PYTHONIOENCODING: 'utf-8',
-        SKU_SW_STT_ENGINE: process.env.SKU_SW_STT_ENGINE ?? 'auto',
+        SKU_SW_STT_ENGINE: process.env.SKU_SW_STT_ENGINE ?? defaultEngine,
         SKU_SW_STT_DEVICE: process.env.SKU_SW_STT_DEVICE ?? 'auto',
         ...(modelDir ? { SKU_SW_STT_MODEL_DIR: modelDir } : {}),
         ...(openVinoModelDir ? { SKU_SW_STT_OPENVINO_MODEL_DIR: openVinoModelDir } : {}),

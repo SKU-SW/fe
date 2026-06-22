@@ -55,10 +55,19 @@ function installRequirements() {
 
 function prepareModels() {
   mkdirSync(path.join(distSttDir, "models"), { recursive: true });
-  if (process.platform !== "win32") return;
 
   const python = pythonBinPath();
   const modelSize = process.env.SKU_SW_STT_MODEL ?? "small";
+  const fasterWhisperDir = path.join(distSttDir, "models", modelSize);
+  if (!existsSync(fasterWhisperDir)) {
+    run(python, [
+      "-c",
+      `from faster_whisper import download_model; download_model(${JSON.stringify(modelSize)}, output_dir=${JSON.stringify(fasterWhisperDir)})`,
+    ]);
+  }
+
+  if (process.platform !== "win32") return;
+
   const ovDir = path.join(distSttDir, "models", `whisper-${modelSize}-ov`);
   if (existsSync(ovDir)) return;
 
