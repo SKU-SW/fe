@@ -157,7 +157,12 @@ apiClient.interceptors.response.use(
     };
 
     // 401 에러이고 아직 재시도하지 않은 요청만 처리
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    const isPublicAuth = AUTH_PUBLIC_PATHS.some((path) =>
+      (originalRequest?.url ?? '').startsWith(path)
+    );
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isPublicAuth) {
+      // 대기 큐에 들어가는 요청도 재시도 횟수를 제한한다.
+      originalRequest._retry = true;
       // 이미 토큰 재발급 중이면 큐에 대기
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -171,7 +176,6 @@ apiClient.interceptors.response.use(
       }
 
       // 토큰 재발급 시작 (동시 요청 차단)
-      originalRequest._retry = true;
       isRefreshing = true;
 
       // 리프레시 토큰이 없으면 재발급 불가 → 인증 정리 + 로그인 페이지로

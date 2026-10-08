@@ -12,7 +12,9 @@
     "electron:build-main": "tsc --project tsconfig.electron.json",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron:build-main && cross-env NODE_ENV=development electron dist-electron/main.js\"",
     "electron:build": "npm run stt:build && npm run electron:build-main && npm run build && electron-builder --publish never",
-    "electron:preview": "npm run stt:build && npm run electron:build-main && npm run build && cross-env NODE_ENV=production electron dist-electron/main.js"
+    "electron:preview": "npm run stt:build && npm run electron:build-main && npm run build && cross-env NODE_ENV=production electron dist-electron/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@tailwindcss/postcss": "^4.2.3",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -52,12 +55,14 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.21.0",
     "typescript": "^5",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.9",
+    "vitest": "^4.1.11",
     "wait-on": "^8.0.2"
   },
   "build": {
@@ -93,7 +98,12 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.utilities",
       "icon": "build/icon.icns",
@@ -105,7 +115,12 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.png",
       "artifactName": "LiveBuddy-win-${arch}.${ext}"
