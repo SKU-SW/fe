@@ -1,0 +1,39 @@
+# 문제 해결과 진단
+
+아래는 기존 코드·커밋에서 확인한 개선 사례입니다. 이번 문서 정리에서 새로 수정하거나 실행 재현한 결과는 아닙니다.
+
+## 페이지 이동과 방송 수명주기
+
+대시보드에 묶인 음성·연결 처리를 `sttBackgroundService`, `broadcastWSBackgroundService`와 `AppInitializer`로 분리했습니다. 페이지 이동 시 UI 구독과 전역 서비스 정리를 혼동하지 않는 것이 핵심입니다.
+
+진단: `main.tsx` 전역 초기화 → 서비스 init/dispose → 페이지 훅의 구독 해제 순서를 확인합니다. 방송 종료·앱 종료·페이지 이동은 서로 다른 종료 조건입니다.
+
+[개선 커밋](https://github.com/SKU-SW/fe/commit/77e79d876e43fec3d52952bc02c2f95d9247b8f6)
+
+## 동시 인증 만료
+
+공통 Axios 클라이언트에서 재발급 진행 상태와 대기 큐를 관리합니다. 토큰 갱신에는 인터셉터를 분리한 bareClient를 사용합니다.
+
+진단: 성공 응답만 확인하지 말고, 여러 요청의 동시 401·갱신 실패·재시도 후 재실패를 확인합니다. 관련 코드는 `src/shared/lib/axios.ts`입니다.
+
+## 시청자 채팅 조회 빈도
+
+3초 폴링을 대시보드 진입·활성 상태 변경 시 한 번 조회하는 방식으로 변경한 기록이 있습니다. 반복 요청은 제거했지만 지속적인 최신 채팅 갱신을 별도로 검토해야 합니다. 실측 개선율은 없습니다.
+
+[변경 커밋](https://github.com/SKU-SW/fe/commit/c300cd5ae7c30d8e56ac13feade0891664342160)
+
+## Electron 정적 리소스와 OBS
+
+Electron의 `file://` 로드에는 HashRouter와 Vite 상대 asset 경로가 사용됩니다. OBS는 별도 브라우저 컨텍스트이므로 앱의 localStorage가 자동 공유된다고 가정하지 않습니다. overlay bridge·로컬 HTTP 서버·OBS WebSocket 설정을 각각 확인합니다.
+
+[OBS 연동 커밋](https://github.com/SKU-SW/fe/commit/ea79d067b51ad3633a2bb16b07e672d334583a56)
+
+## Windows 음성 런타임
+
+Python 패키지·모델·VC++ 런타임 등 개발 환경과 설치본의 차이에 대응한 기록이 있습니다. 현재 빌드 스크립트와 플랫폼별 requirements를 먼저 확인합니다. 모델 다운로드 성공과 설치본의 STT 동작 성공은 별도로 검증합니다.
+
+[Windows STT 수정](https://github.com/SKU-SW/fe/commit/278bd9842fd4cfa9b12e025547b89f5622ec44ba)
+
+## 다음 진단 대상
+
+[검증 기준선](BASELINE.md)에 Hook 경고 7개와 번들 경고를 기록했습니다. 경고 제거 전에 상태 변화·effect 재실행 의도를 확인하고, 변경 후 방송·캐릭터 시나리오를 검증합니다.
