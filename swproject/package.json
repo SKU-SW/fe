@@ -14,7 +14,9 @@
     "electron:build": "npm run stt:build && npm run electron:build-main && npm run build && electron-builder --publish never",
     "electron:preview": "npm run stt:build && npm run electron:build-main && npm run build && cross-env NODE_ENV=production electron dist-electron/main.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:demo": "node scripts/dev-demo.mjs",
+    "test:demo": "node --test scripts/demo-api.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -110,7 +112,7 @@
       "identity": null,
       "artifactName": "LiveBuddy-mac-${arch}.${ext}",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "음성 인식(STT)을 위해 마이크에 접근합니다."
+        "NSMicrophoneUsageDescription": "\uc74c\uc131 \uc778\uc2dd(STT)\uc744 \uc704\ud574 \ub9c8\uc774\ud06c\uc5d0 \uc811\uadfc\ud569\ub2c8\ub2e4."
       }
     },
     "win": {
